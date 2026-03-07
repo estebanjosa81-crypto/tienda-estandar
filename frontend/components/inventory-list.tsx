@@ -37,6 +37,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import {
   Search,
   Plus,
@@ -717,28 +718,46 @@ function ProductFormDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="imageUrl">URL de Imagen del Producto</Label>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={formData.imageUrl || ''}
-                onChange={(e) => updateField('imageUrl', e.target.value)}
-                placeholder="https://ejemplo.com/imagen-producto.jpg"
-              />
-              {formData.imageUrl && (
-                <div className="mt-2 flex items-center gap-3">
-                  <img
-                    src={formData.imageUrl}
-                    alt="Vista previa"
-                    className="h-16 w-16 object-cover rounded-lg border"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                  <span className="text-xs text-muted-foreground">Vista previa</span>
-                </div>
-              )}
+            {/* ── Galería de imágenes (hasta 4) ───────────────── */}
+            <div className="space-y-3">
+              <Label>Imágenes del Producto (máx. 4)</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                La primera imagen es la principal que se muestra en listas y tienda.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((idx) => {
+                  // Slot 0 = imageUrl (principal), slots 1-3 = images[1..3]
+                  const imagesArr: string[] = Array.isArray(formData.images) ? formData.images : []
+                  const slotValue = idx === 0
+                    ? (formData.imageUrl || imagesArr[0] || '')
+                    : (imagesArr[idx] || '')
+
+                  const handleSlotChange = (url: string) => {
+                    const next = [...Array(4)].map((_, i) => {
+                      if (i === 0) return idx === 0 ? url : (formData.imageUrl || imagesArr[0] || '')
+                      return i === idx ? url : (imagesArr[i] || '')
+                    })
+                    // Trim trailing empty slots
+                    const trimmed = next.map(u => u.trim())
+                    updateField('images', trimmed)
+                    if (idx === 0) updateField('imageUrl', url)
+                  }
+
+                  return (
+                    <div key={idx} className="rounded-lg border border-border p-2 bg-secondary/20">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        {idx === 0 ? 'Imagen principal ★' : `Imagen ${idx + 1}`}
+                      </p>
+                      <CloudinaryUpload
+                        value={slotValue}
+                        onChange={handleSlotChange}
+                        previewClassName="h-20 w-full object-cover rounded border"
+                        accept="image/*,image/gif"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Dynamic type-specific fields */}
@@ -912,6 +931,7 @@ function getInitialFormData(initialData: Product | undefined, categories: Array<
     reorderPoint: 5,
     supplier: '',
     imageUrl: '',
+    images: [] as string[],
     entryDate: new Date().toISOString().split('T')[0],
   }
 }

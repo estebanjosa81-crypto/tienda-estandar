@@ -1,10 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, Bell, ExternalLink, Menu, PackageX, Search, User } from 'lucide-react'
+import { AlertTriangle, Bell, ExternalLink, Menu, PackageX, Search, ShoppingBag, User } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,16 +24,24 @@ const sectionTitles: Record<string, string> = {
   history: 'Historial de Ventas',
   analytics: 'Análisis y Reportes',
   settings: 'Configuración',
+  superadmin: 'Panel Admin',
+  'pagina-principal': 'Página Principal',
 }
 
 export function Header() {
-  const { activeSection, products, toggleSidebar, navigateToInventory } = useStore()
+  const { activeSection, products, toggleSidebar, navigateToInventory, pendingOrdersCount, fetchPendingOrdersCount, navigateToPedidos } = useStore()
   const { logout } = useAuthStore()
   const lowStockProducts = products.filter(p => p.stock <= p.reorderPoint && p.stock > 0).sort((a, b) => a.stock - b.stock)
   const outOfStockProducts = products.filter(p => p.stock === 0)
   const lowStockCount = lowStockProducts.length
   const outOfStockCount = outOfStockProducts.length
-  const alertCount = lowStockCount + outOfStockCount
+  const alertCount = lowStockCount + outOfStockCount + Number(pendingOrdersCount)
+
+  useEffect(() => {
+    fetchPendingOrdersCount()
+    const interval = setInterval(fetchPendingOrdersCount, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchPendingOrdersCount])
   
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:h-16 lg:h-18 sm:px-6 lg:px-8">
@@ -150,6 +159,22 @@ export function Header() {
                   </DropdownMenuItem>
                 )}
               </>
+            )}
+            {pendingOrdersCount > 0 && (lowStockCount > 0 || outOfStockCount > 0) && <DropdownMenuSeparator />}
+            {pendingOrdersCount > 0 && (
+              <DropdownMenuItem
+                className="flex items-center gap-2 py-2 cursor-pointer"
+                onClick={() => navigateToPedidos()}
+              >
+                <ShoppingBag className="h-4 w-4 text-blue-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-blue-500">
+                    Pedidos Pendientes ({pendingOrdersCount})
+                  </span>
+                  <p className="text-xs text-muted-foreground">Toca para ver los pedidos</p>
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+              </DropdownMenuItem>
             )}
             {alertCount === 0 && (
               <DropdownMenuItem className="py-3 text-sm lg:text-base text-muted-foreground">

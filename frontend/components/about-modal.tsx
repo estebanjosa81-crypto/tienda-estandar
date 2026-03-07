@@ -60,10 +60,10 @@ export function AboutModal() {
               <DialogHeader>
                 <div className="flex items-center gap-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/image/stockproicon.png" alt="StockPro" width={48} height={48} className="rounded-xl ring-1 ring-white/10" />
+                  <img src="/image/lopbukicon.png" alt="Lopbuk" width={48} height={48} className="rounded-xl ring-1 ring-white/10" />
                   <div>
                     <DialogTitle className="text-2xl font-bold text-white tracking-tight">
-                      StockPro
+                      Lopbuk
                     </DialogTitle>
                     <DialogDescription className="text-white/40 text-xs font-medium">
                       Inventory Management — v2.0
@@ -221,7 +221,7 @@ export function AboutModal() {
             {/* ——— FOOTER ——— */}
             <div className="px-7 py-3.5 border-t border-white/[0.06]">
               <p className="text-center text-[10px] text-white/20">
-                <span className="font-medium text-white/30">DAIMUZ</span> · © 2026 StockPro
+                <span className="font-medium text-white/30">DAIMUZ</span> · © 2026 Lopbuk
               </p>
             </div>
           </div>

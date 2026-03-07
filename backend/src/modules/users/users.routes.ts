@@ -31,8 +31,10 @@ router.post(
     body('name').notEmpty().withMessage('El nombre es requerido'),
     body('role')
       .optional()
-      .isIn(['comerciante', 'vendedor'])
+      .isIn(['comerciante', 'vendedor', 'repartidor', 'cliente'])
       .withMessage('Rol invalido'),
+    body('phone').optional().isString().withMessage('Telefono invalido'),
+    body('tenantId').optional({ nullable: true }).isString().withMessage('Tenant ID invalido'),
     validateRequest,
   ],
   usersController.create.bind(usersController)
@@ -44,7 +46,7 @@ router.put(
   [
     param('id').notEmpty().withMessage('ID requerido'),
     body('name').optional().notEmpty().withMessage('El nombre no puede estar vacio'),
-    body('role').optional().isIn(['comerciante', 'vendedor']).withMessage('Rol invalido'),
+    body('role').optional().isIn(['comerciante', 'vendedor', 'repartidor', 'cliente']).withMessage('Rol invalido'),
     body('avatar').optional().isURL().withMessage('URL de avatar invalida'),
     validateRequest,
   ],

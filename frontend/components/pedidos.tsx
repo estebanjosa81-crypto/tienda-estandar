@@ -62,6 +62,11 @@ interface Order {
   createdAt: string
   updatedAt: string
   items: OrderItem[]
+  deliveryDriverId?: string | null
+  deliveryStatus?: string | null
+  deliveryLatitude?: number | null
+  deliveryLongitude?: number | null
+  driverName?: string | null
 }
 
 interface OrderStats {
@@ -96,6 +101,45 @@ export function Pedidos() {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [drivers, setDrivers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null)
+
+  // Fetch drivers list
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const result = await api.getDriversList()
+        if (result.success && result.data) {
+          setDrivers(result.data)
+        }
+      } catch (e) {
+        console.error('Error fetching drivers:', e)
+      }
+    }
+    fetchDrivers()
+  }, [])
+
+  const assignDriverToOrder = async (orderId: string, driverId: string) => {
+    setAssigningOrderId(orderId)
+    try {
+      const result = await api.assignDriver(orderId, driverId)
+      if (result.success) {
+        const driver = drivers.find(d => d.id === driverId)
+        setOrders(prev =>
+          prev.map(o => o.id === orderId ? {
+            ...o,
+            deliveryDriverId: driverId,
+            deliveryStatus: 'asignado',
+            driverName: driver?.name || null,
+          } : o)
+        )
+      }
+    } catch (e) {
+      console.error('Error assigning driver:', e)
+    } finally {
+      setAssigningOrderId(null)
+    }
+  }
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
@@ -390,6 +434,18 @@ export function Pedidos() {
                         <StatusIcon className="h-3 w-3" />
                         {statusConfig?.label}
                       </span>
+                      {order.deliveryStatus && order.deliveryStatus !== 'sin_asignar' && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          order.deliveryStatus === 'entregado' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                          order.deliveryStatus === 'en_camino' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                          order.deliveryStatus === 'recogido' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                          'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                        }`}>
+                          <Truck className="h-3 w-3" />
+                          {order.deliveryStatus === 'asignado' ? 'Asignado' : order.deliveryStatus === 'recogido' ? 'Recogido' : order.deliveryStatus === 'en_camino' ? 'En camino' : 'Entregado'}
+                          {order.driverName && ` — ${order.driverName}`}
+                        </span>
+                      )}
                       {order.status === 'entregado' && order.paymentMethod?.startsWith('Factura:') && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                           <Receipt className="h-3 w-3" />
@@ -455,10 +511,59 @@ export function Pedidos() {
                             )}
                             {order.address && <p>{order.address}</p>}
                             {order.neighborhood && <p>Barrio: {order.neighborhood}</p>}
+                            {order.deliveryLatitude && order.deliveryLongitude && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${order.deliveryLatitude},${order.deliveryLongitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-500 mt-1"
+                              >
+                                <MapPin className="h-3 w-3" /> Ver en Google Maps
+                              </a>
+                            )}
                           </div>
                         </div>
                       )}
                     </div>
+
+                    {/* Driver Assignment */}
+                    {order.status !== 'cancelado' && order.status !== 'entregado' && drivers.length > 0 && (
+                      <div className="rounded-lg border p-3 bg-muted/20">
+                        <h4 className="text-sm font-semibold flex items-center gap-1 mb-2">
+                          <Truck className="h-4 w-4" /> Repartidor
+                        </h4>
+                        {order.deliveryDriverId && order.driverName ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">{order.driverName}</span>
+                            <select
+                              className="text-xs border rounded px-2 py-1 bg-background"
+                              value={order.deliveryDriverId}
+                              onChange={e => assignDriverToOrder(order.id, e.target.value)}
+                              disabled={assigningOrderId === order.id}
+                            >
+                              {drivers.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              className="text-sm border rounded px-2 py-1.5 bg-background flex-1"
+                              defaultValue=""
+                              onChange={e => { if (e.target.value) assignDriverToOrder(order.id, e.target.value) }}
+                              disabled={assigningOrderId === order.id}
+                            >
+                              <option value="" disabled>Asignar repartidor...</option>
+                              {drivers.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                            {assigningOrderId === order.id && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Order Items */}
                     <div>

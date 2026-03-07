@@ -20,9 +20,18 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+  },
+
   cors: {
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
       : ['http://localhost:3000', 'http://localhost:3003'],
+  },
+
+  mp: {
+    accessToken: process.env.MP_ACCESS_TOKEN || '',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
 };

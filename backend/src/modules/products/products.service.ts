@@ -23,6 +23,7 @@ interface ProductRow extends RowDataPacket {
   supplier_id: string | null;
   entry_date: Date;
   image_url: string | null;
+  image_urls: string | null;
   location_in_store: string | null;
   notes: string | null;
   tags: string | null;
@@ -124,6 +125,7 @@ const fieldMap: Record<string, string> = {
   supplierId: 'supplier_id',
   entryDate: 'entry_date',
   imageUrl: 'image_url',
+  images: 'image_urls',
   locationInStore: 'location_in_store',
   notes: 'notes',
   tags: 'tags',
@@ -189,6 +191,7 @@ interface RecipeRow extends RowDataPacket {
   ingredient_id: string;
   quantity: number;
   ingredient_stock: number;
+  ingredient_purchase_price: number;
 }
 
 export class ProductsService {
@@ -196,7 +199,7 @@ export class ProductsService {
     let recipes: RecipeRow[];
     try {
       const [rows] = await db.execute<RecipeRow[]>(
-        `SELECT pr.product_id, pr.ingredient_id, pr.quantity, p.stock as ingredient_stock
+        `SELECT pr.product_id, pr.ingredient_id, pr.quantity, p.stock as ingredient_stock, p.purchase_price as ingredient_purchase_price
          FROM product_recipes pr
          JOIN products p ON p.id = pr.ingredient_id
          WHERE pr.tenant_id = ?`,
@@ -210,12 +213,13 @@ export class ProductsService {
 
     if (recipes.length === 0) return products;
 
-    const recipeMap = new Map<string, Array<{ ingredientStock: number; quantity: number }>>();
+    const recipeMap = new Map<string, Array<{ ingredientStock: number; quantity: number; ingredientPurchasePrice: number }>>();
     for (const r of recipes) {
       if (!recipeMap.has(r.product_id)) recipeMap.set(r.product_id, []);
       recipeMap.get(r.product_id)!.push({
         ingredientStock: r.ingredient_stock,
         quantity: Number(r.quantity),
+        ingredientPurchasePrice: Number(r.ingredient_purchase_price),
       });
     }
 
@@ -225,7 +229,8 @@ export class ProductsService {
         const availableStock = Math.floor(
           Math.min(...recipe.map(i => i.ingredientStock / i.quantity))
         );
-        return { ...p, stock: availableStock, isComposite: true };
+        const bomCost = recipe.reduce((sum, i) => sum + i.ingredientPurchasePrice * i.quantity, 0);
+        return { ...p, stock: availableStock, isComposite: true, bomCost };
       }
       return p;
     });
@@ -250,6 +255,7 @@ export class ProductsService {
       supplierId: row.supplier_id || undefined,
       entryDate: row.entry_date,
       imageUrl: row.image_url || undefined,
+      images: row.image_urls ? (typeof row.image_urls === 'string' ? JSON.parse(row.image_urls) : row.image_urls) : undefined,
       locationInStore: row.location_in_store || undefined,
       notes: row.notes || undefined,
       tags: row.tags ? (typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags) : undefined,
@@ -488,7 +494,7 @@ export class ProductsService {
       if (!dbCol) continue;
       columns.push(dbCol);
       placeholders.push('?');
-      if (camelKey === 'tags' && Array.isArray(value)) {
+      if ((camelKey === 'tags' || camelKey === 'images') && Array.isArray(value)) {
         insertValues.push(JSON.stringify(value));
       } else if (camelKey === 'expiryDate' || camelKey === 'entryDate') {
         // Ensure date-only format for DATE columns
@@ -548,7 +554,7 @@ export class ProductsService {
     for (const [key, value] of Object.entries(data)) {
       if (value === undefined || !fieldMap[key]) continue;
       updates.push(`${fieldMap[key]} = ?`);
-      if (key === 'tags' && Array.isArray(value)) {
+      if ((key === 'tags' || key === 'images') && Array.isArray(value)) {
         values.push(JSON.stringify(value));
       } else if (key === 'expiryDate' || key === 'entryDate') {
         values.push(formatToDate(value));

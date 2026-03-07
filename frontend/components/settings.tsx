@@ -35,7 +35,11 @@ import {
   Key,
   Loader2,
   Sun,
-  Moon
+  Moon,
+  Plug,
+  Eye,
+  EyeOff,
+  ExternalLink,
 } from 'lucide-react'
 
 export function Settings() {
@@ -47,6 +51,46 @@ export function Settings() {
 
   useEffect(() => { setMounted(true) }, [])
   const [showResetDialog, setShowResetDialog] = useState(false)
+
+  // ── Cloudinary integration state ──────────────────────────────────────────
+  const [cloudinaryForm, setCloudinaryForm] = useState({
+    cloudName: '',
+    uploadPreset: '',
+  })
+  const [showPreset, setShowPreset] = useState(false)
+
+  const [cloudinaryMsg, setCloudinaryMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false)
+
+  // Cargar credenciales guardadas (solo localStorage — son claves del lado cliente)
+  useEffect(() => {
+    if (cloudinaryLoaded) return
+    setCloudinaryLoaded(true)
+    setCloudinaryForm({
+      cloudName: localStorage.getItem('cloudinary_cloud_name') || '',
+      uploadPreset: localStorage.getItem('cloudinary_upload_preset') || '',
+    })
+  }, [cloudinaryLoaded])
+
+  const handleSaveCloudinary = () => {
+    if (!cloudinaryForm.cloudName.trim() || !cloudinaryForm.uploadPreset.trim()) {
+      setCloudinaryMsg({ type: 'error', text: 'Completa ambos campos' })
+      return
+    }
+    localStorage.setItem('cloudinary_cloud_name', cloudinaryForm.cloudName.trim())
+    localStorage.setItem('cloudinary_upload_preset', cloudinaryForm.uploadPreset.trim())
+    setCloudinaryMsg({ type: 'ok', text: 'Credenciales guardadas correctamente' })
+    setTimeout(() => setCloudinaryMsg(null), 4000)
+  }
+
+  const handleClearCloudinary = () => {
+    localStorage.removeItem('cloudinary_cloud_name')
+    localStorage.removeItem('cloudinary_upload_preset')
+    setCloudinaryForm({ cloudName: '', uploadPreset: '' })
+    setCloudinaryMsg({ type: 'ok', text: 'Credenciales eliminadas' })
+    setTimeout(() => setCloudinaryMsg(null), 3000)
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [storeForm, setStoreForm] = useState({
     name: storeInfo.name,
@@ -164,14 +208,14 @@ export function Settings() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `stockpro-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `lopbuk-backup-${new Date().toISOString().split('T')[0]}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
 
   const handleResetData = () => {
-    localStorage.removeItem('stockpro-storage')
-    localStorage.removeItem('stockpro-auth')
+    localStorage.removeItem('lopbuk-storage')
+    localStorage.removeItem('lopbuk-auth')
     window.location.reload()
   }
 
@@ -202,6 +246,12 @@ export function Settings() {
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" />
               Usuarios
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="integrations" className="gap-2">
+              <Plug className="h-4 w-4" />
+              Integraciones
             </TabsTrigger>
           )}
         </TabsList>
@@ -555,6 +605,122 @@ export function Settings() {
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
+
+        {/* ── Integraciones (Admin Only) ──────────────────────────────── */}
+        {isAdmin && (
+          <TabsContent value="integrations">
+            <div className="space-y-6">
+              {/* Cloudinary Card */}
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plug className="h-5 w-5 text-primary" />
+                    Cloudinary — Subida de Imágenes
+                  </CardTitle>
+                  <CardDescription>
+                    Configura tu cuenta de Cloudinary para subir imágenes directamente desde la plataforma
+                    (banners, logos, categorías y productos).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {/* How-to banner */}
+                  <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-4 text-sm space-y-1">
+                    <p className="font-medium text-blue-600 dark:text-blue-400">¿Cómo obtener las credenciales?</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
+                      <li>Crea una cuenta gratuita en{' '}
+                        <a
+                          href="https://cloudinary.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline text-blue-500 inline-flex items-center gap-0.5"
+                        >
+                          cloudinary.com <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </li>
+                      <li>En el Dashboard copia tu <strong>Cloud Name</strong></li>
+                      <li>Ve a <strong>Settings → Upload → Upload presets</strong></li>
+                      <li>Crea un preset con <strong>Signing Mode: Unsigned</strong></li>
+                      <li>Copia el nombre del preset y pégalo abajo</li>
+                    </ol>
+                  </div>
+
+                  {/* Feedback */}
+                  {cloudinaryMsg && (
+                    <div className={`rounded-lg p-3 text-sm ${cloudinaryMsg.type === 'ok' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-destructive/10 text-destructive'}`}>
+                      {cloudinaryMsg.text}
+                    </div>
+                  )}
+
+                  {/* Cloud Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="cloudName">Cloud Name</Label>
+                    <Input
+                      id="cloudName"
+                      placeholder="ej: dxy123abc"
+                      value={cloudinaryForm.cloudName}
+                      onChange={e => setCloudinaryForm(prev => ({ ...prev, cloudName: e.target.value }))}
+                      className="bg-secondary border-none font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Lo encuentras en la página principal de tu dashboard de Cloudinary.
+                    </p>
+                  </div>
+
+                  {/* Upload Preset */}
+                  <div className="space-y-2">
+                    <Label htmlFor="uploadPreset">Upload Preset (Unsigned)</Label>
+                    <div className="relative">
+                      <Input
+                        id="uploadPreset"
+                        type={showPreset ? 'text' : 'password'}
+                        placeholder="ej: perfumeria_uploads"
+                        value={cloudinaryForm.uploadPreset}
+                        onChange={e => setCloudinaryForm(prev => ({ ...prev, uploadPreset: e.target.value }))}
+                        className="bg-secondary border-none font-mono pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPreset(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPreset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      El nombre del preset <strong>Unsigned</strong> creado en Settings → Upload de Cloudinary.
+                    </p>
+                  </div>
+
+                  {/* Estado actual */}
+                  <div className="rounded-lg bg-secondary/50 p-3 flex items-center gap-3 text-sm">
+                    <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${cloudinaryForm.cloudName && cloudinaryForm.uploadPreset ? 'bg-green-500' : 'bg-amber-400'}`} />
+                    <span className="text-muted-foreground">
+                      {cloudinaryForm.cloudName && cloudinaryForm.uploadPreset
+                        ? `Configurado — Cloud: ${cloudinaryForm.cloudName}`
+                        : 'Sin configurar — las imágenes se gestionan por URL manual'}
+                    </span>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveCloudinary} className="gap-2">
+                      {cloudinaryMsg?.type === 'ok'
+                        ? <Check className="h-4 w-4" />
+                        : <Save className="h-4 w-4" />}
+                      Guardar Credenciales
+                    </Button>
+                    {(cloudinaryForm.cloudName || cloudinaryForm.uploadPreset) && (
+                      <Button variant="outline" onClick={handleClearCloudinary} className="gap-2 bg-transparent text-destructive border-destructive/30 hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>

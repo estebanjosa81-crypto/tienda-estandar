@@ -50,6 +50,7 @@ import {
   ChevronDown,
   ChevronUp,
   Coins,
+  Receipt,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Sale } from '@/lib/types'
@@ -80,6 +81,7 @@ export function PointOfSale() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo')
   const [amountPaid, setAmountPaid] = useState('')
   const [globalDiscount, setGlobalDiscount] = useState(0)
+  const [applyIva, setApplyIva] = useState(false)
   const [customer, setCustomer] = useState<Customer>({ name: '', phone: '', email: '' })
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
@@ -150,7 +152,10 @@ export function PointOfSale() {
     }
   }, [denomTotal, showDenomCalc])
 
-  const { subtotal, tax, total } = calculateCartTotals(cart)
+  const cartTotals = calculateCartTotals(cart, applyIva)
+  const subtotal = cartTotals.subtotal
+  const tax = applyIva ? cartTotals.tax : 0
+  const total = applyIva ? cartTotals.total : cartTotals.subtotal
   const finalTotal = total - globalDiscount
   const change = paymentMethod === 'efectivo' ? Math.max(0, parseFloat(amountPaid || '0') - finalTotal) : 0
   
@@ -162,12 +167,18 @@ export function PointOfSale() {
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !selectedCategory || p.category === selectedCategory
+    // Composite products (BOM/formulas) always show even with stock=0 so the seller can see them
+    if (p.isComposite) return matchesSearch && matchesCategory
     return matchesSearch && matchesCategory && p.stock > 0
   })
   
   const handleAddToCart = (productId: string) => {
     const product = products.find(p => p.id === productId)
     if (product) {
+      if (product.isComposite && product.stock <= 0) {
+        toast.error('Sin insumos disponibles para fabricar este producto')
+        return
+      }
       const cartItem = cart.find(item => item.product.id === productId)
       if (cartItem && cartItem.quantity >= product.stock) return
       addToCart(product)
@@ -379,9 +390,21 @@ export function PointOfSale() {
           <table class="totals">
             <tr><td>Subtotal:</td><td class="text-right">$${sale.subtotal.toLocaleString('es-CO')}</td></tr>
             ${sale.discount > 0 ? `<tr><td>Descuento:</td><td class="text-right">-$${sale.discount.toLocaleString('es-CO')}</td></tr>` : ''}
-            <tr><td>IVA (19%):</td><td class="text-right">$${sale.tax.toLocaleString('es-CO')}</td></tr>
+            ${sale.tax > 0
+              ? `<tr><td style="color:#b45309;font-weight:600">IVA (19%) — Fact. Electrónica:</td><td class="text-right" style="color:#b45309;font-weight:600">$${sale.tax.toLocaleString('es-CO')}</td></tr>`
+              : `<tr><td style="color:#16a34a">Sin IVA (venta directa):</td><td class="text-right" style="color:#16a34a">$0</td></tr>`
+            }
             <tr class="total-row"><td>TOTAL:</td><td class="text-right">$${sale.total.toLocaleString('es-CO')}</td></tr>
           </table>
+          ${sale.tax > 0 ? `
+          <div style="margin:15px 0; padding:10px 12px; border:1px dashed #b45309; border-radius:6px; background:#fffbeb; font-size:11px; color:#78350f;">
+            <p style="font-weight:700; margin:0 0 6px 0; font-size:12px;">📋 Datos Contables / Soporte DIAN</p>
+            <p style="margin:2px 0"><strong>NIT Vendedor:</strong> ${storeInfo.taxId}</p>
+            <p style="margin:2px 0"><strong>Base gravable (sin IVA):</strong> $${sale.subtotal.toLocaleString('es-CO')}</p>
+            <p style="margin:2px 0"><strong>IVA 19%:</strong> $${sale.tax.toLocaleString('es-CO')}</p>
+            <p style="margin:2px 0"><strong>Total con IVA:</strong> $${sale.total.toLocaleString('es-CO')}</p>
+            <p style="margin:6px 0 0 0; font-size:10px; color:#92400e;">Factura electrónica solicitada por el cliente. Documento soporte para contabilidad.</p>
+          </div>` : ''}
           <div class="payment-info">
             <h3>Información de Pago</h3>
             <p><strong>Método:</strong> ${paymentLabels[sale.paymentMethod] || sale.paymentMethod}</p>
@@ -418,9 +441,11 @@ export function PointOfSale() {
       items: saleItems,
       paymentMethod,
       amountPaid: paymentMethod === 'fiado' ? 0 : (parseFloat(amountPaid) || finalTotal),
+      globalDiscount: globalDiscount > 0 ? globalDiscount : undefined,
       customerId: selectedCustomer?.id,
       customerName: customer.name || selectedCustomer?.name || undefined,
       customerPhone: customer.phone || selectedCustomer?.phone || undefined,
+      applyTax: applyIva,
     })
 
     setIsProcessing(false)
@@ -430,6 +455,7 @@ export function PointOfSale() {
       setPaymentMethod('efectivo')
       setAmountPaid('')
       setGlobalDiscount(0)
+      setApplyIva(false)
       setCustomer({ name: '', phone: '', email: '' })
       setSelectedCustomer(null)
       setShowDenomCalc(false)
@@ -483,6 +509,7 @@ export function PointOfSale() {
               </Button>
               {categories.filter(cat => cat.id !== 'insumos').map((cat) => {
                 const count = products.filter(p => p.category === cat.id && p.category !== 'insumos' && p.stock > 0).length
+                if (count === 0) return null
                 return (
                   <Button
                     key={cat.id}
@@ -519,12 +546,15 @@ export function PointOfSale() {
               <div className="grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{availableProducts.map((product) => {
                   const inCart = cart.find(item => item.product.id === product.id)
                   const stockPercentage = (product.stock / (product.stock + 10)) * 100
+                  const noInsumos = product.isComposite && product.stock <= 0
                   return (
                     <div
                       key={product.id}
                       onClick={() => handleAddToCart(product.id)}
                       className={`group cursor-pointer rounded-lg border-2 transition-all p-2 sm:p-3 lg:p-4 ${
-                        inCart
+                        noInsumos
+                          ? 'border-border bg-muted/30 opacity-60 cursor-not-allowed'
+                          : inCart
                           ? 'border-primary bg-primary/5 shadow-md'
                           : 'border-border bg-secondary/50 hover:border-primary/50 hover:bg-secondary/80'
                       }`}
@@ -537,9 +567,9 @@ export function PointOfSale() {
                               {product.name}
                             </p>
                             {product.isComposite && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600 flex-shrink-0">
-                                Ref
-                              </Badge>
+                              noInsumos
+                                ? <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-destructive text-destructive flex-shrink-0">Sin insumos</Badge>
+                                : <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600 flex-shrink-0">Ref</Badge>
                             )}
                           </div>
                           {product.brand && (
@@ -599,7 +629,7 @@ export function PointOfSale() {
                       {/* Price and action */}
                       <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t border-border">
                         <span className="text-sm sm:text-lg lg:text-xl font-bold text-primary">
-                          {formatCOP(product.salePrice)}
+                          {formatCOP(product.isComposite && product.bomCost ? product.bomCost : product.salePrice)}
                         </span>
                         <Button
                           size="icon"
@@ -685,27 +715,46 @@ export function PointOfSale() {
                         <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
-                    {item.product.isComposite && (
-                      <div className="flex items-center gap-2 mt-2 rounded bg-blue-50 dark:bg-blue-950/30 px-2 py-1.5">
-                        <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">Monto $</span>
-                        <Input
-                          type="number"
-                          step="1000"
-                          min={Math.round(item.product.salePrice * 1.19)}
-                          value={item.customAmount ?? Math.round(item.product.salePrice * 1.19)}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value)
-                            const minAmount = Math.round(item.product.salePrice * 1.19)
-                            if (!isNaN(val) && val >= minAmount) {
-                              setCustomAmount(item.product.id, val)
-                            } else if (e.target.value === '') {
-                              setCustomAmount(item.product.id, minAmount)
-                            }
-                          }}
-                          className="h-7 flex-1 text-xs"
-                        />
-                      </div>
-                    )}
+                    {item.product.isComposite && (() => {
+                      // Precio base mínimo: el mayor entre salePrice, purchasePrice y bomCost
+                      // customAmount ES SIEMPRE el precio BASE (sin IVA incluido).
+                      // El IVA se suma encima al calcular el total — NO se incluye en el mínimo.
+                      const basePrice = Math.max(item.product.salePrice, item.product.purchasePrice, item.product.bomCost || 0)
+                      // Redondear al próximo múltiplo de 1000 para que las flechas ↑↓ caigan en números exactos
+                      const stepMin = Math.ceil(Math.round(basePrice) / 1000) * 1000
+                      const currentAmount = item.customAmount ? Math.round(item.customAmount) : stepMin
+                      return (
+                        <div className="flex flex-col gap-0.5 mt-2 rounded bg-blue-50 dark:bg-blue-950/30 px-2 py-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">Monto $</span>
+                            <Input
+                              type="number"
+                              step="1000"
+                              min={stepMin}
+                              value={currentAmount}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (!isNaN(val) && val >= stepMin) {
+                                  setCustomAmount(item.product.id, val)
+                                } else if (e.target.value === '') {
+                                  setCustomAmount(item.product.id, stepMin)
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value)
+                                if (isNaN(val) || val < stepMin) {
+                                  setCustomAmount(item.product.id, stepMin)
+                                }
+                              }}
+                              className="h-7 flex-1 text-xs"
+                            />
+                          </div>
+                          <p className="text-[10px] text-blue-500 font-medium text-right pr-1">
+                            {formatCOP(currentAmount)}
+                          </p>
+                        </div>
+                      )
+                    })()}
                     <div className="flex items-center justify-between mt-2 sm:mt-3">
                       <div className="flex items-center gap-1.5 sm:gap-2">
                         <Button
@@ -756,6 +805,26 @@ export function PointOfSale() {
                   />
                 </div>
 
+                {/* IVA Toggle */}
+                <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
+                  <div className="flex items-center gap-2">
+                    <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-xs font-medium">Factura Electrónica</p>
+                      <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant={applyIva ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
+                    onClick={() => setApplyIva(!applyIva)}
+                  >
+                    {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                    {applyIva ? 'Con IVA' : 'Sin IVA'}
+                  </Button>
+                </div>
+
                 {/* Totals */}
                 <div className="space-y-1.5 sm:space-y-2 lg:space-y-3 border-t border-border pt-3 sm:pt-4">
                   <div className="flex justify-between text-xs sm:text-sm lg:text-base">
@@ -763,8 +832,16 @@ export function PointOfSale() {
                     <span className="text-foreground">{formatCOP(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm lg:text-base">
-                    <span className="text-muted-foreground">IVA (19%)</span>
-                    <span className="text-foreground">{formatCOP(tax)}</span>
+                    {applyIva ? (
+                      <span className="text-amber-600 font-medium">IVA (19%)</span>
+                    ) : (
+                      <span className="text-muted-foreground">IVA</span>
+                    )}
+                    {applyIva ? (
+                      <span className="text-amber-600 font-medium">{formatCOP(tax)}</span>
+                    ) : (
+                      <span className="text-green-600 text-xs">Sin IVA</span>
+                    )}
                   </div>
                   {globalDiscount > 0 && (
                     <div className="flex justify-between text-xs sm:text-sm lg:text-base">
@@ -906,6 +983,26 @@ export function PointOfSale() {
 
           {cart.length > 0 && (
             <div className="border-t p-4 space-y-3 bg-card">
+              {/* IVA Toggle Mobile */}
+              <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
+                <div className="flex items-center gap-2">
+                  <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
+                  <div>
+                    <p className="text-xs font-medium">Factura Electrónica</p>
+                    <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+                  </div>
+                </div>
+                <Button
+                  variant={applyIva ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
+                  onClick={() => setApplyIva(!applyIva)}
+                >
+                  {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                  {applyIva ? 'Con IVA' : 'Sin IVA'}
+                </Button>
+              </div>
+
               {/* Totals */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
@@ -913,8 +1010,16 @@ export function PointOfSale() {
                   <span className="text-foreground">{formatCOP(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">IVA (19%)</span>
-                  <span className="text-foreground">{formatCOP(tax)}</span>
+                  {applyIva ? (
+                    <span className="text-amber-600 font-medium">IVA (19%)</span>
+                  ) : (
+                    <span className="text-muted-foreground">IVA</span>
+                  )}
+                  {applyIva ? (
+                    <span className="text-amber-600 font-medium">{formatCOP(tax)}</span>
+                  ) : (
+                    <span className="text-green-600 text-xs">Sin IVA</span>
+                  )}
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span className="text-foreground">Total</span>
@@ -1153,21 +1258,27 @@ export function PointOfSale() {
                 )}
 
                 {/* Manual amount input */}
-                <Input
-                  type="number"
-                  min={finalTotal}
-                  step="0.01"
-                  value={amountPaid}
-                  onChange={(e) => {
-                    setAmountPaid(e.target.value)
-                    // If manually typing, hide calculator to avoid conflicts
-                    if (showDenomCalc && denomTotal > 0 && e.target.value !== denomTotal.toString()) {
-                      // Allow manual override
-                    }
-                  }}
-                  className="text-lg font-semibold"
-                  placeholder="Ingrese monto recibido"
-                />
+                <div className="space-y-1">
+                  <Input
+                    type="number"
+                    min={finalTotal}
+                    step="1000"
+                    value={amountPaid}
+                    onChange={(e) => {
+                      setAmountPaid(e.target.value)
+                      if (showDenomCalc && denomTotal > 0 && e.target.value !== denomTotal.toString()) {
+                        // Allow manual override
+                      }
+                    }}
+                    className="text-lg font-semibold"
+                    placeholder="Ingrese monto recibido"
+                  />
+                  {amountPaid && parseFloat(amountPaid) > 0 && (
+                    <p className="text-xs text-muted-foreground text-right">
+                      {formatCOP(parseFloat(amountPaid))}
+                    </p>
+                  )}
+                </div>
 
                 {/* Quick amount buttons */}
                 {!showDenomCalc && (
@@ -1353,10 +1464,17 @@ export function PointOfSale() {
                       <span className="text-destructive">-{formatCOP(completedSale.discount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">IVA (19%)</span>
-                    <span className="text-foreground">{formatCOP(completedSale.tax)}</span>
-                  </div>
+                  {completedSale.tax > 0 ? (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-amber-600 font-medium">IVA (19%) — Factura Electrónica</span>
+                      <span className="text-amber-600 font-medium">{formatCOP(completedSale.tax)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">IVA</span>
+                      <span className="text-green-600 text-xs">Sin IVA (venta directa)</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-base font-bold border-t border-border pt-2">
                     <span className="text-foreground">TOTAL</span>
                     <span className="text-primary">{formatCOP(completedSale.total)}</span>
@@ -1379,6 +1497,25 @@ export function PointOfSale() {
                   </p>
                 )}
               </div>
+
+              {/* Datos contables DIAN (solo cuando aplica IVA) */}
+              {completedSale.tax > 0 && (
+                <div className="rounded-lg border border-dashed border-amber-400 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                    <Receipt className="h-3.5 w-3.5" />
+                    Datos para Contador / Soporte DIAN
+                  </p>
+                  <div className="text-xs text-amber-800 dark:text-amber-300 space-y-0.5">
+                    <p><span className="font-medium">NIT vendedor:</span> {storeInfo.taxId}</p>
+                    <p><span className="font-medium">Base gravable (sin IVA):</span> {formatCOP(completedSale.subtotal)}</p>
+                    <p><span className="font-medium">IVA 19%:</span> {formatCOP(completedSale.tax)}</p>
+                    <p><span className="font-medium">Total con IVA:</span> {formatCOP(completedSale.total)}</p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                      * Factura electrónica solicitada por el cliente. Documento soporte para contabilidad.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Footer */}
               <div className="text-center border-t border-dashed border-border pt-3 space-y-1">

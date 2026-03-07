@@ -75,6 +75,7 @@ export interface CreateSaleData {
   items: CreateSaleItem[];
   paymentMethod: PaymentMethod;
   amountPaid: number;
+  globalDiscount?: number;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -83,6 +84,7 @@ export interface CreateSaleData {
   sellerName: string;
   creditDays?: number;
   notes?: string;
+  applyTax?: boolean; // true = aplica IVA 19% (factura electrónica solicitada)
 }
 
 export class SalesService {
@@ -128,6 +130,12 @@ export class SalesService {
   }
 
   private async generateInvoiceNumber(connection: PoolConnection, tenantId: string): Promise<string> {
+    // Auto-create the sequence row if it doesn't exist for this tenant
+    await connection.execute(
+      'INSERT IGNORE INTO invoice_sequence (tenant_id, prefix, current_number) VALUES (?, ?, 0)',
+      [tenantId, 'FAC']
+    );
+
     const [rows] = await connection.execute<InvoiceRow[]>(
       'SELECT current_number, prefix FROM invoice_sequence WHERE tenant_id = ? FOR UPDATE',
       [tenantId]
@@ -314,22 +322,7 @@ export class SalesService {
         let extraScalableQty = 0;
 
         if (recipeRows.length > 0 && item.customAmount) {
-          // Obtener sale_price para validar monto minimo
-          const [checkPrice] = await connection.execute<RowDataPacket[]>(
-            'SELECT sale_price FROM products WHERE id = ?',
-            [item.productId]
-          );
-          const baseSalePrice = Number(checkPrice[0].sale_price);
-          const minAmount = Math.round(baseSalePrice * (1 + TAX_RATE));
-
-          if (item.customAmount < minAmount) {
-            throw new AppError(
-              `El monto personalizado ($${item.customAmount}) no puede ser menor al precio base ($${minAmount})`,
-              400
-            );
-          }
-
-          // Encontrar ingrediente escalable (el de mayor quantity con quantity > 1)
+          // Encontrar ingrediente escalable (el de mayor qty*precio, con quantity > 1)
           let maxCostValue = 0;
           for (const ing of recipeRows) {
             const qty = Number(ing.quantity);
@@ -344,9 +337,34 @@ export class SalesService {
 
           if (scalableIngredientId) {
             const scalableIng = recipeRows.find(r => r.ingredient_id === scalableIngredientId)!;
-            const customSinIVA = item.customAmount / (1 + TAX_RATE);
-            const extraAmount = customSinIVA - baseSalePrice;
-            extraScalableQty = extraAmount / Number(scalableIng.purchase_price);
+
+            // Fórmula directa (igual al sistema anterior):
+            // gramos_extracto = (monto_cliente - costos_fijos) / precio_por_gramo
+            // costos_fijos = suma de todos los ingredientes NO escalables
+            let nonScalableCost = 0;
+            for (const ing of recipeRows) {
+              if (ing.ingredient_id !== scalableIngredientId) {
+                nonScalableCost += Number(ing.quantity) * Number(ing.purchase_price);
+              }
+            }
+
+            // customAmount SIEMPRE es el precio base (sin IVA). El IVA se suma encima.
+            const effectiveAmount = item.customAmount;
+
+            // Total de ingrediente escalable según lo que paga el cliente
+            const totalScalableQty = (effectiveAmount - nonScalableCost) / Number(scalableIng.purchase_price);
+            // Extra = total calculado menos la cantidad base de la receta
+            extraScalableQty = totalScalableQty - Number(scalableIng.quantity);
+
+            // Validar monto mínimo: customAmount es siempre base, comparar contra costo base
+            const minAmount = Math.round(nonScalableCost + Number(scalableIng.purchase_price));
+
+            if (item.customAmount < minAmount) {
+              throw new AppError(
+                `El monto personalizado ($${item.customAmount}) no alcanza para cubrir los costos mínimos ($${minAmount})`,
+                400
+              );
+            }
           }
         }
 
@@ -385,10 +403,10 @@ export class SalesService {
           [item.productId]
         );
 
-        // Si hay customAmount para BOM, usar ese precio (sin IVA)
+        // customAmount SIEMPRE es el precio base. El IVA se calcula sobre el subtotal total.
         let unitPrice: number;
         if (item.customAmount && recipeRows.length > 0) {
-          unitPrice = Math.round((item.customAmount / (1 + TAX_RATE)) * 100) / 100;
+          unitPrice = item.customAmount;
         } else {
           unitPrice = Number(priceRows[0].sale_price);
         }
@@ -476,8 +494,10 @@ export class SalesService {
         }
       }
 
-      const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-      const total = Math.round((subtotal + tax) * 100) / 100;
+      const tax = data.applyTax ? Math.round(subtotal * TAX_RATE * 100) / 100 : 0;
+      const globalDisc = Math.round((data.globalDiscount || 0) * 100) / 100;
+      const total = Math.round((subtotal + tax - globalDisc) * 100) / 100;
+      totalDiscount += globalDisc;
 
       // Para fiado: amountPaid = 0, change = 0
       let amountPaid = data.amountPaid;
@@ -538,7 +558,7 @@ export class SalesService {
           cashSessionId,
           creditStatus,
           dueDate,
-          data.notes || null,
+          data.applyTax ? (data.notes ? `FACTURA_ELECTRONICA | ${data.notes}` : 'FACTURA_ELECTRONICA') : (data.notes || null),
         ]
       );
 

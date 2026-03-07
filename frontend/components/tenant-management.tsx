@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import type { Tenant, TenantPlan, TenantStatus } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
@@ -54,6 +54,15 @@ import {
   User,
   Lock,
   Globe,
+  Truck,
+  Phone,
+  UserPlus,
+  Palette,
+  X,
+  Sparkles,
+  CreditCard,
+  ShieldCheck,
+  EyeOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -106,11 +115,89 @@ export function TenantManagement() {
     plan: 'basico' as TenantPlan,
     maxUsers: 5,
     maxProducts: 500,
+    bgColor: '#000000',
   })
 
   // Detail dialog
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [detailTenant, setDetailTenant] = useState<TenantDetail | null>(null)
+
+  // Create user dialog
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [createUserForm, setCreateUserForm] = useState({
+    tenantId: '',
+    role: 'repartidor' as 'repartidor' | 'cliente',
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    isGlobal: false,
+  })
+
+  // Platform settings
+  const [platformBgColor, setPlatformBgColor] = useState('#000000')
+  const [isSavingPlatformBg, setIsSavingPlatformBg] = useState(false)
+
+  // MercadoPago settings
+  const [mpAccessToken, setMpAccessToken] = useState('')
+  const [mpFrontendUrl, setMpFrontendUrl] = useState('')
+  const [mpTokenSaved, setMpTokenSaved] = useState(false)
+  const [showMpToken, setShowMpToken] = useState(false)
+  const [isSavingMP, setIsSavingMP] = useState(false)
+
+  // Users list
+  const [users, setUsers] = useState<any[]>([])
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all')
+  const [usersPage, setUsersPage] = useState(1)
+  const [usersTotalPages, setUsersTotalPages] = useState(1)
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [deleteUserName, setDeleteUserName] = useState('')
+  const [isResetPassOpen, setIsResetPassOpen] = useState(false)
+  const [resetPassUserId, setResetPassUserId] = useState<string | null>(null)
+  const [resetPassUserName, setResetPassUserName] = useState('')
+  const [resetPassValue, setResetPassValue] = useState('')
+  const [isSavingPass, setIsSavingPass] = useState(false)
+
+  // Global product search
+  const [productSearchQuery, setProductSearchQuery] = useState('')
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([])
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false)
+  const [showProductSearch, setShowProductSearch] = useState(false)
+  const productSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+
+  const handleProductSearch = (query: string) => {
+    setProductSearchQuery(query)
+    if (!query.trim()) {
+      setProductSearchResults([])
+      return
+    }
+    if (productSearchTimeoutRef.current) clearTimeout(productSearchTimeoutRef.current)
+    productSearchTimeoutRef.current = setTimeout(async () => {
+      setIsSearchingProducts(true)
+      try {
+        const res = await fetch(`${API_URL}/storefront/products?limit=50&store=all`)
+        const json = await res.json()
+        if (json.success && json.data?.products) {
+          const filtered = json.data.products.filter((p: any) =>
+            p.name.toLowerCase().includes(query.toLowerCase()) ||
+            p.brand?.toLowerCase().includes(query.toLowerCase()) ||
+            p.category?.toLowerCase().includes(query.toLowerCase())
+          )
+          setProductSearchResults(filtered)
+        }
+      } catch (e) {
+        console.error('Error searching products:', e)
+      } finally {
+        setIsSearchingProducts(false)
+      }
+    }, 300)
+  }
 
   const fetchTenants = useCallback(async () => {
     setIsLoading(true)
@@ -129,10 +216,64 @@ export function TenantManagement() {
     }
   }, [])
 
+  const fetchUsers = useCallback(async () => {
+    setIsLoadingUsers(true)
+    const result = await api.getUsers({ page: usersPage, limit: 30 })
+    if (result.success && result.data) {
+      setUsers(Array.isArray(result.data) ? result.data : result.data.users || [])
+      if (result.data.pagination?.totalPages) setUsersTotalPages(result.data.pagination.totalPages)
+    }
+    setIsLoadingUsers(false)
+  }, [usersPage])
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return
+    setIsDeletingUser(true)
+    const result = await api.deleteUser(deleteUserId)
+    if (result.success) {
+      toast.success('Usuario eliminado')
+      setDeleteUserId(null)
+      fetchUsers()
+      fetchStats()
+    } else {
+      toast.error(result.error || 'Error al eliminar usuario')
+    }
+    setIsDeletingUser(false)
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPassUserId || resetPassValue.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    setIsSavingPass(true)
+    const result = await api.resetUserPassword(resetPassUserId, resetPassValue)
+    if (result.success) {
+      toast.success('Contraseña actualizada')
+      setIsResetPassOpen(false)
+      setResetPassValue('')
+      setResetPassUserId(null)
+    } else {
+      toast.error(result.error || 'Error al actualizar contraseña')
+    }
+    setIsSavingPass(false)
+  }
+
+  const fetchPlatformSettings = useCallback(async () => {
+    const result = await api.getPlatformSettings()
+    if (result.success && result.data) {
+      if (result.data.bg_color) setPlatformBgColor(result.data.bg_color)
+      if (result.data.mp_access_token) { setMpAccessToken(result.data.mp_access_token); setMpTokenSaved(true) }
+      if (result.data.frontend_url) setMpFrontendUrl(result.data.frontend_url)
+    }
+  }, [])
+
   useEffect(() => {
     fetchTenants()
     fetchStats()
-  }, [fetchTenants, fetchStats])
+    fetchPlatformSettings()
+    fetchUsers()
+  }, [fetchTenants, fetchStats, fetchPlatformSettings, fetchUsers])
 
   const generateSlug = (name: string) => {
     return name
@@ -192,6 +333,7 @@ export function TenantManagement() {
       plan: editForm.plan,
       maxUsers: editForm.maxUsers,
       maxProducts: editForm.maxProducts,
+      bgColor: editForm.bgColor,
     })
     if (result.success) {
       toast.success('Comercio actualizado')
@@ -215,6 +357,79 @@ export function TenantManagement() {
     }
   }
 
+  const handleSavePlatformBgColor = async () => {
+    setIsSavingPlatformBg(true)
+    const result = await api.updatePlatformSetting('bg_color', platformBgColor)
+    if (result.success) {
+      toast.success('Color de fondo de la plataforma actualizado')
+    } else {
+      toast.error(result.error || 'Error al actualizar color')
+    }
+    setIsSavingPlatformBg(false)
+  }
+
+  const handleSaveMPSettings = async () => {
+    if (!mpAccessToken.trim()) {
+      toast.error('Ingresa el Access Token de MercadoPago')
+      return
+    }
+    setIsSavingMP(true)
+    try {
+      const updates = [api.updatePlatformSetting('mp_access_token', mpAccessToken.trim())]
+      if (mpFrontendUrl.trim()) updates.push(api.updatePlatformSetting('frontend_url', mpFrontendUrl.trim()))
+      const results = await Promise.all(updates)
+      if (results.every(r => r.success)) {
+        setMpTokenSaved(true)
+        toast.success('Configuración de MercadoPago guardada')
+      } else {
+        toast.error('Error al guardar la configuración')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    }
+    setIsSavingMP(false)
+  }
+
+  const handleCreateUser = async () => {
+    const requireTenant = !(createUserForm.isGlobal && createUserForm.role === 'repartidor')
+    if (requireTenant && !createUserForm.tenantId) {
+      toast.error('Selecciona un comercio')
+      return
+    }
+    if (!createUserForm.name || !createUserForm.email || !createUserForm.password) {
+      toast.error('Complete todos los campos requeridos')
+      return
+    }
+    if (!createUserForm.phone) {
+      toast.error('El teléfono es requerido')
+      return
+    }
+    if (createUserForm.password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+
+    setIsCreatingUser(true)
+    const result = await api.createUser({
+      email: createUserForm.email,
+      password: createUserForm.password,
+      name: createUserForm.name,
+      role: createUserForm.role,
+      phone: createUserForm.phone,
+      tenantId: createUserForm.isGlobal && createUserForm.role === 'repartidor' ? null : createUserForm.tenantId,
+    })
+
+    if (result.success) {
+      toast.success(`${createUserForm.role === 'repartidor' ? 'Repartidor' : 'Cliente'} creado exitosamente`)
+      setIsCreateUserOpen(false)
+      setCreateUserForm({ tenantId: '', role: 'repartidor', name: '', email: '', phone: '', password: '', isGlobal: false })
+      fetchStats()
+    } else {
+      toast.error(result.error || 'Error al crear usuario')
+    }
+    setIsCreatingUser(false)
+  }
+
   const openEdit = (tenant: TenantDetail) => {
     setEditingTenant(tenant)
     setEditForm({
@@ -223,6 +438,7 @@ export function TenantManagement() {
       plan: tenant.plan,
       maxUsers: tenant.maxUsers,
       maxProducts: tenant.maxProducts,
+      bgColor: (tenant as any).bgColor || '#000000',
     })
     setIsEditOpen(true)
   }
@@ -263,9 +479,17 @@ export function TenantManagement() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowProductSearch(!showProductSearch)} className="gap-1" title="Buscar productos en tiendas">
+            <Search className="h-4 w-4" />
+            Buscar Productos
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { fetchTenants(); fetchStats() }} className="gap-1">
             <RefreshCw className="h-4 w-4" />
             Actualizar
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setIsCreateUserOpen(true)} className="gap-1">
+            <UserPlus className="h-4 w-4" />
+            Nuevo Usuario
           </Button>
           <Button size="sm" onClick={() => setIsCreateOpen(true)} className="gap-1">
             <Plus className="h-4 w-4" />
@@ -286,6 +510,203 @@ export function TenantManagement() {
           <StatCard title="Ingresos" value={formatCOP(stats.totalRevenue || 0)} icon={<TrendingUp className="h-5 w-5 text-green-500" />} isText />
         </div>
       )}
+
+      {/* Global Product Search */}
+      {showProductSearch && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <Search className="h-5 w-5 text-muted-foreground" />
+                Buscar Productos en Tiendas
+              </CardTitle>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShowProductSearch(false); setProductSearchQuery(''); setProductSearchResults([]) }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription>Busca cualquier producto publicado en todas las tiendas</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, marca o categoría..."
+                value={productSearchQuery}
+                onChange={(e) => handleProductSearch(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+
+            {isSearchingProducts && (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-sm text-muted-foreground">Buscando...</span>
+              </div>
+            )}
+
+            {!isSearchingProducts && productSearchQuery && productSearchResults.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No se encontraron productos para &quot;{productSearchQuery}&quot;</p>
+              </div>
+            )}
+
+            {productSearchResults.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">{productSearchResults.length} producto{productSearchResults.length !== 1 ? 's' : ''} encontrado{productSearchResults.length !== 1 ? 's' : ''}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto">
+                  {productSearchResults.map((product: any) => (
+                    <div key={product.id} className="flex gap-3 p-3 border border-border rounded-lg bg-background hover:bg-accent/50 transition-colors">
+                      <div className="w-16 h-16 shrink-0 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                        {product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={product.imageUrl.startsWith('http') ? product.imageUrl : `${API_URL.replace('/api', '')}${product.imageUrl}`} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Sparkles className="h-5 w-5 text-muted-foreground/30" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{product.brand || product.category || ''}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {product.isOnOffer && product.offerPrice ? (
+                            <>
+                              <span className="text-sm font-semibold text-orange-500">{formatCOP(product.offerPrice)}</span>
+                              <span className="text-xs text-muted-foreground line-through">{formatCOP(product.salePrice)}</span>
+                            </>
+                          ) : (
+                            <span className="text-sm font-semibold text-foreground">{formatCOP(product.salePrice)}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Stock: {product.stock}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Platform Customization */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Palette className="h-5 w-5 text-muted-foreground" />
+            Personalización de Plataforma
+          </CardTitle>
+          <CardDescription>Color de fondo general de la página pública</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="space-y-2">
+              <Label>Color de fondo general</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={platformBgColor}
+                  onChange={(e) => setPlatformBgColor(e.target.value)}
+                  className="w-10 h-10 rounded cursor-pointer border border-border"
+                />
+                <Input
+                  value={platformBgColor}
+                  onChange={(e) => setPlatformBgColor(e.target.value)}
+                  className="w-28 font-mono text-sm"
+                  maxLength={7}
+                />
+                <div
+                  className="w-24 h-10 rounded border border-border"
+                  style={{ backgroundColor: platformBgColor }}
+                />
+                <Button size="sm" onClick={handleSavePlatformBgColor} disabled={isSavingPlatformBg}>
+                  {isSavingPlatformBg ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* MercadoPago Settings */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-blue-500" />
+            Pagos en Línea — MercadoPago Checkout Pro
+          </CardTitle>
+          <CardDescription>
+            Conecta tu cuenta de MercadoPago para recibir pagos online con 10% de descuento al comprador.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Token status banner */}
+          {mpTokenSaved ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-green-50 border border-green-200 text-green-700 text-sm">
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              Access Token configurado y activo. El botón "Pagar con Mercado Pago" ya es funcional.
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              Sin configurar — el botón de pago en línea no aparecerá a los clientes.
+            </div>
+          )}
+
+          {/* Access Token */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              Access Token
+              <span className="text-[10px] text-muted-foreground font-normal">(desde tu cuenta Mercado Pago → Tus integraciones → Credenciales)</span>
+            </Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showMpToken ? 'text' : 'password'}
+                  value={mpAccessToken}
+                  onChange={(e) => { setMpAccessToken(e.target.value); setMpTokenSaved(false) }}
+                  placeholder="APP_USR-xxxxxxxxxxxxxxxx"
+                  className="w-full h-9 px-3 pr-10 border border-input bg-background rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowMpToken(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <EyeOff className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Usa el token de <strong>Producción</strong> para cobros reales, o el de <strong>Pruebas</strong> para sandbox.
+              Obtén el tuyo en{' '}
+              <a href="https://www.mercadopago.com.co/developers/es/docs/checkout-pro/additional-content/your-integrations/credentials" target="_blank" rel="noopener noreferrer" className="underline text-blue-500 hover:text-blue-600">
+                mercadopago.com.co → Credenciales
+              </a>.
+            </p>
+          </div>
+
+          {/* Frontend URL */}
+          <div className="space-y-2">
+            <Label>URL del frontend (para redirección tras el pago)</Label>
+            <Input
+              value={mpFrontendUrl}
+              onChange={(e) => setMpFrontendUrl(e.target.value)}
+              placeholder="https://tu-dominio.com"
+              className="font-mono text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              URL pública de tu tienda. MercadoPago redirige aquí con el resultado del pago.
+            </p>
+          </div>
+
+          <Button onClick={handleSaveMPSettings} disabled={isSavingMP} className="gap-2">
+            <CreditCard className="h-4 w-4" />
+            {isSavingMP ? 'Guardando...' : 'Guardar configuración MP'}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -414,6 +835,143 @@ export function TenantManagement() {
           </Button>
         </div>
       )}
+
+      {/* ===== All Users Section ===== */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-500" />
+                Todos los Usuarios
+              </CardTitle>
+              <CardDescription>Comerciantes, vendedores, repartidores y clientes de la plataforma</CardDescription>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nombre o email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-9 h-9 w-56"
+                />
+              </div>
+              <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                <SelectTrigger className="h-9 w-40">
+                  <SelectValue placeholder="Todos los roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los roles</SelectItem>
+                  <SelectItem value="comerciante">Comerciantes</SelectItem>
+                  <SelectItem value="vendedor">Vendedores</SelectItem>
+                  <SelectItem value="repartidor">Repartidores</SelectItem>
+                  <SelectItem value="cliente">Clientes</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={fetchUsers} className="h-9 gap-1">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          {isLoadingUsers ? (
+            <div className="flex items-center justify-center h-32">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (() => {
+            const roleColors: Record<string, string> = {
+              superadmin: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
+              comerciante: 'bg-purple-500/15 text-purple-500 border-purple-500/30',
+              vendedor: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
+              repartidor: 'bg-green-500/15 text-green-500 border-green-500/30',
+              cliente: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+            }
+            const roleLabels: Record<string, string> = {
+              superadmin: 'Superadmin', comerciante: 'Comerciante',
+              vendedor: 'Vendedor', repartidor: 'Repartidor', cliente: 'Cliente',
+            }
+            const filtered = users.filter(u => {
+              const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter
+              const q = userSearch.toLowerCase()
+              const matchesSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+              return matchesRole && matchesSearch
+            })
+            return filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <User className="h-12 w-12 mb-3 opacity-50" />
+                <p className="font-medium">No se encontraron usuarios</p>
+              </div>
+            ) : (
+              <Table className="min-w-[700px]">
+                <TableHeader>
+                  <TableRow className="border-border">
+                    <TableHead className="text-muted-foreground">Usuario</TableHead>
+                    <TableHead className="text-muted-foreground">Email</TableHead>
+                    <TableHead className="text-muted-foreground text-center">Rol</TableHead>
+                    <TableHead className="text-muted-foreground">Comercio</TableHead>
+                    <TableHead className="text-muted-foreground text-center">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((user) => (
+                    <TableRow key={user.id} className="border-border">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{user.name}</p>
+                            {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className={`text-xs ${roleColors[user.role] || ''}`}>
+                          {roleLabels[user.role] || user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {user.tenantName || (user.tenantId ? user.tenantId.slice(0, 8) + '…' : <span className="italic text-xs">Global</span>)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="Resetear contraseña"
+                            onClick={() => { setResetPassUserId(user.id); setResetPassUserName(user.name); setResetPassValue(''); setIsResetPassOpen(true) }}
+                          >
+                            <Lock className="h-4 w-4" />
+                          </Button>
+                          {user.role !== 'superadmin' && (
+                            <Button
+                              variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive"
+                              title="Eliminar usuario"
+                              onClick={() => { setDeleteUserId(user.id); setDeleteUserName(user.name) }}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )
+          })()}
+        </CardContent>
+        {usersTotalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 p-4 border-t border-border">
+            <Button variant="outline" size="sm" disabled={usersPage <= 1} onClick={() => setUsersPage(p => p - 1)}>Anterior</Button>
+            <span className="text-sm text-muted-foreground">Página {usersPage} de {usersTotalPages}</span>
+            <Button variant="outline" size="sm" disabled={usersPage >= usersTotalPages} onClick={() => setUsersPage(p => p + 1)}>Siguiente</Button>
+          </div>
+        )}
+      </Card>
 
       {/* ===== Create Tenant Dialog ===== */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -646,6 +1204,33 @@ export function TenantManagement() {
                 />
               </div>
             </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <Label className="flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                Color de fondo de la tienda
+              </Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={editForm.bgColor}
+                  onChange={(e) => setEditForm(f => ({ ...f, bgColor: e.target.value }))}
+                  className="w-10 h-10 rounded cursor-pointer border border-border"
+                />
+                <Input
+                  value={editForm.bgColor}
+                  onChange={(e) => setEditForm(f => ({ ...f, bgColor: e.target.value }))}
+                  className="w-28 font-mono text-sm"
+                  maxLength={7}
+                />
+                <div
+                  className="flex-1 h-10 rounded border border-border"
+                  style={{ backgroundColor: editForm.bgColor }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Color de fondo cuando los clientes visitan esta tienda
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
@@ -723,6 +1308,199 @@ export function TenantManagement() {
                 Editar
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Create User Dialog ===== */}
+      <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              Nuevo Usuario
+            </DialogTitle>
+            <DialogDescription>
+              Crea un repartidor (por comercio o global) o un cliente asignado a un comercio.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Role selector */}
+            <div className="space-y-2">
+              <Label>Rol <span className="text-destructive">*</span></Label>
+              <Select
+                value={createUserForm.role}
+                onValueChange={(v) => setCreateUserForm(f => ({ ...f, role: v as 'repartidor' | 'cliente', isGlobal: false }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="repartidor">
+                    <span className="flex items-center gap-2"><Truck className="h-4 w-4" /> Repartidor</span>
+                  </SelectItem>
+                  <SelectItem value="cliente">
+                    <span className="flex items-center gap-2"><User className="h-4 w-4" /> Cliente</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Global toggle — only for repartidor */}
+            {createUserForm.role === 'repartidor' && (
+              <div
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  createUserForm.isGlobal
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-muted/30'
+                }`}
+                onClick={() => setCreateUserForm(f => ({ ...f, isGlobal: !f.isGlobal, tenantId: '' }))}
+              >
+                <div className={`w-5 h-5 rounded flex items-center justify-center border-2 flex-shrink-0 transition-colors ${
+                  createUserForm.isGlobal ? 'border-primary bg-primary' : 'border-muted-foreground'
+                }`}>
+                  {createUserForm.isGlobal && <span className="text-white text-xs font-bold">✓</span>}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Repartidor Global</p>
+                  <p className="text-xs text-muted-foreground">Puede ver y tomar pedidos de todos los comercios</p>
+                </div>
+              </div>
+            )}
+
+            {/* Tenant selector — hidden when global repartidor */}
+            {!(createUserForm.isGlobal && createUserForm.role === 'repartidor') && (
+              <div className="space-y-2">
+                <Label>Comercio <span className="text-destructive">*</span></Label>
+                <Select value={createUserForm.tenantId} onValueChange={(v) => setCreateUserForm(f => ({ ...f, tenantId: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar comercio..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.filter(t => t.status === 'activo').map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Name */}
+            <div className="space-y-2">
+              <Label>Nombre <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Nombre completo"
+                  value={createUserForm.name}
+                  onChange={(e) => setCreateUserForm(f => ({ ...f, name: e.target.value }))}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <Label>Email <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="email@ejemplo.com"
+                  value={createUserForm.email}
+                  onChange={(e) => setCreateUserForm(f => ({ ...f, email: e.target.value }))}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {/* Phone */}
+            <div className="space-y-2">
+              <Label>Teléfono <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="+57 300 123 4567"
+                  value={createUserForm.phone}
+                  onChange={(e) => setCreateUserForm(f => ({ ...f, phone: e.target.value }))}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="space-y-2">
+              <Label>Contraseña <span className="text-destructive">*</span></Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={createUserForm.password}
+                  onChange={(e) => setCreateUserForm(f => ({ ...f, password: e.target.value }))}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateUserOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateUser} disabled={isCreatingUser}>
+              {isCreatingUser ? 'Creando...' : 'Crear Usuario'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Delete User Confirm ===== */}
+      <Dialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) setDeleteUserId(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              Eliminar Usuario
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar a <strong>{deleteUserName}</strong>? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancelar</Button>
+            <Button variant="destructive" disabled={isDeletingUser} onClick={handleDeleteUser}>
+              {isDeletingUser ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Reset Password Dialog ===== */}
+      <Dialog open={isResetPassOpen} onOpenChange={(open) => { if (!open) setIsResetPassOpen(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              Resetear Contraseña
+            </DialogTitle>
+            <DialogDescription>
+              Nueva contraseña para <strong>{resetPassUserName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Nueva contraseña</Label>
+            <Input
+              type="password"
+              placeholder="Mínimo 6 caracteres"
+              value={resetPassValue}
+              onChange={(e) => setResetPassValue(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsResetPassOpen(false)}>Cancelar</Button>
+            <Button disabled={isSavingPass || resetPassValue.length < 6} onClick={handleResetPassword}>
+              {isSavingPass ? 'Guardando...' : 'Guardar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

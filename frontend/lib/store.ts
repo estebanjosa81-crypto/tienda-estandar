@@ -36,10 +36,12 @@ interface AppState {
     items: Array<{ productId: string; quantity: number; discount?: number; customAmount?: number }>
     paymentMethod: string
     amountPaid: number
+    globalDiscount?: number
     customerId?: string
     customerName?: string
     customerPhone?: string
     creditDays?: number
+    applyTax?: boolean
   }) => Promise<{ success: boolean; error?: string; data?: Sale }>
   cancelSale: (id: string, reason: string) => Promise<{ success: boolean; error?: string }>
 
@@ -79,6 +81,16 @@ interface AppState {
   inventorySearchQuery: string | null
   navigateToInventory: (stockFilter?: string, searchQuery?: string) => void
   clearInventoryFilters: () => void
+
+  // Invoices navigation from chart
+  invoicesDateFilter: string | null
+  navigateToInvoices: (date: string) => void
+  clearInvoicesFilter: () => void
+
+  // Pending orders notification
+  pendingOrdersCount: number
+  fetchPendingOrdersCount: () => Promise<void>
+  navigateToPedidos: () => void
 }
 
 export const useStore = create<AppState>()(
@@ -92,11 +104,11 @@ export const useStore = create<AppState>()(
       isLoadingSales: false,
       stockMovements: [],
       storeInfo: {
-        name: 'StockPro Gestion de Inventario',
+        name: 'Lopbuk Gestion de Inventario',
         address: 'Cra 7 #45-23, Bogotá, Colombia',
         phone: '(601) 234-5678',
         taxId: '900.123.456-7',
-        email: 'ventas@stockpro.com.co',
+        email: 'ventas@lopbuk.com.co',
         invoiceGreeting: '¡Gracias por su compra!',
         invoicePolicy: 'Cambios y devoluciones dentro de los 30 días con factura original.\nProducto en buen estado, sin uso y con etiquetas.',
       },
@@ -117,6 +129,19 @@ export const useStore = create<AppState>()(
         inventorySearchQuery: searchQuery || null,
       }),
       clearInventoryFilters: () => set({ inventoryStockFilter: null, inventorySearchQuery: null }),
+
+      invoicesDateFilter: null,
+      navigateToInvoices: (date) => set({ activeSection: 'invoices', sidebarOpen: false, invoicesDateFilter: date }),
+      clearInvoicesFilter: () => set({ invoicesDateFilter: null }),
+
+      pendingOrdersCount: 0,
+      fetchPendingOrdersCount: async () => {
+        const result = await api.getOrderStats()
+        if (result.success && result.data) {
+          set({ pendingOrdersCount: Number(result.data.pending) || 0 })
+        }
+      },
+      navigateToPedidos: () => set({ activeSection: 'pedidos', sidebarOpen: false }),
 
       // Products Actions
       fetchProducts: async () => {
@@ -186,7 +211,12 @@ export const useStore = create<AppState>()(
             )
           }
         }
-        return { cart: [...state.cart, { product, quantity, discount: 0 }] }
+        // Para productos compuestos (BOM), inicializar customAmount con el precio mínimo
+        // redondeado al próximo múltiplo de 1000 (precio referencia, sin IVA)
+        const customAmount = product.isComposite
+          ? Math.ceil(Math.max(product.salePrice, product.purchasePrice) / 1000) * 1000
+          : undefined
+        return { cart: [...state.cart, { product, quantity, discount: 0, customAmount }] }
       }),
 
       removeFromCart: (productId) => set((state) => ({
@@ -343,7 +373,7 @@ export const useStore = create<AppState>()(
       }
     }),
     {
-      name: 'stockpro-storage',
+      name: 'lopbuk-storage',
       partialize: (state) => ({
         cart: state.cart,
         storeInfo: state.storeInfo,
@@ -361,11 +391,12 @@ export const getStockStatus = (product: Product): 'suficiente' | 'bajo' | 'agota
   return 'suficiente'
 }
 
-export const calculateCartTotals = (cart: CartItem[]) => {
+export const calculateCartTotals = (cart: CartItem[], applyIva = true) => {
   const subtotal = cart.reduce((sum, item) => {
     if (item.customAmount) {
-      // customAmount es con IVA, convertir a sin IVA para el subtotal
-      return sum + (item.customAmount / 1.19) * item.quantity
+      // customAmount es siempre el precio BASE (sin IVA).
+      // El IVA se calcula sobre el subtotal al final, igual que cualquier producto.
+      return sum + item.customAmount * item.quantity
     }
     const itemTotal = (item.product.salePrice * item.quantity) - item.discount
     return sum + itemTotal

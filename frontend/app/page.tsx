@@ -15,12 +15,16 @@ import { Customers } from '@/components/customers'
 import { Fiados } from '@/components/fiados'
 import { CashRegister } from '@/components/cash-register'
 import { TenantManagement } from '@/components/tenant-management'
+import { SuperadminHome } from '@/components/superadmin-home'
 import { AuthForm } from '@/components/auth-form'
 import { LandingPage } from '@/components/landing-page'
 import { Tienda } from '@/components/tienda'
 import { Pedidos } from '@/components/pedidos'
 import { Cupones } from '@/components/cupones'
 import { Recipes } from '@/components/recipes'
+import { DriverPanel } from '@/components/driver-panel'
+import { PurchaseInvoices } from '@/components/purchase-invoices'
+import { ServicesManagement } from '@/components/services-management'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
@@ -45,12 +49,29 @@ export default function Home() {
     }
   }, [isAuthenticated, user?.role, activeSection, setActiveSection])
 
+  // Redirect repartidor to delivery panel
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'repartidor' && activeSection !== 'delivery') {
+      setActiveSection('delivery')
+    }
+  }, [isAuthenticated, user?.role, activeSection, setActiveSection])
+
   // Prevent non-superadmin users from seeing superadmin section (stale localStorage)
   useEffect(() => {
     if (isAuthenticated && user?.role !== 'superadmin' && activeSection === 'superadmin') {
       setActiveSection('dashboard')
     }
   }, [isAuthenticated, user?.role, activeSection, setActiveSection])
+
+  // Repartidor gets their own full-screen panel (no sidebar)
+  if (isAuthenticated && user?.role === 'repartidor') {
+    return <DriverPanel />
+  }
+
+  // Cliente gets LandingPage with active session
+  if (isAuthenticated && user?.role === 'cliente') {
+    return <LandingPage onGoToLogin={() => {}} />
+  }
 
   // Show login if not authenticated
   if (!isAuthenticated) {
@@ -64,6 +85,8 @@ export default function Home() {
     switch (activeSection) {
       case 'superadmin':
         return user?.role === 'superadmin' ? <TenantManagement /> : <Dashboard />
+      case 'pagina-principal':
+        return user?.role === 'superadmin' ? <SuperadminHome /> : <Dashboard />
       case 'dashboard':
         return <Dashboard />
       case 'inventory':
@@ -88,6 +111,10 @@ export default function Home() {
         return <Customers />
       case 'fiados':
         return <Fiados />
+      case 'purchases':
+        return <PurchaseInvoices />
+      case 'services':
+        return <ServicesManagement />
       case 'analytics':
         return <Analytics />
       case 'settings':

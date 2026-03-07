@@ -41,7 +41,7 @@ import {
 } from 'recharts'
 
 export function Dashboard() {
-  const { products, sales, fetchProducts, fetchSales, categories, fetchCategories } = useStore()
+  const { products, sales, fetchProducts, fetchSales, categories, fetchCategories, navigateToInvoices } = useStore()
   const [accountsReceivable, setAccountsReceivable] = useState(0)
   const [trendRange, setTrendRange] = useState<number>(7)
   const [backendTrend, setBackendTrend] = useState<Array<{ date: string; total: number; count: number; fiadoTotal?: number; fiadoCount?: number }>>([])
@@ -358,7 +358,17 @@ export function Dashboard() {
           >
             <div style={{ minWidth: chartMinWidth ? `${chartMinWidth}px` : '100%', height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesTrendData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <AreaChart
+                data={salesTrendData}
+                margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                style={{ cursor: 'pointer' }}
+                onClick={(chartData) => {
+                  const payload = chartData?.activePayload?.[0]?.payload
+                  if (payload?.fullDate && payload?.transacciones > 0) {
+                    navigateToInvoices(payload.fullDate)
+                  }
+                }}
+              >
               <defs>
                 <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
@@ -421,7 +431,7 @@ export function Dashboard() {
                 strokeWidth={2.5}
                 fill="url(#salesGradient)"
                 dot={{ fill: '#22c55e', strokeWidth: 2, r: 4, stroke: '#fff' }}
-                activeDot={{ r: 7, fill: '#22c55e', stroke: '#fff', strokeWidth: 3 }}
+                activeDot={{ r: 7, fill: '#22c55e', stroke: '#fff', strokeWidth: 3, cursor: 'pointer' }}
                 name="ventas"
               />
               <Area

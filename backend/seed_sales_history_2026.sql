@@ -1,24 +1,29 @@
 -- ============================================
--- SEED: Historico de Ventas 01/01/2026 - 09/02/2026
+-- SEED: Historico de Ventas 01/01/2026 - 26/02/2026
 -- Tenant: tenant-demo-001
--- Genera ~120 ventas con items aleatorios
+-- Negocio: Perfumeria Larry White
+-- Genera ~130 ventas de perfumes (100ML, 50ML, 30ML)
 -- ============================================
 
 USE stockpro_db;
 
--- Primero, agregar mas stock a los productos para soportar el historico de ventas
--- (Se necesita stock suficiente para ~120 ventas con 1-3 items cada una)
-UPDATE products SET stock = stock + 200 WHERE tenant_id = 'tenant-demo-001';
+-- Agregar stock a los insumos para cubrir el historico de ventas
+-- (~130 ventas x max 3 items x max 3 unidades = ~1170 perfumes max)
+-- 100ML usa 43 extractos, 50ML usa 22, 30ML usa 13 → necesitamos bastante extracto
+UPDATE products SET stock = stock + 8000 WHERE tenant_id = 'tenant-demo-001' AND id = 'MAT-EXT-LW-ID';
+UPDATE products SET stock = stock + 600  WHERE tenant_id = 'tenant-demo-001' AND id IN ('MAT-ENV-100-ID', 'MAT-ENV-050-ID', 'MAT-ENV-030-ID');
+UPDATE products SET stock = stock + 600  WHERE tenant_id = 'tenant-demo-001' AND id IN ('MAT-BOX-100-ID', 'MAT-BOX-050-ID', 'MAT-BOX-030-ID');
 
--- Tambien poner stock al Traje Ejecutivo que estaba en 0
-UPDATE products SET stock = 50 WHERE id = 'prod-005' AND tenant_id = 'tenant-demo-001';
+-- Stock temporal en perfumes terminados para registrar ventas historicas
+-- (los perfumes son BOM, pero para datos historicos se trata como stock directo)
+UPDATE products SET stock = 600 WHERE tenant_id = 'tenant-demo-001' AND id IN ('PERF-LW-100-ID', 'PERF-LW-050-ID', 'PERF-LW-030-ID');
 
 DELIMITER //
 
 CREATE PROCEDURE sp_seed_sales_history()
 BEGIN
     DECLARE v_current_date DATE DEFAULT '2026-01-01';
-    DECLARE v_end_date DATE DEFAULT '2026-02-09';
+    DECLARE v_end_date DATE DEFAULT '2026-02-26';
     DECLARE v_invoice_num INT;
     DECLARE v_day_of_week INT;
     DECLARE v_sales_today INT;
@@ -30,7 +35,6 @@ BEGIN
     DECLARE v_product_name VARCHAR(255);
     DECLARE v_product_sku VARCHAR(50);
     DECLARE v_unit_price DECIMAL(12,2);
-    DECLARE v_purchase_price DECIMAL(12,2);
     DECLARE v_quantity INT;
     DECLARE v_item_subtotal DECIMAL(12,2);
     DECLARE v_sale_subtotal DECIMAL(12,2);
@@ -68,7 +72,6 @@ BEGIN
         SET v_day_of_week = DAYOFWEEK(v_current_date); -- 1=Dom, 2=Lun, ..., 7=Sab
 
         -- Determinar ventas del dia segun dia de la semana
-        -- Enero es temporada baja post-navidad, febrero sube un poco
         IF v_day_of_week = 1 THEN -- Domingo
             SET v_sales_today = FLOOR(1 + RAND() * 2); -- 1-2 ventas
         ELSEIF v_day_of_week = 7 THEN -- Sabado (dia fuerte)
@@ -79,9 +82,9 @@ BEGIN
             SET v_sales_today = FLOOR(2 + RAND() * 2); -- 2-3 ventas
         END IF;
 
-        -- Boost en quincenas (15 y 30 de enero, 1 de febrero)
+        -- Boost en quincenas
         IF DAY(v_current_date) IN (15, 30, 31) OR (MONTH(v_current_date) = 2 AND DAY(v_current_date) = 1) THEN
-            SET v_sales_today = v_sales_today + FLOOR(1 + RAND() * 3); -- +1 a +3 ventas extra
+            SET v_sales_today = v_sales_today + FLOOR(1 + RAND() * 3);
         END IF;
 
         SET v_sale_counter = 0;
@@ -94,8 +97,8 @@ BEGIN
             SET v_sale_id = UUID();
             SET v_invoice = CONCAT('FAC-', LPAD(v_invoice_num, 5, '0'));
 
-            -- Hora aleatoria entre 8:00 y 19:59
-            SET v_hour = FLOOR(8 + RAND() * 12);
+            -- Hora aleatoria entre 9:00 y 19:59
+            SET v_hour = FLOOR(9 + RAND() * 11);
             SET v_minute = FLOOR(RAND() * 60);
             SET v_sale_datetime = CONCAT(v_current_date, ' ', LPAD(v_hour, 2, '0'), ':', LPAD(v_minute, 2, '0'), ':00');
 
@@ -124,7 +127,7 @@ BEGIN
                 SET v_customer_name = 'Juan Perez';
             END IF;
 
-            -- Metodo de pago (45% efectivo, 30% tarjeta, 15% transferencia, 10% fiado solo con cliente)
+            -- Metodo de pago (45% efectivo, 30% tarjeta, 15% transferencia, 10% fiado)
             SET v_payment_rand = FLOOR(RAND() * 100);
             IF v_payment_rand < 45 THEN
                 SET v_payment_method = 'efectivo';
@@ -133,7 +136,6 @@ BEGIN
             ELSEIF v_payment_rand < 90 THEN
                 SET v_payment_method = 'transferencia';
             ELSE
-                -- Fiado solo si hay cliente registrado
                 IF v_customer_id IS NOT NULL THEN
                     SET v_payment_method = 'fiado';
                 ELSE
@@ -141,15 +143,28 @@ BEGIN
                 END IF;
             END IF;
 
-            -- Numero de items por venta (50% = 1 item, 35% = 2 items, 15% = 3 items)
+            -- Numero de items por venta (55% = 1 item, 35% = 2 items, 10% = 3 items)
             SET v_payment_rand = FLOOR(RAND() * 100);
-            IF v_payment_rand < 50 THEN
+            IF v_payment_rand < 55 THEN
                 SET v_num_items = 1;
-            ELSEIF v_payment_rand < 85 THEN
+            ELSEIF v_payment_rand < 90 THEN
                 SET v_num_items = 2;
             ELSE
                 SET v_num_items = 3;
             END IF;
+
+            -- Calcular credit_status y due_date (dependen solo de payment_method)
+            SET v_credit_status = NULL;
+            SET v_due_date = NULL;
+            IF v_payment_method = 'fiado' THEN
+                SET v_credit_status = 'pendiente';
+                SET v_due_date = DATE_ADD(v_current_date, INTERVAL 30 DAY);
+            END IF;
+
+            -- Insertar la venta PRIMERO con totales en 0
+            -- (sale_items necesita que el sale_id exista por FK)
+            INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, status, credit_status, due_date, created_at)
+            VALUES (v_sale_id, 'tenant-demo-001', v_invoice, v_customer_id, v_customer_name, 0, 0, 0, 0, v_payment_method, 0, 0, v_seller_id, v_seller_name, 'completada', v_credit_status, v_due_date, v_sale_datetime);
 
             SET v_sale_subtotal = 0;
             SET v_item_counter = 0;
@@ -158,17 +173,26 @@ BEGIN
 
             -- ============================================
             -- LOOP POR CADA ITEM DE LA VENTA
+            -- Productos: 1=100ML, 2=50ML, 3=30ML
             -- ============================================
             WHILE v_item_counter < v_num_items DO
-                -- Producto aleatorio (1-8), evitar repetidos en la misma venta
+                -- Seleccionar referencia evitando repetidos en la misma venta
                 product_loop: LOOP
-                    SET v_product_idx = FLOOR(1 + RAND() * 8);
+                    -- Distribucion: 30% 100ML, 40% 50ML, 30% 30ML
+                    SET v_payment_rand = FLOOR(RAND() * 100);
+                    IF v_payment_rand < 30 THEN
+                        SET v_product_idx = 1;
+                    ELSEIF v_payment_rand < 70 THEN
+                        SET v_product_idx = 2;
+                    ELSE
+                        SET v_product_idx = 3;
+                    END IF;
+
                     IF v_product_idx != v_used_product_1 AND v_product_idx != v_used_product_2 THEN
                         LEAVE product_loop;
                     END IF;
                 END LOOP;
 
-                -- Guardar producto usado
                 IF v_item_counter = 0 THEN
                     SET v_used_product_1 = v_product_idx;
                 ELSEIF v_item_counter = 1 THEN
@@ -177,60 +201,30 @@ BEGIN
 
                 CASE v_product_idx
                     WHEN 1 THEN
-                        SET v_product_id = 'prod-001';
-                        SET v_product_name = 'Camisa Oxford Slim Fit';
-                        SET v_product_sku = 'CAM-TH-001';
-                        SET v_unit_price = 159900;
+                        SET v_product_id   = 'PERF-LW-100-ID';
+                        SET v_product_name = 'Perfume Larry White 100ML';
+                        SET v_product_sku  = 'PERF-LW-100';
+                        SET v_unit_price   = 63025.21; -- $75.000 con IVA 19%
                     WHEN 2 THEN
-                        SET v_product_id = 'prod-002';
-                        SET v_product_name = 'Pantalon Chino Classic';
-                        SET v_product_sku = 'PAN-DOC-001';
-                        SET v_unit_price = 129900;
+                        SET v_product_id   = 'PERF-LW-050-ID';
+                        SET v_product_name = 'Perfume Larry White 50ML';
+                        SET v_product_sku  = 'PERF-LW-050';
+                        SET v_unit_price   = 31932.77; -- $38.000 con IVA 19%
                     WHEN 3 THEN
-                        SET v_product_id = 'prod-003';
-                        SET v_product_name = 'Zapatos Derby Cuero';
-                        SET v_product_sku = 'ZAP-VEL-001';
-                        SET v_unit_price = 349900;
-                    WHEN 4 THEN
-                        SET v_product_id = 'prod-004';
-                        SET v_product_name = 'Cinturon Piel Italiano';
-                        SET v_product_sku = 'ACC-CK-001';
-                        SET v_unit_price = 99900;
-                    WHEN 5 THEN
-                        SET v_product_id = 'prod-005';
-                        SET v_product_name = 'Traje Ejecutivo Negro';
-                        SET v_product_sku = 'TRA-AC-001';
-                        SET v_unit_price = 899900;
-                    WHEN 6 THEN
-                        SET v_product_id = 'prod-006';
-                        SET v_product_name = 'Sudadera Deportiva';
-                        SET v_product_sku = 'DEP-NIK-001';
-                        SET v_unit_price = 139900;
-                    WHEN 7 THEN
-                        SET v_product_id = 'prod-007';
-                        SET v_product_name = 'Abrigo Lana Premium';
-                        SET v_product_sku = 'ABR-ZAR-001';
-                        SET v_unit_price = 449900;
-                    WHEN 8 THEN
-                        SET v_product_id = 'prod-008';
-                        SET v_product_name = 'Boxer Pack x3';
-                        SET v_product_sku = 'INT-CK-001';
-                        SET v_unit_price = 89900;
+                        SET v_product_id   = 'PERF-LW-030-ID';
+                        SET v_product_name = 'Perfume Larry White 30ML';
+                        SET v_product_sku  = 'PERF-LW-030';
+                        SET v_unit_price   = 18487.39; -- $22.000 con IVA 19%
                 END CASE;
 
-                -- Cantidad: mayoría 1, algunos 2, pocos 3
+                -- Cantidad: 70% = 1 unidad, 25% = 2, 5% = 3
                 SET v_payment_rand = FLOOR(RAND() * 100);
-                IF v_payment_rand < 60 THEN
+                IF v_payment_rand < 70 THEN
                     SET v_quantity = 1;
-                ELSEIF v_payment_rand < 90 THEN
+                ELSEIF v_payment_rand < 95 THEN
                     SET v_quantity = 2;
                 ELSE
                     SET v_quantity = 3;
-                END IF;
-
-                -- Para productos caros (zapatos, traje, abrigo), siempre cantidad 1
-                IF v_product_idx IN (3, 5, 7) THEN
-                    SET v_quantity = 1;
                 END IF;
 
                 SET v_item_subtotal = v_unit_price * v_quantity;
@@ -241,27 +235,30 @@ BEGIN
                 INSERT INTO sale_items (id, tenant_id, sale_id, product_id, product_name, product_sku, quantity, unit_price, discount, subtotal, created_at)
                 VALUES (v_item_id, 'tenant-demo-001', v_sale_id, v_product_id, v_product_name, v_product_sku, v_quantity, v_unit_price, 0, v_item_subtotal, v_sale_datetime);
 
-                -- Insertar movimiento de stock
+                -- Insertar movimiento de stock en el perfume terminado
                 INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id, created_at)
-                SELECT UUID(), 'tenant-demo-001', v_product_id, 'venta', v_quantity, p.stock, p.stock - v_quantity,
+                SELECT UUID(), 'tenant-demo-001', v_product_id, 'venta', v_quantity,
+                       p.stock, p.stock - v_quantity,
                        CONCAT('Venta ', v_invoice), v_sale_id, v_seller_id, v_sale_datetime
-                FROM products p WHERE p.id = v_product_id;
+                FROM products p
+                WHERE p.id = v_product_id AND p.tenant_id = 'tenant-demo-001';
 
-                -- Actualizar stock del producto
-                UPDATE products SET stock = stock - v_quantity WHERE id = v_product_id AND tenant_id = 'tenant-demo-001';
+                -- Descontar stock del perfume terminado
+                UPDATE products SET stock = stock - v_quantity
+                WHERE id = v_product_id AND tenant_id = 'tenant-demo-001';
 
                 SET v_item_counter = v_item_counter + 1;
             END WHILE;
 
-            -- Calcular totales de la venta
+            -- Calcular totales reales con los items ya insertados
             SET v_sale_tax = ROUND(v_sale_subtotal * 0.19, 2);
 
-            -- Descuento: 15% de probabilidad, descuento del 5% o 10%
+            -- Descuento: 15% de probabilidad, 5% o 10%
             IF RAND() < 0.15 THEN
                 IF RAND() < 0.7 THEN
-                    SET v_sale_discount = ROUND(v_sale_subtotal * 0.05, 2); -- 5% descuento
+                    SET v_sale_discount = ROUND(v_sale_subtotal * 0.05, 2);
                 ELSE
-                    SET v_sale_discount = ROUND(v_sale_subtotal * 0.10, 2); -- 10% descuento
+                    SET v_sale_discount = ROUND(v_sale_subtotal * 0.10, 2);
                 END IF;
             ELSE
                 SET v_sale_discount = 0;
@@ -271,10 +268,8 @@ BEGIN
 
             -- Calcular pago y cambio
             IF v_payment_method = 'efectivo' THEN
-                -- Redondear al siguiente multiplo de 1000 para efectivo
                 SET v_amount_paid = CEIL(v_sale_total / 1000) * 1000;
-                -- A veces pagan con billete mas grande
-                IF RAND() < 0.3 AND v_sale_total < 200000 THEN
+                IF RAND() < 0.3 AND v_sale_total < 100000 THEN
                     SET v_amount_paid = CEIL(v_sale_total / 50000) * 50000;
                 END IF;
                 SET v_change_amount = v_amount_paid - v_sale_total;
@@ -283,17 +278,15 @@ BEGIN
                 SET v_change_amount = 0;
             END IF;
 
-            -- Determinar estado de credito para ventas fiado
-            SET v_credit_status = NULL;
-            SET v_due_date = NULL;
-            IF v_payment_method = 'fiado' THEN
-                SET v_credit_status = 'pendiente';
-                SET v_due_date = DATE_ADD(v_current_date, INTERVAL 30 DAY);
-            END IF;
-
-            -- Insertar la venta
-            INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, status, credit_status, due_date, created_at)
-            VALUES (v_sale_id, 'tenant-demo-001', v_invoice, v_customer_id, v_customer_name, v_sale_subtotal, v_sale_tax, v_sale_discount, v_sale_total, v_payment_method, v_amount_paid, v_change_amount, v_seller_id, v_seller_name, 'completada', v_credit_status, v_due_date, v_sale_datetime);
+            -- Actualizar la venta con los totales reales
+            UPDATE sales
+            SET subtotal      = v_sale_subtotal,
+                tax           = v_sale_tax,
+                discount      = v_sale_discount,
+                total         = v_sale_total,
+                amount_paid   = v_amount_paid,
+                change_amount = v_change_amount
+            WHERE id = v_sale_id;
 
             SET v_total_sales_generated = v_total_sales_generated + 1;
             SET v_sale_counter = v_sale_counter + 1;
@@ -305,7 +298,7 @@ BEGIN
     -- Actualizar secuencia de facturas
     UPDATE invoice_sequence SET current_number = v_invoice_num WHERE tenant_id = 'tenant-demo-001';
 
-    -- Resultado
+    -- Resultado final
     SELECT
         v_total_sales_generated AS ventas_generadas,
         v_invoice_num AS ultimo_numero_factura,
@@ -326,7 +319,7 @@ DROP PROCEDURE IF EXISTS sp_seed_sales_history;
 -- ============================================
 -- VERIFICACION: Resumen de ventas generadas
 -- ============================================
-SELECT '--- RESUMEN DE VENTAS GENERADAS ---' AS info;
+SELECT '--- RESUMEN DE VENTAS POR MES ---' AS info;
 
 SELECT
     DATE_FORMAT(created_at, '%Y-%m') AS mes,
@@ -365,7 +358,7 @@ WHERE tenant_id = 'tenant-demo-001'
 GROUP BY DAYNAME(created_at), DAYOFWEEK(created_at)
 ORDER BY DAYOFWEEK(created_at);
 
-SELECT '--- TOP 5 PRODUCTOS MAS VENDIDOS ---' AS info;
+SELECT '--- PERFUMES MAS VENDIDOS ---' AS info;
 
 SELECT
     si.product_name,
@@ -376,10 +369,9 @@ JOIN sales s ON si.sale_id = s.id
 WHERE s.tenant_id = 'tenant-demo-001'
   AND s.created_at >= '2026-01-01'
 GROUP BY si.product_id, si.product_name
-ORDER BY unidades_vendidas DESC
-LIMIT 5;
+ORDER BY unidades_vendidas DESC;
 
-SELECT '--- STOCK ACTUAL ---' AS info;
+SELECT '--- STOCK DE INSUMOS ACTUAL ---' AS info;
 
 SELECT name, sku, stock, reorder_point,
     CASE
@@ -389,4 +381,17 @@ SELECT name, sku, stock, reorder_point,
     END AS estado
 FROM products
 WHERE tenant_id = 'tenant-demo-001'
-ORDER BY stock ASC;
+  AND sku LIKE 'MAT-%'
+ORDER BY sku;
+
+SELECT '--- STOCK DE PERFUMES TERMINADOS ---' AS info;
+
+SELECT name, sku, stock,
+    CASE
+        WHEN stock <= 10 THEN 'REORDEN'
+        ELSE 'OK'
+    END AS estado
+FROM products
+WHERE tenant_id = 'tenant-demo-001'
+  AND sku LIKE 'PERF-%'
+ORDER BY sku;

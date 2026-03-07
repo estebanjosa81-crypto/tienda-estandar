@@ -49,16 +49,23 @@ import {
 } from 'lucide-react'
 
 export function Invoicing() {
-  const { sales, fetchSales, storeInfo, updateStoreInfo, cancelSale } = useStore()
+  const { sales, fetchSales, storeInfo, updateStoreInfo, cancelSale, invoicesDateFilter, clearInvoicesFilter } = useStore()
   const [searchTerm, setSearchTerm] = useState('')
-
-  useEffect(() => {
-    fetchSales()
-  }, [fetchSales])
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+
+  useEffect(() => {
+    fetchSales()
+  }, [fetchSales])
+
+  useEffect(() => {
+    if (invoicesDateFilter) {
+      setDateRange({ start: invoicesDateFilter, end: invoicesDateFilter })
+      clearInvoicesFilter()
+    }
+  }, [invoicesDateFilter, clearInvoicesFilter])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [editInfo, setEditInfo] = useState(storeInfo)
 

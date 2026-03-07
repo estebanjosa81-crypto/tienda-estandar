@@ -1,7 +1,7 @@
 {
-  "name": "stockpro-backend",
+  "name": "lopbuk-backend",
   "version": "1.0.0",
-  "description": "Backend modular para StockPro - Sistema de Inventario",
+  "description": "Backend modular para Lopbuk - Sistema de Inventario",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -9,7 +9,13 @@
     "start": "node dist/index.js",
     "lint": "eslint src/**/*.ts"
   },
-  "keywords": ["inventory", "pos", "backend", "express", "typescript"],
+  "keywords": [
+    "inventory",
+    "pos",
+    "backend",
+    "express",
+    "typescript"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -18,7 +24,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-validator": "^7.2.0",
+    "google-auth-library": "^10.5.0",
     "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^2.12.0",
     "mysql2": "^3.11.0",
     "socket.io": "^4.7.5",
     "uuid": "^10.0.0"

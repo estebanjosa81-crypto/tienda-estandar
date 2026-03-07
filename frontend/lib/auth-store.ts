@@ -10,9 +10,14 @@ interface AuthStore {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  googleLogin: (credential: string, storeSlug?: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => Promise<{ success: boolean; error?: string }>
   logout: () => void
-  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>
+  updateProfile: (updates: {
+    name?: string; avatar?: string; phone?: string; cedula?: string;
+    department?: string; municipality?: string; address?: string;
+    neighborhood?: string; deliveryLatitude?: number; deliveryLongitude?: number;
+  }) => Promise<{ success: boolean; error?: string }>
   checkAuth: () => Promise<void>
 }
 
@@ -39,6 +44,24 @@ export const useAuthStore = create<AuthStore>()(
 
         set({ isLoading: false })
         return { success: false, error: result.error || 'Correo o contraseña incorrectos' }
+      },
+
+      googleLogin: async (credential: string, storeSlug?: string) => {
+        set({ isLoading: true })
+
+        const result = await api.googleLogin(credential, storeSlug)
+
+        if (result.success && result.data) {
+          set({
+            user: result.data.user,
+            isAuthenticated: true,
+            isLoading: false
+          })
+          return { success: true }
+        }
+
+        set({ isLoading: false })
+        return { success: false, error: result.error || 'Error al iniciar sesion con Google' }
       },
 
       register: async (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => {
@@ -72,7 +95,11 @@ export const useAuthStore = create<AuthStore>()(
         })
       },
 
-      updateProfile: async (updates: Partial<User>) => {
+      updateProfile: async (updates: {
+        name?: string; avatar?: string; phone?: string; cedula?: string;
+        department?: string; municipality?: string; address?: string;
+        neighborhood?: string; deliveryLatitude?: number; deliveryLongitude?: number;
+      }) => {
         const result = await api.updateProfile(updates)
 
         if (result.success && result.data) {
@@ -105,7 +132,7 @@ export const useAuthStore = create<AuthStore>()(
       }
     }),
     {
-      name: 'stockpro-auth',
+      name: 'lopbuk-auth',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated

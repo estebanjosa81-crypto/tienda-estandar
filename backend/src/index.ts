@@ -22,6 +22,10 @@ import { storefrontRoutes } from './modules/storefront';
 import { ordersRoutes } from './modules/orders';
 import { couponsRoutes } from './modules/coupons';
 import { recipesRoutes } from './modules/recipes';
+import deliveryRoutes from './modules/delivery/delivery.routes';
+import clientRoutes from './modules/client/client.routes';
+import { purchasesRoutes } from './modules/purchases';
+import { servicesRoutes } from './modules/services';
 
 const app = express();
 
@@ -37,7 +41,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (_req, res) => {
   res.json({
     success: true,
-    message: 'StockPro API is running',
+    message: 'Lopbuk API is running',
     timestamp: new Date().toISOString(),
   });
 });
@@ -59,6 +63,10 @@ app.use(`${apiPrefix}/storefront`, storefrontRoutes);
 app.use(`${apiPrefix}/orders`, ordersRoutes);
 app.use(`${apiPrefix}/coupons`, couponsRoutes);
 app.use(`${apiPrefix}/recipes`, recipesRoutes);
+app.use(`${apiPrefix}/delivery`, deliveryRoutes);
+app.use(`${apiPrefix}/client`, clientRoutes);
+app.use(`${apiPrefix}/purchases`, purchasesRoutes);
+app.use(`${apiPrefix}/services`, servicesRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -74,6 +82,15 @@ const startServer = async () => {
       console.error('No se pudo conectar a la base de datos. Verifica la configuracion.');
       process.exit(1);
     }
+
+    // Run lightweight schema migrations (idempotent)
+    try {
+      const pool = (await import('./config/database')).default;
+      await pool.query(
+        `ALTER TABLE store_info ADD COLUMN IF NOT EXISTS product_card_style VARCHAR(20) NULL DEFAULT 'style1'
+         COMMENT 'Estilo de tarjeta de producto: style1 o style2'`
+      );
+    } catch { /* column may already exist or DB doesn't support IF NOT EXISTS */ }
 
     const httpServer = http.createServer(app);
 
@@ -91,7 +108,7 @@ const startServer = async () => {
     httpServer.listen(config.port, () => {
       console.log(`
 ========================================
-  StockPro Backend API
+  Lopbuk Backend API
 ========================================
   Servidor: http://localhost:${config.port}
   Ambiente: ${config.nodeEnv}

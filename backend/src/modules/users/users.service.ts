@@ -94,6 +94,7 @@ export class UsersService {
     name: string;
     role?: UserRole;
     tenantId?: string | null;
+    phone?: string | null;
   }): Promise<Omit<User, 'password'>> {
     const [existing] = await db.execute<UserRow[]>(
       'SELECT id FROM users WHERE email = ?',
@@ -108,8 +109,8 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     await db.execute<ResultSetHeader>(
-      'INSERT INTO users (id, tenant_id, email, password, name, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, data.tenantId || null, data.email, hashedPassword, data.name, data.role || 'vendedor']
+      'INSERT INTO users (id, tenant_id, email, password, name, role, phone) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, data.tenantId || null, data.email, hashedPassword, data.name, data.role || 'vendedor', data.phone || null]
     );
 
     return this.findById(id);

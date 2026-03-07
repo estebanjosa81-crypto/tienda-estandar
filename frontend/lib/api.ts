@@ -94,6 +94,19 @@ class ApiService {
     return result
   }
 
+  async googleLogin(credential: string, storeSlug?: string) {
+    const result = await this.request<{ token: string; user: any }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential, storeSlug }),
+    })
+
+    if (result.success && result.data?.token) {
+      this.setToken(result.data.token)
+    }
+
+    return result
+  }
+
   async register(email: string, password: string, name: string, role: 'comerciante' | 'vendedor' = 'vendedor') {
     const result = await this.request<{ token: string; user: any }>('/auth/register', {
       method: 'POST',
@@ -111,7 +124,18 @@ class ApiService {
     return this.request<any>('/auth/profile')
   }
 
-  async updateProfile(updates: { name?: string; email?: string }) {
+  async updateProfile(updates: {
+    name?: string;
+    avatar?: string;
+    phone?: string;
+    cedula?: string;
+    department?: string;
+    municipality?: string;
+    address?: string;
+    neighborhood?: string;
+    deliveryLatitude?: number;
+    deliveryLongitude?: number;
+  }) {
     return this.request<any>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -138,7 +162,7 @@ class ApiService {
     return this.request<{ users: any[]; pagination: any }>(`/users${query ? `?${query}` : ''}`)
   }
 
-  async createUser(data: { email: string; password: string; name: string; role: 'comerciante' | 'vendedor' }) {
+  async createUser(data: { email: string; password: string; name: string; role: 'comerciante' | 'vendedor' | 'repartidor' | 'cliente'; phone?: string; tenantId?: string | null }) {
     return this.request<any>('/users', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -254,11 +278,13 @@ class ApiService {
     items: Array<{ productId: string; quantity: number; discount?: number; customAmount?: number }>
     paymentMethod: string
     amountPaid: number
+    globalDiscount?: number
     customerId?: string
     customerName?: string
     customerPhone?: string
     customerEmail?: string
     creditDays?: number
+    applyTax?: boolean
   }) {
     return this.request<any>('/sales', {
       method: 'POST',
@@ -473,7 +499,7 @@ class ApiService {
     })
   }
 
-  async updateTenant(id: string, data: { name?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number }) {
+  async updateTenant(id: string, data: { name?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number; bgColor?: string }) {
     return this.request<any>(`/tenants/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -488,6 +514,17 @@ class ApiService {
 
   async getTenantStats() {
     return this.request<any>('/tenants/stats')
+  }
+
+  async getPlatformSettings() {
+    return this.request<Record<string, string>>('/tenants/platform-settings')
+  }
+
+  async updatePlatformSetting(key: string, value: string) {
+    return this.request<any>('/tenants/platform-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
+    })
   }
 
   // =============================================
@@ -521,6 +558,152 @@ class ApiService {
     return this.request<any>(`/storefront/offer/${productId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    })
+  }
+
+  async toggleDeliveryProduct(productId: string, deliveryType: 'domicilio' | 'envio' | 'ambos' | null) {
+    return this.request<any>(`/storefront/delivery/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ deliveryType }),
+    })
+  }
+
+  async toggleNewLaunch(productId: string, isNewLaunch: boolean, launchDate?: string) {
+    return this.request<any>(`/storefront/new-launch/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ isNewLaunch, launchDate }),
+    })
+  }
+
+  async getPublicNewLaunches(store?: string) {
+    const q = store ? `?store=${encodeURIComponent(store)}` : ''
+    return this.request<any[]>(`/storefront/new-launches${q}`)
+  }
+
+  // =============================================
+  // Order Bump / Cross-sell endpoints
+  // =============================================
+
+  async getOrderBumpConfig() {
+    return this.request<any>('/storefront/order-bump-config')
+  }
+
+  async updateOrderBumpConfig(data: {
+    isEnabled: boolean
+    mode: 'auto' | 'manual'
+    title: string
+    maxItems: number
+    productIds: string[]
+  }) {
+    return this.request<any>('/storefront/order-bump-config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getPublicOrderBump(store: string, categories: string[], excludeIds: string[]) {
+    const params = new URLSearchParams()
+    params.set('store', store)
+    if (categories.length > 0) params.set('categories', categories.join(','))
+    if (excludeIds.length > 0) params.set('exclude', excludeIds.join(','))
+    return this.request<any>(`/storefront/order-bump?${params.toString()}`)
+  }
+
+  // Store Customization endpoints
+  async getStoreCustomization() {
+    return this.request<any>('/storefront/customization')
+  }
+
+  async updateBanner(data: { id?: number; position: string; imageUrl: string; title?: string; subtitle?: string; linkUrl?: string }) {
+    return this.request<any>('/storefront/banners', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteBanner(id: number) {
+    return this.request<any>(`/storefront/banners/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async updateCategoryImage(categoryId: string, imageUrl: string) {
+    return this.request<any>(`/storefront/categories/${categoryId}/image`, {
+      method: 'PUT',
+      body: JSON.stringify({ imageUrl }),
+    })
+  }
+
+  async addFeaturedProduct(productId: string) {
+    return this.request<any>('/storefront/featured-products', {
+      method: 'POST',
+      body: JSON.stringify({ productId }),
+    })
+  }
+
+  async removeFeaturedProduct(productId: string) {
+    return this.request<any>(`/storefront/featured-products/${productId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async updateStoreExtendedInfo(data: {
+    logoUrl?: string; schedule?: string; locationMapUrl?: string; termsUrl?: string; privacyUrl?: string;
+    paymentMethods?: string; socialInstagram?: string; socialFacebook?: string;
+    socialTiktok?: string; socialWhatsapp?: string;
+    department?: string; municipality?: string; productCardStyle?: string;
+  }) {
+    return this.request<any>('/storefront/store-extended-info', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // =============================================
+  // Announcement Bar endpoints
+  // =============================================
+
+  async updateAnnouncementBar(data: { text: string; linkUrl?: string; bgColor?: string; textColor?: string; isActive: boolean }) {
+    return this.request<any>('/storefront/announcement-bar', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // =============================================
+  // Drops endpoints
+  // =============================================
+
+  async createDrop(data: { name: string; description?: string; bannerUrl?: string; globalDiscount: number; startsAt: string; endsAt: string; isActive?: boolean }) {
+    return this.request<any>('/storefront/drops', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateDrop(id: number, data: { name: string; description?: string; bannerUrl?: string; globalDiscount: number; startsAt: string; endsAt: string; isActive?: boolean }) {
+    return this.request<any>(`/storefront/drops/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteDrop(id: number) {
+    return this.request<any>(`/storefront/drops/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async addDropProduct(dropId: number, productId: string, customDiscount?: number | null) {
+    return this.request<any>(`/storefront/drops/${dropId}/products`, {
+      method: 'POST',
+      body: JSON.stringify({ productId, customDiscount }),
+    })
+  }
+
+  async removeDropProduct(dropId: number, productId: string) {
+    return this.request<any>(`/storefront/drops/${dropId}/products/${productId}`, {
+      method: 'DELETE',
     })
   }
 
@@ -663,6 +846,215 @@ class ApiService {
   async deleteRecipe(productId: string) {
     return this.request<any>(`/recipes/${productId}`, {
       method: 'DELETE',
+    })
+  }
+
+  // =============================================
+  // Client Auth endpoints
+  // =============================================
+
+  async registerClient(data: { email: string; password: string; name: string; phone?: string; cedula?: string; storeSlug: string }) {
+    return this.request<{ user: any; token: string }>('/auth/register-client', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // =============================================
+  // Client Orders endpoints
+  // =============================================
+
+  async getClientOrders() {
+    return this.request<any[]>('/client/orders')
+  }
+
+  async getClientOrderDetail(id: string) {
+    return this.request<any>(`/client/orders/${id}`)
+  }
+
+  // =============================================
+  // Delivery / Driver endpoints
+  // =============================================
+
+  async getDriverOrders() {
+    return this.request<any[]>('/delivery/my-orders')
+  }
+
+  async getDriverHistory() {
+    return this.request<any[]>('/delivery/my-history')
+  }
+
+  async getAvailableOrders() {
+    return this.request<any[]>('/delivery/available')
+  }
+
+  async acceptOrder(orderId: string) {
+    return this.request<any>(`/delivery/accept/${orderId}`, {
+      method: 'PUT',
+    })
+  }
+
+  async updateDeliveryStatus(orderId: string, deliveryStatus: string) {
+    return this.request<any>(`/delivery/status/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ deliveryStatus }),
+    })
+  }
+
+  async getDriversList() {
+    return this.request<any[]>('/delivery/drivers')
+  }
+
+  async assignDriver(orderId: string, driverId: string) {
+    return this.request<any>(`/delivery/assign/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ driverId }),
+    })
+  }
+
+  // =============================================
+  // Purchase Invoices endpoints (Facturas de Compra)
+  // =============================================
+
+  async getPurchaseInvoices(params?: { page?: number; limit?: number }) {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return this.request<any>(`/purchases${query ? `?${query}` : ''}`)
+  }
+
+  async getPurchaseInvoice(id: string) {
+    return this.request<any>(`/purchases/${id}`)
+  }
+
+  async createPurchaseInvoice(data: {
+    invoiceNumber: string
+    supplierId?: string
+    supplierName: string
+    purchaseDate: string
+    items: Array<{ productId: string; quantity: number; unitCost: number }>
+    paymentMethod?: 'efectivo' | 'tarjeta' | 'transferencia' | 'credito'
+    paymentStatus?: 'pagado' | 'pendiente' | 'parcial'
+    notes?: string
+  }) {
+    return this.request<any>('/purchases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getPurchaseSuppliers() {
+    return this.request<any[]>('/purchases/suppliers')
+  }
+
+  async createPurchaseSupplier(data: {
+    name: string
+    contactName?: string
+    phone?: string
+    email?: string
+    city?: string
+    address?: string
+    taxId?: string
+    paymentTerms?: string
+    notes?: string
+  }) {
+    return this.request<any>('/purchases/suppliers', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  // =============================================
+  // Services endpoints
+  // =============================================
+
+  // Merchant - service catalog
+  async getServices() {
+    return this.request<any[]>('/services')
+  }
+  async getService(id: string) {
+    return this.request<any>(`/services/${id}`)
+  }
+  async createService(data: {
+    name: string; serviceType: 'cita' | 'asesoria' | 'contacto'
+    description?: string; category?: string; price?: number
+    priceType?: string; durationMinutes?: number; imageUrl?: string
+    requiresPayment?: boolean; maxAdvanceDays?: number
+    cancellationHours?: number; sortOrder?: number
+  }) {
+    return this.request<any>('/services', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateService(id: string, data: Record<string, unknown>) {
+    return this.request<any>(`/services/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteService(id: string) {
+    return this.request<any>(`/services/${id}`, { method: 'DELETE' })
+  }
+
+  // Merchant - availability
+  async getServiceAvailability(id: string) {
+    return this.request<any[]>(`/services/${id}/availability`)
+  }
+  async setServiceAvailability(id: string, slots: Array<{
+    dayOfWeek: number; startTime: string; endTime: string
+    slotDurationMinutes: number; maxSimultaneous: number
+  }>) {
+    return this.request<any>(`/services/${id}/availability`, {
+      method: 'POST', body: JSON.stringify({ slots }),
+    })
+  }
+
+  // Merchant - blocked periods
+  async getBlockedPeriods(serviceId?: string) {
+    const q = serviceId ? `?serviceId=${serviceId}` : ''
+    return this.request<any[]>(`/services/blocked${q}`)
+  }
+  async addBlockedPeriod(data: {
+    serviceId?: string; blockedDate: string
+    startTime?: string; endTime?: string; reason?: string
+  }) {
+    return this.request<any>('/services/blocked', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async removeBlockedPeriod(id: string) {
+    return this.request<any>(`/services/blocked/${id}`, { method: 'DELETE' })
+  }
+
+  // Merchant - bookings
+  async getServiceBookings(params?: {
+    serviceId?: string; status?: string; dateFrom?: string; dateTo?: string
+    page?: number; limit?: number
+  }) {
+    const sp = new URLSearchParams()
+    if (params?.serviceId) sp.set('serviceId', params.serviceId)
+    if (params?.status) sp.set('status', params.status)
+    if (params?.dateFrom) sp.set('dateFrom', params.dateFrom)
+    if (params?.dateTo) sp.set('dateTo', params.dateTo)
+    if (params?.page) sp.set('page', String(params.page))
+    if (params?.limit) sp.set('limit', String(params.limit))
+    const q = sp.toString()
+    return this.request<any>(`/services/bookings/list${q ? `?${q}` : ''}`)
+  }
+  async updateBookingStatus(id: string, data: { status?: string; merchantNotes?: string }) {
+    return this.request<any>(`/services/bookings/${id}`, {
+      method: 'PUT', body: JSON.stringify(data),
+    })
+  }
+
+  // Public - services & booking
+  async getPublicServices(store: string) {
+    return this.request<any[]>(`/services/public?store=${encodeURIComponent(store)}`)
+  }
+  async getPublicSlots(serviceId: string, store: string, date: string) {
+    return this.request<string[]>(
+      `/services/${serviceId}/slots?store=${encodeURIComponent(store)}&date=${date}`
+    )
+  }
+  async createPublicBooking(store: string, data: {
+    serviceId: string; clientName: string; clientPhone: string
+    clientEmail?: string; clientNotes?: string
+    bookingDate?: string; startTime?: string
+    preferredDateRange?: string; projectDescription?: string; budgetRange?: string
+  }) {
+    return this.request<any>(`/services/bookings?store=${encodeURIComponent(store)}`, {
+      method: 'POST', body: JSON.stringify(data),
     })
   }
 }

@@ -4,12 +4,13 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'sonner'
+import { GoogleOAuthWrapper } from '@/components/google-oauth-wrapper'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'StockPro - Sistema de Gestión de Inventario',
+  title: 'Lopbuk - Sistema de Gestión de Inventario',
   description: 'Sistema completo de gestión de inventario para tienda de ropa masculina',
   generator: 'v0.app',
   icons: {
@@ -40,7 +41,9 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          {children}
+          <GoogleOAuthWrapper>
+            {children}
+          </GoogleOAuthWrapper>
           <Toaster richColors position="top-center" />
         </ThemeProvider>
         <Analytics />

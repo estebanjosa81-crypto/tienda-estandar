@@ -72,6 +72,10 @@ router.post(
     body('amountPaid')
       .isFloat({ min: 0 })
       .withMessage('El monto pagado debe ser mayor a 0'),
+    body('globalDiscount')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('El descuento global debe ser mayor o igual a 0'),
     body('customerName')
       .optional()
       .notEmpty()

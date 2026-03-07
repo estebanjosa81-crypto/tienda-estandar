@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
 import { authenticate } from '../../common/middleware';
+import { config } from '../../config/env';
+import { MercadoPagoConfig, Preference } from 'mercadopago';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -27,6 +29,9 @@ router.post(
     body('items.*.productName').notEmpty().withMessage('Nombre de producto requerido'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('Cantidad debe ser al menos 1'),
     body('items.*.unitPrice').isFloat({ min: 0 }).withMessage('Precio unitario inválido'),
+    body('deliveryLatitude').optional().isFloat().withMessage('Latitud inválida'),
+    body('deliveryLongitude').optional().isFloat().withMessage('Longitud inválida'),
+    body('clientUserId').optional().notEmpty(),
     body('tenantId').optional().notEmpty(),
     validateRequest,
   ],
@@ -35,7 +40,8 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
-        items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0, discount = 0
+        items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0, discount = 0,
+        deliveryLatitude, deliveryLongitude, clientUserId
       } = req.body;
 
       // Find tenant
@@ -68,23 +74,26 @@ router.post(
 
       // Insert order
       await pool.query(
-        `INSERT INTO storefront_orders 
+        `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount, total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+           department, municipality, address, neighborhood, delivery_latitude, delivery_longitude,
+           notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, shippingCost, discount, total, paymentMethod || null]
+          department || null, municipality || null, address || null, neighborhood || null,
+          deliveryLatitude || null, deliveryLongitude || null, finalNotes,
+          subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null]
       );
 
-      // Insert order items
+      // Insert order items (con descuento por item para reportes DIAN)
       for (const item of items) {
         await pool.query(
-          `INSERT INTO storefront_order_items 
-            (order_id, product_id, product_name, product_image, quantity, unit_price, total_price, size, color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.productId, item.productName, item.productImage || null,
-            item.quantity, item.unitPrice, item.unitPrice * item.quantity,
+            item.quantity, item.unitPrice, item.originalPrice || item.unitPrice, item.discountPercent || 0,
+            item.unitPrice * item.quantity,
             item.size || null, item.color || null]
         );
       }
@@ -102,6 +111,146 @@ router.post(
     } catch (error) {
       console.error('Create order error:', error);
       res.status(500).json({ success: false, error: 'Error al crear el pedido' });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Crear preferencia Checkout Pro de MercadoPago
+// =============================================
+router.post(
+  '/mp-preference',
+  [
+    body('customerName').notEmpty(),
+    body('customerPhone').notEmpty(),
+    body('customerEmail').optional().isEmail(),
+    body('items').isArray({ min: 1 }),
+    body('items.*.productId').notEmpty(),
+    body('items.*.productName').notEmpty(),
+    body('items.*.quantity').isInt({ min: 1 }),
+    body('items.*.unitPrice').isFloat({ min: 0 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response, _next: NextFunction) => {
+    try {
+      // Read MP token from env or platform_settings DB
+      let mpToken = config.mp.accessToken;
+      let frontendUrl = config.mp.frontendUrl;
+      if (!mpToken) {
+        const [psRows] = await pool.query(
+          "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('mp_access_token','frontend_url')"
+        ) as any;
+        for (const r of psRows) {
+          if (r.setting_key === 'mp_access_token') mpToken = r.setting_value;
+          if (r.setting_key === 'frontend_url') frontendUrl = r.setting_value || frontendUrl;
+        }
+      }
+      if (!mpToken) {
+        res.status(503).json({ success: false, error: 'Pago en línea no configurado. Configúralo en el panel de administración.' });
+        return;
+      }
+
+      const {
+        customerName, customerPhone, customerEmail, customerCedula,
+        department, municipality, address, neighborhood, notes,
+        items, tenantId: requestedTenantId, couponCode, discount = 0,
+      } = req.body;
+
+      // Find tenant
+      let tenantId = requestedTenantId;
+      if (!tenantId) {
+        const [tenants] = await pool.query(
+          'SELECT id FROM tenants WHERE status = ? ORDER BY id ASC LIMIT 1',
+          ['activo']
+        ) as any;
+        if (!tenants || tenants.length === 0) {
+          res.status(400).json({ success: false, error: 'No hay tienda disponible' });
+          return;
+        }
+        tenantId = tenants[0].id;
+      }
+
+      // Apply 10% online payment discount to each item
+      const ONLINE_DISCOUNT = 0.10;
+      const discountedItems = items.map((item: any) => ({
+        ...item,
+        unitPrice: Math.round(item.unitPrice * (1 - ONLINE_DISCOUNT)),
+      }));
+
+      const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const total = Math.max(0, subtotal - discount);
+
+      // Create order in DB
+      const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
+      const orderId = uuidv4();
+      const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
+      const finalNotes = `[PAGO EN LÍNEA MP -10%] ${notes || ''}${couponNote}`.trim();
+
+      await pool.query(
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
+          subtotal, discount, total]
+      );
+
+      for (const item of discountedItems) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 10, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            item.unitPrice * item.quantity]
+        );
+      }
+
+      // Create MercadoPago preference
+      const mpClient = new MercadoPagoConfig({ accessToken: mpToken });
+      const preferenceClient = new Preference(mpClient);
+
+      const preference = await preferenceClient.create({
+        body: {
+          external_reference: orderId,
+          items: discountedItems.map((item: any) => ({
+            id: item.productId,
+            title: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            currency_id: 'COP',
+          })),
+          payer: {
+            name: customerName,
+            email: customerEmail || 'cliente@perfummua.com',
+            phone: { number: customerPhone },
+            identification: customerCedula ? { type: 'CC', number: customerCedula } : undefined,
+          },
+          back_urls: {
+            success: `${frontendUrl}/?mp=success&order=${orderId}`,
+            failure: `${frontendUrl}/?mp=failure&order=${orderId}`,
+            pending: `${frontendUrl}/?mp=pending&order=${orderId}`,
+          },
+          statement_descriptor: 'PERFUM MUA',
+          metadata: { orderId, orderNumber },
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          orderId,
+          orderNumber,
+          total,
+          initPoint: preference.init_point,
+          sandboxInitPoint: preference.sandbox_init_point,
+        },
+      });
+    } catch (error) {
+      console.error('MP preference error:', error);
+      res.status(500).json({ success: false, error: 'Error al crear preferencia de pago' });
     }
   }
 );
@@ -156,10 +305,14 @@ router.get(
         `SELECT o.id, o.order_number as orderNumber, o.customer_name as customerName,
                 o.customer_phone as customerPhone, o.customer_email as customerEmail,
                 o.customer_cedula as customerCedula, o.department, o.municipality,
-                o.address, o.neighborhood, o.notes, o.subtotal, o.shipping_cost as shippingCost,
-                o.discount, o.total, o.status, o.payment_method as paymentMethod,
+                o.address, o.neighborhood, o.delivery_latitude as deliveryLatitude,
+                o.delivery_longitude as deliveryLongitude, o.notes, o.subtotal,
+                o.shipping_cost as shippingCost, o.discount, o.total, o.status,
+                o.payment_method as paymentMethod, o.delivery_driver_id as deliveryDriverId,
+                o.delivery_status as deliveryStatus, d.name as driverName,
                 o.created_at as createdAt, o.updated_at as updatedAt
          FROM storefront_orders o
+         LEFT JOIN users d ON d.id = o.delivery_driver_id
          ${whereClause}
          ORDER BY o.created_at DESC
          LIMIT ? OFFSET ?`,
@@ -171,6 +324,7 @@ router.get(
         const [items] = await pool.query(
           `SELECT oi.id, oi.product_id as productId, oi.product_name as productName,
                   oi.product_image as productImage, oi.quantity, oi.unit_price as unitPrice,
+                  oi.original_price as originalPrice, oi.discount_percent as discountPercent,
                   oi.total_price as totalPrice, oi.size, oi.color
            FROM storefront_order_items oi
            WHERE oi.order_id = ?`,
@@ -324,7 +478,8 @@ router.put(
         // Get order items
         const [orderItems] = await connection.query(
           `SELECT oi.product_id as productId, oi.product_name as productName,
-                  oi.quantity, oi.unit_price as unitPrice, oi.total_price as totalPrice
+                  oi.quantity, oi.unit_price as unitPrice, oi.original_price as originalPrice,
+                  oi.discount_percent as discountPercent, oi.total_price as totalPrice
            FROM storefront_order_items oi
            WHERE oi.order_id = ?`,
           [orderId]
@@ -423,11 +578,13 @@ router.put(
             }
           }
 
-          // Insert sale item
+          // Insert sale item (unit_price = precio original, discount = % descuento, subtotal = precio final * cantidad)
+          const saleUnitPrice = item.originalPrice || item.unitPrice;
+          const saleDiscount = item.discountPercent || 0;
           await connection.query(
             `INSERT INTO sale_items (id, tenant_id, sale_id, product_id, product_name, product_sku, quantity, unit_price, discount, subtotal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-            [itemId, tenantId, saleId, item.productId, item.productName, productSku, item.quantity, item.unitPrice, Number(item.totalPrice)]
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [itemId, tenantId, saleId, item.productId, item.productName, productSku, item.quantity, saleUnitPrice, saleDiscount, Number(item.totalPrice)]
           );
         }
 

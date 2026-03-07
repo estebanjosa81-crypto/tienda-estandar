@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
-import { Minus, Plus, Trash2, Ticket, X, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Minus, Plus, Trash2, Ticket, X, Check, Loader2, AlertCircle, Zap, ShoppingCart, Package, CreditCard, Sparkles } from 'lucide-react';
 
 interface FieldError {
   field: string;
@@ -22,7 +22,22 @@ const REQUIRED_FIELDS: { field: keyof import('@/types').PedidoForm; label: strin
 ];
 import { departamentosMunicipios } from '@/constants';
 import { ModalExito } from './ModalExito';
+import { LocationPicker } from './LocationPicker';
 import type { ProductoCarrito, PedidoForm, PedidoConfirmado, CuponValidacion } from '@/types';
+
+interface OrderBumpProduct {
+  id: string;
+  name: string;
+  category: string;
+  brand: string | null;
+  description: string | null;
+  salePrice: number;
+  imageUrl: string | null;
+  stock: number;
+  isOnOffer?: boolean | number;
+  offerPrice?: number | null;
+  offerLabel?: string | null;
+}
 
 interface CheckoutViewProps {
   carrito: ProductoCarrito[];
@@ -38,12 +53,23 @@ interface CheckoutViewProps {
   onValidarCupon?: (codigo: string, subtotal: number) => Promise<CuponValidacion>;
   onAplicarCupon?: (codigo: string, descuento: CuponValidacion) => void;
   onRemoverCupon?: () => void;
+  // Geolocalización
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  isDeliveryOrder?: boolean;
+  onLocationChange?: (lat: number, lng: number) => void;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   onActualizarCantidad: (id: number, cambio: number, tempId?: string) => void;
   onRemoverProducto: (producto: ProductoCarrito) => void;
   onConfirmar: () => void;
   onCerrarModal: () => void;
   onVolver: () => void;
+  // Order Bump / Cross-sell
+  orderBumpProducts?: OrderBumpProduct[];
+  orderBumpTitle?: string;
+  onAddBumpProduct?: (product: OrderBumpProduct) => void;
+  // MercadoPago Checkout Pro
+  onPagarEnLinea?: () => Promise<void>;
 }
 
 export function CheckoutView({
@@ -59,17 +85,28 @@ export function CheckoutView({
   onValidarCupon,
   onAplicarCupon,
   onRemoverCupon,
+  deliveryLatitude,
+  deliveryLongitude,
+  isDeliveryOrder = false,
+  onLocationChange,
   onInputChange,
   onActualizarCantidad,
   onRemoverProducto,
   onConfirmar,
   onCerrarModal,
-  onVolver
+  onVolver,
+  orderBumpProducts = [],
+  orderBumpTitle = '¿También te puede interesar?',
+  onAddBumpProduct,
+  onPagarEnLinea,
 }: CheckoutViewProps) {
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
   const [errorCupon, setErrorCupon] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
+  const [addedBumpIds, setAddedBumpIds] = useState<Set<string>>(new Set());
+  const [loadingMP, setLoadingMP] = useState(false);
+  const [errorMP, setErrorMP] = useState('');
 
   const validateForm = (): boolean => {
     const errors: FieldError[] = [];
@@ -100,6 +137,20 @@ export function CheckoutView({
   const handleConfirmar = () => {
     if (validateForm()) {
       onConfirmar();
+    }
+  };
+
+  const handlePagarEnLinea = async () => {
+    if (!onPagarEnLinea) return;
+    if (!validateForm()) return;
+    setLoadingMP(true);
+    setErrorMP('');
+    try {
+      await onPagarEnLinea();
+    } catch {
+      setErrorMP('Error al iniciar el pago en línea. Intenta de nuevo.');
+    } finally {
+      setLoadingMP(false);
     }
   };
 
@@ -156,8 +207,12 @@ export function CheckoutView({
         </button>
 
         <div className="border border-gray-200 p-6 sm:p-10 light-form">
-          <h1 className="text-2xl sm:text-3xl font-light tracking-wide text-gray-900 mb-2">Finalizar Compra</h1>
-          <p className="text-gray-500 mb-10 font-light text-sm">Completa tus datos para procesar tu pedido</p>
+          <h1 className="text-2xl sm:text-3xl font-light tracking-wide text-gray-900 mb-2">
+            {isDeliveryOrder ? 'Pedir Domicilio' : 'Finalizar Compra'}
+          </h1>
+          <p className="text-gray-500 mb-10 font-light text-sm">
+            {isDeliveryOrder ? 'Confirma tu dirección de entrega para el domicilio' : 'Completa tus datos para procesar tu pedido'}
+          </p>
 
           {/* Error summary */}
           {fieldErrors.length > 0 && (
@@ -285,7 +340,7 @@ export function CheckoutView({
                       <option value="">
                         {formData.departamento ? 'Selecciona municipio' : 'Primero selecciona departamento'}
                       </option>
-                      {formData.departamento && departamentosMunicipios[formData.departamento].map(mun => (
+                      {formData.departamento && departamentosMunicipios[formData.departamento]?.map(mun => (
                         <option key={mun} value={mun}>{mun}</option>
                       ))}
                     </select>
@@ -306,6 +361,18 @@ export function CheckoutView({
                     />
                     {getFieldError('direccion') && <p className="text-xs text-red-500 mt-1">{getFieldError('direccion')!.message}</p>}
                   </div>
+
+                  {/* Mapa de ubicación */}
+                  {onLocationChange && (
+                    <div className="mt-2">
+                      <LocationPicker
+                        latitude={deliveryLatitude ?? null}
+                        longitude={deliveryLongitude ?? null}
+                        onChange={onLocationChange}
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
                       BARRIO
@@ -367,9 +434,15 @@ export function CheckoutView({
                         </button>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-gray-500 font-light mb-1">
-                          {formatCOP(item.precio)} c/u
+                        <div className="text-xs text-gray-500 font-light mb-1 flex items-center justify-end gap-1">
+                          <span>{formatCOP(item.precio)} c/u</span>
+                          {item.precioOriginal && item.precioOriginal > item.precio && (
+                            <span className="line-through text-gray-300">{formatCOP(item.precioOriginal)}</span>
+                          )}
                         </div>
+                        {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
+                          <div className="text-[10px] text-green-600 mb-0.5">-{item.descuentoPorcentaje}% dto.</div>
+                        )}
                         <div className="font-light text-gray-900">
                           {formatCOP(item.precio * item.cantidad)}
                         </div>
@@ -377,6 +450,82 @@ export function CheckoutView({
                     </div>
                   </div>
                 ))}
+
+                {/* ====== ORDER BUMP / CROSS-SELL ====== */}
+                {orderBumpProducts.length > 0 && onAddBumpProduct && (
+                  <div className="pt-4 border-t border-amber-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                        {orderBumpTitle}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {orderBumpProducts.map(bp => {
+                        const isAdded = addedBumpIds.has(bp.id);
+                        const displayPrice = (bp.isOnOffer && bp.offerPrice) ? bp.offerPrice : bp.salePrice;
+                        const hasDiscount = bp.isOnOffer && bp.offerPrice && bp.offerPrice < bp.salePrice;
+                        return (
+                          <div
+                            key={bp.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                              isAdded
+                                ? 'border-green-300 bg-green-50'
+                                : 'border-amber-200 bg-amber-50/60 hover:bg-amber-50'
+                            }`}
+                          >
+                            {bp.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={bp.imageUrl}
+                                alt={bp.name}
+                                className="h-12 w-12 object-cover rounded flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <Package className="h-6 w-6 text-amber-400" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 line-clamp-1">{bp.name}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-sm font-semibold text-amber-700">
+                                  {formatCOP(displayPrice)}
+                                </span>
+                                {hasDiscount && (
+                                  <span className="text-xs text-gray-400 line-through">{formatCOP(bp.salePrice)}</span>
+                                )}
+                              </div>
+                              {bp.offerLabel && (
+                                <span className="text-xs text-orange-600 font-medium">{bp.offerLabel}</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (!isAdded) {
+                                  setAddedBumpIds(prev => new Set(prev).add(bp.id));
+                                  onAddBumpProduct(bp);
+                                }
+                              }}
+                              disabled={isAdded}
+                              className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                isAdded
+                                  ? 'bg-green-500 text-white cursor-default'
+                                  : 'bg-amber-500 hover:bg-amber-600 text-white'
+                              }`}
+                            >
+                              {isAdded ? (
+                                <><Check className="w-3.5 h-3.5" /> Añadido</>
+                              ) : (
+                                <><ShoppingCart className="w-3.5 h-3.5" /> Añadir</>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Cupón de descuento */}
                 {onValidarCupon && (
@@ -464,10 +613,52 @@ export function CheckoutView({
                 <button
                   onClick={handleConfirmar}
                   disabled={enviandoEmail}
-                  className="w-full bg-gray-900 hover:bg-gray-700 text-white font-medium py-4 transition-colors tracking-widest text-sm mt-6 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className={`w-full font-medium py-4 transition-colors tracking-widest text-sm mt-6 disabled:bg-gray-400 disabled:cursor-not-allowed text-white ${isDeliveryOrder ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-900 hover:bg-gray-700'}`}
                 >
-                  {enviandoEmail ? 'PROCESANDO...' : 'CONFIRMAR PEDIDO'}
+                  {enviandoEmail ? 'PROCESANDO...' : isDeliveryOrder ? 'PEDIR DOMICILIO' : 'CONFIRMAR PEDIDO'}
                 </button>
+
+                {/* ── MercadoPago Checkout Pro ── */}
+                {onPagarEnLinea && !isDeliveryOrder && (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-xs text-gray-400 uppercase tracking-widest whitespace-nowrap">o paga en línea</span>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
+
+                    <button
+                      onClick={handlePagarEnLinea}
+                      disabled={loadingMP || enviandoEmail}
+                      className="animate-mp-shimmer animate-mp-shake w-full relative overflow-hidden text-white font-semibold py-4 px-6 tracking-wide text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3 rounded-sm"
+                      style={{ minHeight: 56 }}
+                    >
+                      {loadingMP ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <CreditCard className="w-5 h-5 flex-shrink-0" />
+                          <span className="flex flex-col items-center leading-tight">
+                            <span className="text-sm font-bold uppercase tracking-widest">Pagar con Mercado Pago</span>
+                            <span className="text-xs font-light opacity-90 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              10% de descuento por pago en línea
+                            </span>
+                          </span>
+                        </>
+                      )}
+                    </button>
+
+                    {errorMP && (
+                      <p className="text-xs text-red-500 mt-1 text-center">{errorMP}</p>
+                    )}
+
+                    <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                      Pago seguro con encriptación SSL · Procesado por Mercado Pago
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
