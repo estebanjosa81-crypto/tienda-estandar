@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
 import type {
@@ -44,7 +44,7 @@ const SERVICE_TYPE_LABEL: Record<ServiceType, string> = {
   contacto: 'Solo contacto',
 }
 
-const STATUS_BADGE: Record<BookingStatus, JSX.Element> = {
+const STATUS_BADGE: Record<BookingStatus, React.JSX.Element> = {
   pendiente: <Badge className="bg-yellow-100 text-yellow-700">Pendiente</Badge>,
   confirmada: <Badge className="bg-blue-100 text-blue-700">Confirmada</Badge>,
   completada: <Badge className="bg-green-100 text-green-700">Completada</Badge>,
