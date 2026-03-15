@@ -462,7 +462,7 @@ export interface ServiceBooking {
 }
 
 // Auth Types
-export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor'
+export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor' | 'auxiliar_bodega'
 
 export interface User {
   id: string
