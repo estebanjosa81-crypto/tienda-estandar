@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
-  Mail, Lock, User, AlertCircle, Eye, EyeOff, ArrowLeft, ShieldX, Phone,
+  Mail, Lock, User, AlertCircle, Eye, EyeOff, ArrowLeft, ShieldX, Phone, Timer,
   Code2, Smartphone, Globe, FileSpreadsheet, Megaphone, Wrench, Bot, MessageCircle, MousePointerClick, PartyPopper, Sparkles, ArrowRight,
   MapPin, Home, Building2, CreditCard,
 } from 'lucide-react'
@@ -58,6 +58,9 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
   const [loginBgUrl, setLoginBgUrl] = useState('/image/giflogin.gif')
   const googleBtnRef = useRef<HTMLDivElement>(null)
   const [googleBtnWidth, setGoogleBtnWidth] = useState(380)
+  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
+  const [lockUntil, setLockUntil] = useState<number | null>(null)
+  const [lockRemaining, setLockRemaining] = useState(0)
 
   useEffect(() => {
     const el = googleBtnRef.current
@@ -69,6 +72,44 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+
+  // Restore lock state from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('login_lock')
+      if (stored) {
+        const { until, attempts } = JSON.parse(stored)
+        if (until && Date.now() < until) {
+          setLockUntil(until)
+          setLockRemaining(Math.ceil((until - Date.now()) / 1000))
+          setAttemptsLeft(0)
+        } else if (attempts) {
+          setAttemptsLeft(attempts >= 3 ? 6 - attempts : null)
+          if (!until) localStorage.setItem('login_lock', JSON.stringify({ until: null, attempts }))
+        } else {
+          localStorage.removeItem('login_lock')
+        }
+      }
+    } catch { localStorage.removeItem('login_lock') }
+  }, [])
+
+  // Countdown timer while locked
+  useEffect(() => {
+    if (!lockUntil) return
+    const interval = setInterval(() => {
+      const remaining = lockUntil - Date.now()
+      if (remaining <= 0) {
+        setLockUntil(null)
+        setLockRemaining(0)
+        setAttemptsLeft(null)
+        localStorage.removeItem('login_lock')
+        clearInterval(interval)
+      } else {
+        setLockRemaining(Math.ceil(remaining / 1000))
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [lockUntil])
 
   useEffect(() => {
     fetch(`${API_URL.replace('/api', '')}/api/storefront/platform-settings`)
@@ -92,16 +133,37 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
     neighborhood: '',
   })
 
+  const formatLockTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return m > 0 ? `${m}:${s.toString().padStart(2, '0')} min` : `${s}s`
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (lockUntil) return
     setLoading(true)
 
     try {
       if (isLogin) {
         const result = await login(formData.email, formData.password)
         if (!result.success) {
+          // Sync server-side rate limit info
+          if (result.lockedUntil) {
+            setLockUntil(result.lockedUntil)
+            setLockRemaining(Math.ceil((result.lockedUntil - Date.now()) / 1000))
+            setAttemptsLeft(0)
+            localStorage.setItem('login_lock', JSON.stringify({ until: result.lockedUntil, attempts: 6 }))
+          } else if (result.attemptsLeft !== undefined && result.attemptsLeft !== null) {
+            setAttemptsLeft(result.attemptsLeft)
+            localStorage.setItem('login_lock', JSON.stringify({ until: null, attempts: 6 - result.attemptsLeft }))
+          }
           setError(result.error || 'Error al iniciar sesión')
+        } else {
+          setAttemptsLeft(null)
+          setLockUntil(null)
+          localStorage.removeItem('login_lock')
         }
       } else {
         // Client registration via register-client endpoint (global, no storeSlug)
@@ -449,7 +511,37 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
               </>
             )}
 
-            {error && (
+            {/* Locked out banner */}
+            {lockUntil && lockRemaining > 0 && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500/15">
+                    <Timer className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-red-500">Acceso bloqueado temporalmente</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Demasiados intentos fallidos</p>
+                  </div>
+                </div>
+                <p className="text-sm font-mono text-center text-red-600 dark:text-red-400 bg-red-500/10 rounded-lg py-2">
+                  Intenta de nuevo en {formatLockTime(lockRemaining)}
+                </p>
+              </div>
+            )}
+
+            {/* Attempts warning */}
+            {!lockUntil && attemptsLeft !== null && attemptsLeft > 0 && (
+              <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-3 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-orange-600 dark:text-orange-400">
+                  <span className="font-semibold">¡Atención!</span> Solo te quedan{' '}
+                  <span className="font-bold">{attemptsLeft} intento{attemptsLeft !== 1 ? 's' : ''}</span>.
+                  Después serás bloqueado por 15 minutos.
+                </p>
+              </div>
+            )}
+
+            {error && !lockUntil && (
               error.includes('desactivada') || error.includes('suspendido') ? (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
                   <div className="flex items-center gap-3">
@@ -473,42 +565,46 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
               )
             )}
 
-            <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold" disabled={loading || googleLoading}>
+            <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold" disabled={loading || googleLoading || !!lockUntil}>
               {loading ? 'Cargando...' : isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
             </Button>
           </form>
 
           {/* Divider */}
-          <div className="relative my-2">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
+          {!lockUntil && (
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">o continúa con</span>
+              </div>
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">o continúa con</span>
-            </div>
-          </div>
+          )}
 
           {/* Google Login Button */}
-          <div className="flex justify-center w-full">
-            {googleLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                Conectando con Google...
-              </div>
-            ) : (
-              <div ref={googleBtnRef} className="w-full max-w-sm">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError('Error al conectar con Google')}
-                  theme="filled_black"
-                  size="large"
-                  width={googleBtnWidth}
-                  text={isLogin ? 'signin_with' : 'signup_with'}
-                  shape="pill"
-                />
-              </div>
-            )}
-          </div>
+          {!lockUntil && (
+            <div className="flex justify-center w-full">
+              {googleLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                  Conectando con Google...
+                </div>
+              ) : (
+                <div ref={googleBtnRef} className="w-full max-w-sm">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError('Error al conectar con Google')}
+                    theme="filled_black"
+                    size="large"
+                    width={googleBtnWidth}
+                    text={isLogin ? 'signin_with' : 'signup_with'}
+                    shape="pill"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="text-center pt-2">
             {isLogin ? (

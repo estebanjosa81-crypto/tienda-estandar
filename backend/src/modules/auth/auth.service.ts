@@ -445,3 +445,42 @@ export class AuthService {
 }
 
 export const authService = new AuthService();
+
+// ── Login Rate Limiter ──────────────────────────────────────────────────────
+const MAX_ATTEMPTS = 6;
+const WARN_AFTER = 3;
+const LOCK_DURATION_MS = 15 * 60 * 1000;
+
+interface AttemptRecord { count: number; lockedUntil: number | null }
+const loginAttempts = new Map<string, AttemptRecord>();
+
+export const loginRateLimiter = {
+  checkLocked(email: string): { lockedUntil: number } | null {
+    const key = email.toLowerCase();
+    const r = loginAttempts.get(key);
+    if (!r?.lockedUntil) return null;
+    if (Date.now() < r.lockedUntil) return { lockedUntil: r.lockedUntil };
+    loginAttempts.delete(key);
+    return null;
+  },
+
+  recordFailure(email: string): { attemptsLeft: number | null; lockedUntil: number | null } {
+    const key = email.toLowerCase();
+    const r = loginAttempts.get(key) ?? { count: 0, lockedUntil: null };
+    r.count++;
+    if (r.count >= MAX_ATTEMPTS) {
+      r.lockedUntil = Date.now() + LOCK_DURATION_MS;
+      loginAttempts.set(key, r);
+      return { attemptsLeft: 0, lockedUntil: r.lockedUntil };
+    }
+    loginAttempts.set(key, r);
+    if (r.count >= WARN_AFTER) {
+      return { attemptsLeft: MAX_ATTEMPTS - r.count, lockedUntil: null };
+    }
+    return { attemptsLeft: null, lockedUntil: null };
+  },
+
+  reset(email: string): void {
+    loginAttempts.delete(email.toLowerCase());
+  },
+};

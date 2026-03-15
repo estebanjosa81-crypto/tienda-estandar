@@ -72,17 +72,31 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(email: string, password: string) {
-    const result = await this.request<{ token: string; user: any }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    })
-
-    if (result.success && result.data?.token) {
-      this.setToken(result.data.token)
+  async login(email: string, password: string): Promise<{
+    success: boolean; data?: { token: string; user: any };
+    error?: string; attemptsLeft?: number; lockedUntil?: number;
+  }> {
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await response.json()
+      if (response.ok && data.success && data.data?.token) {
+        this.setToken(data.data.token)
+        return { success: true, data: data.data }
+      }
+      return {
+        success: false,
+        error: data.message || data.error || 'Correo o contraseña incorrectos',
+        attemptsLeft: data.attemptsLeft,
+        lockedUntil: data.lockedUntil,
+      }
+    } catch {
+      return { success: false, error: 'Error de conexión con el servidor' }
     }
-
-    return result
   }
 
   async googleLogin(credential: string, storeSlug?: string) {

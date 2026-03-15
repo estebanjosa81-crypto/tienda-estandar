@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { authService } from './auth.service';
+import { authService, loginRateLimiter } from './auth.service';
 import { AuthRequest } from '../../common/middleware';
 import { audit } from '../../utils/audit-logger';
 
@@ -19,10 +19,24 @@ function setAuthCookie(res: Response, token: string) {
 
 export class AuthController {
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { email, password } = req.body;
+
+    // Check if this email is currently locked out
+    const locked = loginRateLimiter.checkLocked(email);
+    if (locked) {
+      const minutesLeft = Math.ceil((locked.lockedUntil - Date.now()) / 60000);
+      res.status(429).json({
+        success: false,
+        error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutesLeft} minuto${minutesLeft !== 1 ? 's' : ''}.`,
+        lockedUntil: locked.lockedUntil,
+      });
+      return;
+    }
+
     try {
-      const { email, password } = req.body;
       const result = await authService.login(email, password);
 
+      loginRateLimiter.reset(email);
       setAuthCookie(res, result.token);
       audit.loginSuccess(result.user.id as string, (result.user as any).tenantId ?? null, req.ip);
 
@@ -33,7 +47,14 @@ export class AuthController {
       });
     } catch (error) {
       audit.loginFailure(req.body.email, req.ip, (error as any)?.message);
-      next(error);
+      const failInfo = loginRateLimiter.recordFailure(email);
+      const statusCode = (error as any)?.statusCode || 401;
+      res.status(statusCode).json({
+        success: false,
+        error: (error as any)?.message || 'Error al iniciar sesión',
+        ...(failInfo.attemptsLeft !== null && { attemptsLeft: failInfo.attemptsLeft }),
+        ...(failInfo.lockedUntil && { lockedUntil: failInfo.lockedUntil }),
+      });
     }
   }
 

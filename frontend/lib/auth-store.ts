@@ -10,7 +10,7 @@ interface AuthStore {
   isAuthenticated: boolean
   isLoading: boolean
   isCheckingAuth: boolean
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; attemptsLeft?: number; lockedUntil?: number }>
   googleLogin: (credential: string, storeSlug?: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         set({ isLoading: false })
-        return { success: false, error: result.error || 'Correo o contraseña incorrectos' }
+        return { success: false, error: result.error, attemptsLeft: result.attemptsLeft, lockedUntil: result.lockedUntil }
       },
 
       googleLogin: async (credential: string, storeSlug?: string) => {
