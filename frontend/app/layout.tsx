@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'sonner'
 import { GoogleOAuthWrapper } from '@/components/google-oauth-wrapper'
+import { DynamicFavicon } from '@/components/dynamic-favicon'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -14,21 +15,8 @@ export const metadata: Metadata = {
   description: 'Sistema completo de gestión de inventario para tiendas',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/image/lopbukicon.png',
+    apple: '/image/lopbukicon.png',
   },
 }
 
@@ -41,6 +29,7 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <DynamicFavicon />
           <GoogleOAuthWrapper>
             {children}
           </GoogleOAuthWrapper>
