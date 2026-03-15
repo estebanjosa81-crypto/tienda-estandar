@@ -10,8 +10,8 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'Lopbuk - Sistema de Gestión de Inventario',
-  description: 'Sistema completo de gestión de inventario para tienda de ropa masculina',
+  title: 'perfum mua - !Bienvenido a la mejor perfumeria de colombia!',
+  description: 'Sistema completo de gestión de inventario para tiendas',
   generator: 'v0.app',
   icons: {
     icon: [
