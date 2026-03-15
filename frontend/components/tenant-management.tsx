@@ -146,6 +146,24 @@ export function TenantManagement() {
   const [showMpToken, setShowMpToken] = useState(false)
   const [isSavingMP, setIsSavingMP] = useState(false)
 
+  // ADDI settings
+  const [addiClientId, setAddiClientId] = useState('')
+  const [addiClientSecret, setAddiClientSecret] = useState('')
+  const [addiStoreSlug, setAddiStoreSlug] = useState('')
+  const [addiProduction, setAddiProduction] = useState(false)
+  const [addiSaved, setAddiSaved] = useState(false)
+  const [showAddiSecret, setShowAddiSecret] = useState(false)
+  const [isSavingAddi, setIsSavingAddi] = useState(false)
+
+  // Sistecredito settings
+  const [sisteApiKey, setSisteApiKey] = useState('')
+  const [sisteApiSecret, setSisteApiSecret] = useState('')
+  const [sisteAllyCode, setSisteAllyCode] = useState('')
+  const [sisteProduction, setSisteProduction] = useState(false)
+  const [sisteSaved, setSisteSaved] = useState(false)
+  const [showSisteSecret, setShowSisteSecret] = useState(false)
+  const [isSavingSiste, setIsSavingSiste] = useState(false)
+
   // Users list
   const [users, setUsers] = useState<any[]>([])
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
@@ -265,6 +283,14 @@ export function TenantManagement() {
       if (result.data.bg_color) setPlatformBgColor(result.data.bg_color)
       if (result.data.mp_access_token) { setMpAccessToken(result.data.mp_access_token); setMpTokenSaved(true) }
       if (result.data.frontend_url) setMpFrontendUrl(result.data.frontend_url)
+      if (result.data.addi_client_id) { setAddiClientId(result.data.addi_client_id); setAddiSaved(true) }
+      if (result.data.addi_client_secret) setAddiClientSecret(result.data.addi_client_secret)
+      if (result.data.addi_store_slug) setAddiStoreSlug(result.data.addi_store_slug)
+      if (result.data.addi_production === 'true') setAddiProduction(true)
+      if (result.data.sistecredito_api_key) { setSisteApiKey(result.data.sistecredito_api_key); setSisteSaved(true) }
+      if (result.data.sistecredito_api_secret) setSisteApiSecret(result.data.sistecredito_api_secret)
+      if (result.data.sistecredito_ally_code) setSisteAllyCode(result.data.sistecredito_ally_code)
+      if (result.data.sistecredito_production === 'true') setSisteProduction(true)
     }
   }, [])
 
@@ -388,6 +414,58 @@ export function TenantManagement() {
       toast.error('Error de conexión')
     }
     setIsSavingMP(false)
+  }
+
+  const handleSaveAddiSettings = async () => {
+    if (!addiClientId.trim() || !addiClientSecret.trim()) {
+      toast.error('Ingresa el Client ID y Client Secret de ADDI')
+      return
+    }
+    setIsSavingAddi(true)
+    try {
+      const updates = [
+        api.updatePlatformSetting('addi_client_id', addiClientId.trim()),
+        api.updatePlatformSetting('addi_client_secret', addiClientSecret.trim()),
+        api.updatePlatformSetting('addi_production', addiProduction ? 'true' : 'false'),
+      ]
+      if (addiStoreSlug.trim()) updates.push(api.updatePlatformSetting('addi_store_slug', addiStoreSlug.trim()))
+      const results = await Promise.all(updates)
+      if (results.every(r => r.success)) {
+        setAddiSaved(true)
+        toast.success('Configuración de ADDI guardada')
+      } else {
+        toast.error('Error al guardar la configuración de ADDI')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    }
+    setIsSavingAddi(false)
+  }
+
+  const handleSaveSisteSettings = async () => {
+    if (!sisteApiKey.trim()) {
+      toast.error('Ingresa el API Key de Sistecredito')
+      return
+    }
+    setIsSavingSiste(true)
+    try {
+      const updates = [
+        api.updatePlatformSetting('sistecredito_api_key', sisteApiKey.trim()),
+        api.updatePlatformSetting('sistecredito_production', sisteProduction ? 'true' : 'false'),
+      ]
+      if (sisteApiSecret.trim()) updates.push(api.updatePlatformSetting('sistecredito_api_secret', sisteApiSecret.trim()))
+      if (sisteAllyCode.trim()) updates.push(api.updatePlatformSetting('sistecredito_ally_code', sisteAllyCode.trim()))
+      const results = await Promise.all(updates)
+      if (results.every(r => r.success)) {
+        setSisteSaved(true)
+        toast.success('Configuración de Sistecredito guardada')
+      } else {
+        toast.error('Error al guardar la configuración de Sistecredito')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    }
+    setIsSavingSiste(false)
   }
 
   const handleCreateUser = async () => {
@@ -704,6 +782,199 @@ export function TenantManagement() {
           <Button onClick={handleSaveMPSettings} disabled={isSavingMP} className="gap-2">
             <CreditCard className="h-4 w-4" />
             {isSavingMP ? 'Guardando...' : 'Guardar configuración MP'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ADDI Settings */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-[#FF5E00]" />
+            Pagos a Crédito — ADDI
+          </CardTitle>
+          <CardDescription>
+            Conecta ADDI para ofrecer crédito inmediato a tus clientes. Pagan en cuotas, tú recibes el dinero de contado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Status banner */}
+          {addiSaved ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-green-50 border border-green-200 text-green-700 text-sm">
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              Credenciales configuradas. El botón "Pagar con ADDI" ya es funcional.
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              Sin configurar — el botón de ADDI no aparecerá a los clientes.
+            </div>
+          )}
+
+          {/* Modo producción / staging */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { setAddiProduction(v => !v); setAddiSaved(false) }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${addiProduction ? 'bg-[#FF5E00]' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${addiProduction ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+            <span className="text-sm font-medium">
+              {addiProduction ? 'Producción (cobros reales)' : 'Staging (pruebas)'}
+            </span>
+          </div>
+
+          {/* Client ID */}
+          <div className="space-y-2">
+            <Label>Client ID</Label>
+            <Input
+              value={addiClientId}
+              onChange={(e) => { setAddiClientId(e.target.value); setAddiSaved(false) }}
+              placeholder={addiProduction ? 'Client ID de producción' : 'y61CPhOS0YB7wxz8BgKBpQt4YcTsW0wi'}
+              className="font-mono text-sm"
+            />
+          </div>
+
+          {/* Client Secret */}
+          <div className="space-y-2">
+            <Label>Client Secret</Label>
+            <div className="relative">
+              <input
+                type={showAddiSecret ? 'text' : 'password'}
+                value={addiClientSecret}
+                onChange={(e) => { setAddiClientSecret(e.target.value); setAddiSaved(false) }}
+                placeholder={addiProduction ? 'Client Secret de producción' : 'Client Secret de staging'}
+                className="w-full h-9 px-3 pr-10 border border-input bg-background rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAddiSecret(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <EyeOff className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Store Slug (optional) */}
+          <div className="space-y-2">
+            <Label>
+              Store Slug{' '}
+              <span className="text-[10px] text-muted-foreground font-normal">(opcional — provisto por ADDI)</span>
+            </Label>
+            <Input
+              value={addiStoreSlug}
+              onChange={(e) => { setAddiStoreSlug(e.target.value); setAddiSaved(false) }}
+              placeholder="mi-tienda"
+              className="font-mono text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              ADDI te asigna un slug durante la integración. Déjalo vacío si no lo tienes aún.
+            </p>
+          </div>
+
+          <Button onClick={handleSaveAddiSettings} disabled={isSavingAddi} className="gap-2 bg-[#FF5E00] hover:bg-[#e05500] text-white">
+            <CreditCard className="h-4 w-4" />
+            {isSavingAddi ? 'Guardando...' : 'Guardar configuración ADDI'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Sistecredito Settings */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-[#1A3FA0]" />
+            Pagos a Crédito — Sistecredito
+          </CardTitle>
+          <CardDescription>
+            Conecta Sistecredito para ofrecer crédito sin tarjeta a tus clientes. Ampliamente usado en Colombia para compras a cuotas.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Status banner */}
+          {sisteSaved ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-green-50 border border-green-200 text-green-700 text-sm">
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              API Key configurada. El botón "Pagar con Sistecredito" ya es funcional.
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              Sin configurar — el botón de Sistecredito no aparecerá a los clientes.
+            </div>
+          )}
+
+          {/* Modo producción / sandbox */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { setSisteProduction(v => !v); setSisteSaved(false) }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${sisteProduction ? 'bg-[#1A3FA0]' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${sisteProduction ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+            <span className="text-sm font-medium">
+              {sisteProduction ? 'Producción (cobros reales)' : 'Sandbox (pruebas)'}
+            </span>
+          </div>
+
+          {/* API Key */}
+          <div className="space-y-2">
+            <Label>API Key</Label>
+            <Input
+              value={sisteApiKey}
+              onChange={(e) => { setSisteApiKey(e.target.value); setSisteSaved(false) }}
+              placeholder="API Key provista por Sistecredito"
+              className="font-mono text-sm"
+            />
+          </div>
+
+          {/* API Secret (opcional) */}
+          <div className="space-y-2">
+            <Label>
+              API Secret{' '}
+              <span className="text-[10px] text-muted-foreground font-normal">(opcional según integración)</span>
+            </Label>
+            <div className="relative">
+              <input
+                type={showSisteSecret ? 'text' : 'password'}
+                value={sisteApiSecret}
+                onChange={(e) => { setSisteApiSecret(e.target.value); setSisteSaved(false) }}
+                placeholder="API Secret de Sistecredito"
+                className="w-full h-9 px-3 pr-10 border border-input bg-background rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSisteSecret(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <EyeOff className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Ally Code (opcional) */}
+          <div className="space-y-2">
+            <Label>
+              Código de Aliado{' '}
+              <span className="text-[10px] text-muted-foreground font-normal">(opcional — provisto por Sistecredito)</span>
+            </Label>
+            <Input
+              value={sisteAllyCode}
+              onChange={(e) => { setSisteAllyCode(e.target.value); setSisteSaved(false) }}
+              placeholder="Ej: ALIADO-001"
+              className="font-mono text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Código de aliado que te asigna Sistecredito al momento de la integración. Déjalo vacío si no aplica.
+            </p>
+          </div>
+
+          <Button onClick={handleSaveSisteSettings} disabled={isSavingSiste} className="gap-2 bg-[#1A3FA0] hover:bg-[#142e80] text-white">
+            <CreditCard className="h-4 w-4" />
+            {isSavingSiste ? 'Guardando...' : 'Guardar configuración Sistecredito'}
           </Button>
         </CardContent>
       </Card>

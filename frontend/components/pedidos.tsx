@@ -339,11 +339,11 @@ export function Pedidos() {
             { label: 'Cancelados', value: stats.cancelled, color: 'text-red-600' },
             { label: 'Ingresos', value: formatCurrency(stats.totalRevenue || 0), color: 'text-primary', isRevenue: true },
           ].map((s, i) => (
-            <Card key={i}>
+            <Card key={i} className={(s as any).isRevenue ? 'col-span-2 sm:col-span-4 lg:col-span-1' : ''}>
               <CardContent className="p-3 text-center">
                 <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className={`text-lg font-bold ${s.color}`}>
-                  {typeof s.value === 'number' && !(s as any).isRevenue ? s.value : s.value}
+                <p className={`font-bold truncate ${(s as any).isRevenue ? 'text-sm' : 'text-lg'} ${s.color}`}>
+                  {s.value}
                 </p>
               </CardContent>
             </Card>
@@ -373,7 +373,7 @@ export function Pedidos() {
                 setStatusFilter(e.target.value)
                 setPage(1)
               }}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm w-full sm:w-auto"
             >
               <option value="all">Todos los estados</option>
               <option value="pendiente">Pendiente</option>
@@ -424,7 +424,7 @@ export function Pedidos() {
               <Card key={order.id} className="overflow-hidden">
                 {/* Order Header */}
                 <div
-                  className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                  className="flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
                 >
                   <div className="flex-1 min-w-0">

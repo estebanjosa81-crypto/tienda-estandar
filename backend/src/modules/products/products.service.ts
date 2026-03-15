@@ -89,6 +89,8 @@ interface ProductRow extends RowDataPacket {
   package_dimensions: string | null;
   package_contents: string | null;
   safety_warnings: string | null;
+  // Sede
+  sede_id: string | null;
   // Timestamps
   created_at: Date;
   updated_at: Date;
@@ -105,6 +107,7 @@ export interface ProductFilters {
   search?: string;
   minPrice?: number;
   maxPrice?: number;
+  sedeId?: string;
 }
 
 // Mapping from camelCase to snake_case for all product fields
@@ -184,6 +187,7 @@ const fieldMap: Record<string, string> = {
   packageDimensions: 'package_dimensions',
   packageContents: 'package_contents',
   safetyWarnings: 'safety_warnings',
+  sedeId: 'sede_id',
 };
 
 interface RecipeRow extends RowDataPacket {
@@ -321,6 +325,7 @@ export class ProductsService {
       packageDimensions: row.package_dimensions || undefined,
       packageContents: row.package_contents || undefined,
       safetyWarnings: row.safety_warnings || undefined,
+      sedeId: row.sede_id || undefined,
       // Timestamps
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -362,6 +367,11 @@ export class ProductsService {
     if (filters?.maxPrice !== undefined) {
       conditions.push('sale_price <= ?');
       values.push(filters.maxPrice);
+    }
+
+    if (filters?.sedeId) {
+      conditions.push('sede_id = ?');
+      values.push(filters.sedeId);
     }
 
     if (filters?.stockStatus) {
@@ -735,6 +745,84 @@ export class ProductsService {
     );
 
     return rows.map(this.mapProduct);
+  }
+
+  async exportCsv(tenantId: string, filters?: ProductFilters): Promise<string> {
+    const conditions: string[] = ['tenant_id = ?'];
+    const values: (string | number)[] = [tenantId];
+
+    if (filters?.category) {
+      conditions.push('category = ?');
+      values.push(filters.category);
+    }
+    if (filters?.productType) {
+      conditions.push('product_type = ?');
+      values.push(filters.productType);
+    }
+    if (filters?.search) {
+      conditions.push('(name LIKE ? OR sku LIKE ? OR brand LIKE ? OR barcode LIKE ?)');
+      const s = `%${filters.search}%`;
+      values.push(s, s, s, s);
+    }
+    if (filters?.stockStatus) {
+      switch (filters.stockStatus) {
+        case 'agotado': conditions.push('stock = 0'); break;
+        case 'bajo':    conditions.push('stock > 0 AND stock <= reorder_point'); break;
+        case 'suficiente': conditions.push('stock > reorder_point'); break;
+      }
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const [rows] = await db.execute<ProductRow[]>(
+      `SELECT * FROM products ${whereClause} ORDER BY name ASC`,
+      values
+    );
+
+    const products = rows.map(this.mapProduct);
+    const enriched = await this.enrichWithBOMStock(products, tenantId);
+
+    const escape = (v: unknown): string => {
+      if (v == null) return '';
+      const s = String(v).replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+    };
+
+    const headers = [
+      'ID', 'Nombre', 'SKU', 'Código de barras', 'Tipo', 'Categoría', 'Marca', 'Modelo',
+      'Descripción', 'Precio compra', 'Precio venta', 'Stock', 'Punto reorden',
+      'Estado stock', 'Proveedor', 'Fecha entrada', 'Fecha vencimiento',
+      'Ubicación en tienda', 'Talla', 'Color', 'Material', 'Género', 'Temporada',
+      'Número serie', 'Garantía (meses)', 'Ingrediente activo', 'Concentración',
+      'Requiere receta', 'Laboratorio', 'Dimensiones', 'Peso', 'ISBN',
+      'Autor', 'Editorial', 'Páginas', 'Año publicación',
+      'Publicado en tienda', 'Disponible domicilio', 'En oferta', 'Precio oferta',
+      'Notas', 'Sede ID', 'Creado',
+    ];
+
+    const toDate = (v: unknown) => v ? new Date(v as string).toISOString().split('T')[0] : '';
+
+    const csvRows = enriched.map(p => [
+      p.id, p.name, p.sku, p.barcode ?? '',
+      p.productType, p.category, p.brand ?? '', p.model ?? '',
+      p.description ?? '', p.purchasePrice, p.salePrice,
+      p.stock, p.reorderPoint, p.stockStatus ?? '',
+      p.supplier ?? '', toDate(p.entryDate), toDate(p.expiryDate),
+      p.locationInStore ?? '', p.size ?? '', p.color ?? '',
+      p.material ?? '', p.gender ?? '', p.season ?? '',
+      p.serialNumber ?? '', p.warrantyMonths ?? '',
+      p.activeIngredient ?? '', p.concentration ?? '',
+      p.requiresPrescription != null ? (p.requiresPrescription ? 'Sí' : 'No') : '',
+      p.laboratory ?? '', p.dimensions ?? '', p.weight ?? '',
+      p.isbn ?? '', p.author ?? '', p.publisher ?? '',
+      p.pages ?? '', p.publicationYear ?? '',
+      (p as any).publishedInStore ? 'Sí' : 'No',
+      (p as any).availableForDelivery ? 'Sí' : 'No',
+      (p as any).isOnOffer ? 'Sí' : 'No',
+      (p as any).offerPrice ?? '',
+      p.notes ?? '', p.sedeId ?? '', toDate(p.createdAt),
+    ].map(escape).join(','));
+
+    return [headers.join(','), ...csvRows].join('\r\n');
   }
 }
 

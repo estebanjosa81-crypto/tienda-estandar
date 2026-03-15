@@ -52,12 +52,28 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(50) NULL COMMENT 'Teléfono del usuario (usado por clientes)',
     avatar VARCHAR(500) NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    can_login BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'FALSE = el empleado existe en el sistema pero no puede iniciar sesión (ej: empleados de aseo, bodega)',
+    cargo_id VARCHAR(36) NULL COMMENT 'Cargo personalizado del empleado (FK a employee_cargos)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     INDEX idx_users_tenant (tenant_id),
     INDEX idx_users_role (role),
     INDEX idx_users_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: employee_cargos (Cargos/posiciones personalizadas por tenant)
+-- El comerciante crea sus propios cargos (ej: Vendedor, Cajero, Auxiliar de Bodega)
+-- ============================================
+CREATE TABLE IF NOT EXISTS employee_cargos (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_cargos_tenant (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- FK circular: tenants.owner_id -> users.id
@@ -90,8 +106,9 @@ CREATE TABLE IF NOT EXISTS store_info (
     logo_url VARCHAR(500) NULL,
     schedule VARCHAR(500) NULL COMMENT 'Horario de atencion',
     location_map_url VARCHAR(500) NULL,
-    terms_url VARCHAR(500) NULL,
-    privacy_url VARCHAR(500) NULL,
+    terms_url TEXT NULL COMMENT 'Contenido de términos y condiciones (texto libre)',
+    privacy_url TEXT NULL COMMENT 'Contenido de política de privacidad (texto libre)',
+    shipping_terms TEXT NULL COMMENT 'Contenido de términos de envío (texto libre)',
     payment_methods TEXT NULL COMMENT 'Metodos de pago aceptados',
     social_instagram VARCHAR(255) NULL,
     social_facebook VARCHAR(255) NULL,
@@ -117,9 +134,28 @@ CREATE TABLE IF NOT EXISTS categories (
     name VARCHAR(100) NOT NULL,
     description VARCHAR(255) NULL,
     image_url VARCHAR(500) NULL,
+    hidden_in_store TINYINT(1) NOT NULL DEFAULT 0,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_category_tenant_name (tenant_id, name),
     INDEX idx_category_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Migration: add hidden_in_store if not exists
+-- Run manually on existing databases:
+-- ALTER TABLE categories ADD COLUMN IF NOT EXISTS hidden_in_store TINYINT(1) NOT NULL DEFAULT 0;
+
+-- ============================================
+-- TABLA: sedes (Sucursales por tenant)
+-- ============================================
+CREATE TABLE IF NOT EXISTS sedes (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    address VARCHAR(500) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_sedes_tenant (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -270,6 +306,9 @@ CREATE TABLE IF NOT EXISTS products (
     offer_start DATETIME NULL,
     offer_end DATETIME NULL,
 
+    -- Sede/Sucursal
+    sede_id VARCHAR(36) NULL COMMENT 'Sede a la que pertenece el producto (NULL = todas las sedes)',
+
     -- Auditoria
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -332,7 +371,7 @@ CREATE TABLE IF NOT EXISTS sales (
     tax DECIMAL(12, 2) NOT NULL DEFAULT 0,
     discount DECIMAL(12, 2) NOT NULL DEFAULT 0,
     total DECIMAL(12, 2) NOT NULL,
-    payment_method ENUM('efectivo', 'tarjeta', 'transferencia', 'fiado') NOT NULL,
+    payment_method ENUM('efectivo', 'tarjeta', 'transferencia', 'fiado', 'addi', 'sistecredito', 'mixto') NOT NULL,
     amount_paid DECIMAL(12, 2) NOT NULL,
     change_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
     seller_id VARCHAR(36) NULL,
@@ -342,6 +381,10 @@ CREATE TABLE IF NOT EXISTS sales (
     credit_status ENUM('pendiente', 'parcial', 'pagado') DEFAULT NULL,
     due_date DATE NULL,
     notes TEXT NULL,
+    -- Offline-first sync
+    synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
+    synced_at TIMESTAMP NULL COMMENT 'Fecha en que se sincronizó con la nube',
+    origin ENUM('local','cloud') NOT NULL DEFAULT 'cloud' COMMENT 'Origen del registro: local (offline) o cloud',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -354,7 +397,8 @@ CREATE TABLE IF NOT EXISTS sales (
     INDEX idx_created (created_at),
     INDEX idx_sales_credit_status (credit_status),
     INDEX idx_sales_payment_method (payment_method),
-    INDEX idx_sales_due_date (due_date)
+    INDEX idx_sales_due_date (due_date),
+    INDEX idx_sales_synced (synced)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -433,13 +477,21 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
     supplier_id VARCHAR(50) NULL,
     supplier_name VARCHAR(200) NOT NULL,
     purchase_date DATE NOT NULL,
+    document_type ENUM('factura','remision','orden_compra','nota_credito') NOT NULL DEFAULT 'factura',
     subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount DECIMAL(12,2) NOT NULL DEFAULT 0,
     tax DECIMAL(12,2) NOT NULL DEFAULT 0,
     total DECIMAL(12,2) NOT NULL DEFAULT 0,
-    payment_method ENUM('efectivo','tarjeta','transferencia','credito') NOT NULL DEFAULT 'efectivo',
+    payment_method ENUM('efectivo','tarjeta','transferencia','credito','nequi','daviplata','credito_proveedor','mixto') NOT NULL DEFAULT 'efectivo',
     payment_status ENUM('pagado','pendiente','parcial') NOT NULL DEFAULT 'pagado',
+    due_date DATE NULL,
+    file_url VARCHAR(500) NULL,
     notes TEXT NULL,
     created_by VARCHAR(50) NULL,
+    -- Offline-first sync
+    synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
+    synced_at TIMESTAMP NULL COMMENT 'Fecha en que se sincronizó con la nube',
+    origin ENUM('local','cloud') NOT NULL DEFAULT 'cloud' COMMENT 'Origen del registro: local (offline) o cloud',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -447,7 +499,9 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_purchase_invoices_tenant (tenant_id),
     INDEX idx_purchase_invoices_date (purchase_date),
-    INDEX idx_purchase_invoices_supplier (supplier_id)
+    INDEX idx_purchase_invoices_supplier (supplier_id),
+    INDEX idx_purchase_invoices_status (tenant_id, payment_status),
+    INDEX idx_purchases_synced (synced)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -784,6 +838,32 @@ CREATE TABLE IF NOT EXISTS service_bookings (
     INDEX idx_bookings_service (service_id),
     INDEX idx_bookings_date (booking_date),
     INDEX idx_bookings_status (tenant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: product_reviews (Reseñas de productos del storefront)
+-- ============================================
+CREATE TABLE IF NOT EXISTS product_reviews (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    product_id VARCHAR(36) NOT NULL,
+    reviewer_name VARCHAR(200) NOT NULL,
+    reviewer_email VARCHAR(200) NULL,
+    rating TINYINT NOT NULL DEFAULT 5 COMMENT '1-5 estrellas',
+    title VARCHAR(200) NULL,
+    body TEXT NULL,
+    image_url_1 VARCHAR(500) NULL,
+    image_url_2 VARCHAR(500) NULL,
+    status ENUM('pendiente', 'aprobado', 'rechazado') NOT NULL DEFAULT 'pendiente',
+    reply TEXT NULL COMMENT 'Respuesta del comerciante',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    INDEX idx_reviews_tenant (tenant_id),
+    INDEX idx_reviews_product (product_id),
+    INDEX idx_reviews_status (tenant_id, status),
+    CONSTRAINT chk_rating CHECK (rating >= 1 AND rating <= 5)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -1281,6 +1361,7 @@ CREATE TABLE IF NOT EXISTS store_banners (
     tenant_id VARCHAR(36) NOT NULL,
     position VARCHAR(20) NOT NULL COMMENT 'hero1, hero4',
     image_url VARCHAR(500) NOT NULL,
+    video_url VARCHAR(500) NULL COMMENT 'URL de video (solo hero4)',
     title VARCHAR(255) NULL,
     subtitle VARCHAR(500) NULL,
     link_url VARCHAR(500) NULL,
@@ -1521,14 +1602,136 @@ BEGIN
             COMMENT 'Estilo de tarjeta de producto: style1 (oscuro clásico) o style2 (moderno con hover)';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'allow_contraentrega'
+    ) THEN
+        ALTER TABLE store_info ADD COLUMN allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1
+            COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'shipping_terms'
+    ) THEN
+        ALTER TABLE store_info ADD COLUMN shipping_terms TEXT NULL
+            COMMENT 'Contenido de términos de envío (texto libre)';
+    END IF;
+
+    -- Ampliar columnas de terms_url y privacy_url a TEXT si aún son VARCHAR
+    ALTER TABLE store_info MODIFY COLUMN terms_url TEXT NULL COMMENT 'Contenido de términos y condiciones (texto libre)';
+    ALTER TABLE store_info MODIFY COLUMN privacy_url TEXT NULL COMMENT 'Contenido de política de privacidad (texto libre)';
+
     ALTER TABLE store_drops
         MODIFY COLUMN tenant_id VARCHAR(36) NULL
         COMMENT 'NULL = drop global de plataforma (superadmin)';
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'can_login'
+    ) THEN
+        ALTER TABLE users ADD COLUMN can_login BOOLEAN NOT NULL DEFAULT TRUE
+            COMMENT 'FALSE = el empleado existe en el sistema pero no puede iniciar sesión'
+            AFTER is_active;
+    END IF;
+
+    -- purchase_invoices: nuevos campos
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoices' AND COLUMN_NAME = 'document_type'
+    ) THEN
+        ALTER TABLE purchase_invoices
+            ADD COLUMN document_type ENUM('factura','remision','orden_compra','nota_credito') NOT NULL DEFAULT 'factura' AFTER purchase_date,
+            ADD COLUMN discount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER subtotal,
+            ADD COLUMN due_date DATE NULL AFTER payment_status,
+            ADD COLUMN file_url VARCHAR(500) NULL AFTER due_date;
+        ALTER TABLE purchase_invoices
+            MODIFY COLUMN payment_method ENUM('efectivo','tarjeta','transferencia','credito','nequi','daviplata','credito_proveedor','mixto') NOT NULL DEFAULT 'efectivo';
+    END IF;
+
+    -- sales: ampliar payment_method ENUM con métodos modernos
+    ALTER TABLE sales
+        MODIFY COLUMN payment_method ENUM('efectivo','tarjeta','transferencia','fiado','addi','sistecredito','mixto') NOT NULL;
 END //
 DELIMITER ;
 
 CALL sp_lopbuk_migrate();
 DROP PROCEDURE IF EXISTS sp_lopbuk_migrate;
+
+-- ============================================
+-- TABLA: chatbot_config (Configuración del chatbot IA por tenant)
+-- ============================================
+CREATE TABLE IF NOT EXISTS chatbot_config (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    tenant_id VARCHAR(36) NOT NULL UNIQUE,
+    is_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Activado por superadmin',
+    bot_name VARCHAR(100) NOT NULL DEFAULT 'Asistente',
+    bot_avatar_url VARCHAR(500) NULL,
+    system_prompt TEXT NULL COMMENT 'Base de conocimiento e instrucciones para la IA',
+    business_info TEXT NULL COMMENT 'Descripción del negocio, horarios, servicios',
+    faqs TEXT NULL COMMENT 'Preguntas frecuentes en texto libre',
+    tone ENUM('profesional','amigable','formal','casual') NOT NULL DEFAULT 'amigable',
+    notify_email TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Notificar al correo del comercio cuando llegue un pedido',
+    notify_whatsapp TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Notificar al WhatsApp del comercio cuando llegue un pedido',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_chatbot_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: chatbot_sessions (Sesiones de conversación)
+-- ============================================
+CREATE TABLE IF NOT EXISTS chatbot_sessions (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    session_token VARCHAR(100) NOT NULL,
+    customer_name VARCHAR(255) NULL,
+    customer_phone VARCHAR(50) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_session_token (session_token),
+    INDEX idx_session_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: chatbot_messages (Historial de mensajes por sesión)
+-- ============================================
+CREATE TABLE IF NOT EXISTS chatbot_messages (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    session_id VARCHAR(36) NOT NULL,
+    tenant_id VARCHAR(36) NOT NULL,
+    role ENUM('user','assistant') NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_msg_session (session_id),
+    INDEX idx_msg_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: merchant_notifications (Notificaciones para el comerciante)
+-- ============================================
+CREATE TABLE IF NOT EXISTS merchant_notifications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    tenant_id VARCHAR(36) NOT NULL,
+    type ENUM('new_order','new_booking','chatbot_lead','new_service_booking') NOT NULL DEFAULT 'new_order',
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    data JSON NULL COMMENT 'Datos extra: order_id, customer_name, total, etc.',
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_notif_tenant_read (tenant_id, is_read),
+    INDEX idx_notif_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seeds platform_settings: Cloudinary y OpenAI (vacíos por defecto)
+INSERT IGNORE INTO platform_settings (setting_key, setting_value) VALUES ('cloudinary_cloud_name', '');
+INSERT IGNORE INTO platform_settings (setting_key, setting_value) VALUES ('cloudinary_upload_preset', '');
+INSERT IGNORE INTO platform_settings (setting_key, setting_value) VALUES ('openai_api_key', '');
+-- GIF/imagen del fondo en la pantalla de login (gestionable desde el panel superadmin)
+INSERT IGNORE INTO platform_settings (setting_key, setting_value) VALUES ('login_image_url', '/image/giflogin.gif');
 
 -- ============================================
 -- TABLA: store_order_bump (Configuración de Order Bump / Cross-sell por tenant)
@@ -1546,6 +1749,370 @@ CREATE TABLE IF NOT EXISTS store_order_bump (
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_order_bump_tenant (tenant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- Migración: video_url en store_banners
+-- ============================================
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_add_banner_video_url()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'store_banners' AND COLUMN_NAME = 'video_url'
+    ) THEN
+        ALTER TABLE store_banners ADD COLUMN video_url VARCHAR(500) NULL COMMENT 'URL de video (solo hero4)' AFTER image_url;
+    END IF;
+END //
+DELIMITER ;
+CALL sp_add_banner_video_url();
+DROP PROCEDURE IF EXISTS sp_add_banner_video_url;
+
+-- ============================================
+-- Migración: accent_color en chatbot_config
+-- ============================================
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_add_chatbot_accent_color()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'chatbot_config' AND COLUMN_NAME = 'accent_color'
+    ) THEN
+        ALTER TABLE chatbot_config ADD COLUMN accent_color VARCHAR(20) DEFAULT '#f59e0b' COMMENT 'Color de acento del widget chatbot' AFTER bot_avatar_url;
+    END IF;
+END //
+DELIMITER ;
+CALL sp_add_chatbot_accent_color();
+DROP PROCEDURE IF EXISTS sp_add_chatbot_accent_color;
+
+-- ============================================
+-- MÓDULO DE VENDEDORES / NÓMINA v1.0
+-- Comisiones, metas, ajustes y historial de nómina
+-- ============================================
+
+-- Campos de comisión y configuración laboral en usuarios
+-- (para DBs existentes: ejecutar manualmente si falla)
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_migrate_vendedores()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'commission_type') THEN
+        ALTER TABLE users
+            ADD COLUMN commission_type ENUM('sin_comision','porcentaje','fijo_por_venta','fijo_por_item') NOT NULL DEFAULT 'sin_comision'
+                COMMENT 'Tipo de comisión del vendedor',
+            ADD COLUMN commission_value DECIMAL(10,2) NOT NULL DEFAULT 0
+                COMMENT 'Valor de comisión: % o monto fijo',
+            ADD COLUMN salary_base DECIMAL(12,2) NOT NULL DEFAULT 0
+                COMMENT 'Salario base mensual',
+            ADD COLUMN monthly_goal DECIMAL(12,2) NOT NULL DEFAULT 0
+                COMMENT 'Meta de ventas mensual (0 = sin meta)',
+            ADD COLUMN goal_bonus DECIMAL(12,2) NOT NULL DEFAULT 0
+                COMMENT 'Bono por cumplir meta mensual';
+    END IF;
+END //
+DELIMITER ;
+CALL sp_migrate_vendedores();
+DROP PROCEDURE IF EXISTS sp_migrate_vendedores;
+
+-- ============================================
+-- TABLA: payroll_adjustments (Bonos/Descuentos manuales por periodo)
+-- ============================================
+CREATE TABLE IF NOT EXISTS payroll_adjustments (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    seller_id VARCHAR(36) NOT NULL,
+    seller_name VARCHAR(255) NOT NULL,
+    period_from DATE NOT NULL COMMENT 'Inicio del periodo',
+    period_to   DATE NOT NULL COMMENT 'Fin del periodo',
+    type ENUM('bono','descuento') NOT NULL,
+    concept VARCHAR(255) NOT NULL COMMENT 'Descripción del concepto',
+    amount DECIMAL(12,2) NOT NULL,
+    created_by VARCHAR(36) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_adj_tenant_seller (tenant_id, seller_id),
+    INDEX idx_adj_period (tenant_id, period_from, period_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: payroll_records (Nóminas generadas)
+-- ============================================
+CREATE TABLE IF NOT EXISTS payroll_records (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    period_from DATE NOT NULL,
+    period_to   DATE NOT NULL,
+    period_label VARCHAR(100) NOT NULL COMMENT 'Ej: Marzo 2026 / Quincena 1 Mar 2026',
+    seller_id VARCHAR(36) NOT NULL,
+    seller_name VARCHAR(255) NOT NULL,
+    -- Totales de ventas
+    total_ventas INT NOT NULL DEFAULT 0,
+    total_monto DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Comisiones
+    salary_base DECIMAL(12,2) NOT NULL DEFAULT 0,
+    commission_type VARCHAR(50) NOT NULL DEFAULT 'sin_comision',
+    commission_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+    commission_earned DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Meta
+    monthly_goal DECIMAL(12,2) NOT NULL DEFAULT 0,
+    goal_bonus_earned DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Ajustes
+    total_bonos DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_descuentos DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Total final
+    total_pagar DECIMAL(12,2) NOT NULL DEFAULT 0,
+    -- Estado
+    status ENUM('borrador','pagado') NOT NULL DEFAULT 'borrador',
+    notes TEXT NULL,
+    generated_by VARCHAR(36) NULL,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP NULL,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_payroll_tenant (tenant_id),
+    INDEX idx_payroll_seller (seller_id),
+    INDEX idx_payroll_period (tenant_id, period_from, period_to),
+    INDEX idx_payroll_status (tenant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- MÓDULO DE NOVEDADES / CONTROL DE AUSENCIAS v1.0
+-- Permisos, incapacidades, vacaciones y otras novedades de empleados
+-- ============================================
+
+-- TABLA: employee_vacation_balances (Saldo de vacaciones por empleado/año)
+-- En Colombia: 15 días hábiles de vacaciones por año trabajado (Ley 995 de 2005)
+CREATE TABLE IF NOT EXISTS employee_vacation_balances (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    year INT NOT NULL,
+    days_granted INT NOT NULL DEFAULT 15 COMMENT 'Días otorgados (default: 15 por ley colombiana)',
+    days_used INT NOT NULL DEFAULT 0 COMMENT 'Días utilizados (vacaciones + permisos remunerados)',
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_vacation_user_year (tenant_id, user_id, year),
+    INDEX idx_vacation_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- TABLA: employee_novelties (Novedades: permisos, incapacidades, vacaciones, otros)
+CREATE TABLE IF NOT EXISTS employee_novelties (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    user_name VARCHAR(255) NOT NULL,
+    -- Tipo de novedad
+    type ENUM(
+        'vacaciones',           -- Vacaciones programadas (descuenta saldo)
+        'permiso_remunerado',   -- Permiso con sueldo (descuenta saldo vacaciones)
+        'permiso_no_remunerado',-- Permiso sin sueldo (descuenta de nómina)
+        'incapacidad',          -- Incapacidad médica (EPS cubre a partir del día 3 en Colombia)
+        'calamidad',            -- Calamidad doméstica
+        'licencia_maternidad',  -- Licencia de maternidad/paternidad
+        'suspension',           -- Suspensión disciplinaria
+        'otro'                  -- Otro evento
+    ) NOT NULL,
+    -- Período
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    days_count INT NOT NULL DEFAULT 1 COMMENT 'Días calendario del período',
+    -- Impacto en nómina
+    deducts_salary TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuenta de salario',
+    deduct_amount DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Monto calculado a descontar',
+    -- Impacto en saldo de vacaciones
+    deducts_vacation TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuenta del saldo de vacaciones',
+    -- Descripción y soporte
+    description TEXT NULL,
+    attachment_url VARCHAR(500) NULL COMMENT 'Documento soporte (PDF/imagen)',
+    -- Estado del trámite
+    status ENUM('pendiente', 'aprobado', 'rechazado') NOT NULL DEFAULT 'pendiente',
+    rejection_reason VARCHAR(500) NULL,
+    -- Auditoría
+    created_by VARCHAR(36) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_novelties_tenant (tenant_id),
+    INDEX idx_novelties_user (user_id),
+    INDEX idx_novelties_date (tenant_id, start_date),
+    INDEX idx_novelties_type (tenant_id, type),
+    INDEX idx_novelties_status (tenant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- Migración: show_info_module e info_module_description en store_info
+-- ============================================
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_add_info_module_fields()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'show_info_module'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN show_info_module TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = mostrar módulo de información en lugar de la sección de productos',
+            ADD COLUMN info_module_description TEXT NULL
+                COMMENT 'Descripción/texto libre para el módulo de información';
+    END IF;
+END //
+DELIMITER ;
+CALL sp_add_info_module_fields();
+DROP PROCEDURE IF EXISTS sp_add_info_module_fields;
+
+-- ============================================
+-- MIGRACIONES DE SEGURIDAD v3.1
+-- Requisitos: RBAC permisos, cifrado AES, refresh tokens, audit trail
+-- ============================================
+
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_security_migrations_v31()
+BEGIN
+
+    -- -----------------------------------------------
+    -- 1. RBAC: columna permissions en employee_cargos
+    --    El código usa employee_cargos.permissions (JSON)
+    --    para control granular de acceso por recurso.
+    --    Sin esta columna el requirePermission() middleware falla silenciosamente.
+    -- -----------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'employee_cargos'
+          AND COLUMN_NAME = 'permissions'
+    ) THEN
+        ALTER TABLE employee_cargos
+            ADD COLUMN permissions JSON NULL
+                COMMENT 'Array de permisos del cargo: ["manage_products","view_reports",...]';
+    END IF;
+
+    -- -----------------------------------------------
+    -- 2. CIFRADO AES: columna data_encrypted en users
+    --    crypto.ts cifra phone, cedula, department,
+    --    municipality, address, neighborhood con AES-256-CBC.
+    --    Esta columna marca qué registros ya fueron cifrados
+    --    para que runEncryptionMigration() sea idempotente.
+    -- -----------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'users'
+          AND COLUMN_NAME = 'data_encrypted'
+    ) THEN
+        ALTER TABLE users
+            ADD COLUMN data_encrypted TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = campos sensibles (phone, cedula, address) cifrados con AES-256-CBC';
+    END IF;
+
+    -- -----------------------------------------------
+    -- 3. CIFRADO AES: columna data_encrypted en storefront_orders
+    --    Los campos customer_phone, customer_cedula, address,
+    --    neighborhood, department, municipality son PII sensibles
+    --    que deben cifrarse en reposo.
+    -- -----------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'storefront_orders'
+          AND COLUMN_NAME = 'data_encrypted'
+    ) THEN
+        ALTER TABLE storefront_orders
+            ADD COLUMN data_encrypted TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = PII del cliente (phone, cedula, address) cifrados con AES-256-CBC';
+    END IF;
+
+    -- -----------------------------------------------
+    -- 4. AUDIT LOG: columna user_agent para trazabilidad forense
+    --    Permite correlacionar eventos de seguridad con dispositivos.
+    -- -----------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'audit_log'
+          AND COLUMN_NAME = 'user_agent'
+    ) THEN
+        ALTER TABLE audit_log
+            ADD COLUMN user_agent VARCHAR(500) NULL
+                COMMENT 'User-Agent del cliente para trazabilidad forense'
+            AFTER ip_address;
+    END IF;
+
+    -- -----------------------------------------------
+    -- 5. AUDIT LOG: columna severity para filtrado de eventos
+    -- -----------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'audit_log'
+          AND COLUMN_NAME = 'severity'
+    ) THEN
+        ALTER TABLE audit_log
+            ADD COLUMN severity ENUM('info','warning','critical') NOT NULL DEFAULT 'info'
+                COMMENT 'Nivel de severidad del evento de seguridad'
+            AFTER action;
+
+        ALTER TABLE audit_log
+            ADD INDEX idx_audit_severity (severity);
+    END IF;
+
+END //
+DELIMITER ;
+CALL sp_security_migrations_v31();
+DROP PROCEDURE IF EXISTS sp_security_migrations_v31;
+
+-- -----------------------------------------------
+-- 6. REFRESH TOKENS: tabla para rotación segura de JWT
+--    Permite emitir access tokens de corta duración (15min)
+--    y renovarlos sin re-login usando un refresh token
+--    de larga duración (7 días) almacenado en httpOnly cookie.
+--    La columna revoked_at permite revocar tokens individuales
+--    (logout, cambio de contraseña, sospecha de compromiso).
+-- -----------------------------------------------
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    tenant_id VARCHAR(36) NULL COMMENT 'NULL para superadmin',
+    -- El token se almacena como SHA-256 del valor real (nunca el valor en claro)
+    token_hash VARCHAR(64) NOT NULL COMMENT 'SHA-256 del refresh token',
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP NULL COMMENT 'NULL = token válido, no nulo = revocado',
+    revoke_reason ENUM('logout','password_change','admin_revoke','rotation','suspicious') NULL,
+    -- Metadata para detección de anomalías
+    ip_address VARCHAR(45) NULL,
+    user_agent VARCHAR(500) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_rt_token_hash (token_hash),
+    INDEX idx_rt_user (user_id),
+    INDEX idx_rt_expires (expires_at),
+    INDEX idx_rt_user_valid (user_id, revoked_at, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Refresh tokens para renovación de JWT sin re-login';
+
+-- Limpieza automática de tokens expirados (ejecutar como cron diario)
+-- DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked_at IS NOT NULL;
+
+-- -----------------------------------------------
+-- 7. FAILED LOGIN ATTEMPTS: tabla para bloqueo de fuerza bruta
+--    Complementa el rate limiting de express-rate-limit con
+--    bloqueo persistente por cuenta (no solo por IP).
+-- -----------------------------------------------
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    success TINYINT(1) NOT NULL DEFAULT 0,
+    failure_reason VARCHAR(100) NULL COMMENT 'wrong_password, account_locked, tenant_suspended, etc.',
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_la_email_time (email, attempted_at),
+    INDEX idx_la_ip_time (ip_address, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Registro de intentos de login para detección de fuerza bruta'
+  ROW_FORMAT=COMPRESSED;
 
 -- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant

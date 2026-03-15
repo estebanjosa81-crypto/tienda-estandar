@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useStore, calculateCartTotals } from '@/lib/store'
 import { api } from '@/lib/api'
 import { TAX_RATE, type PaymentMethod, type Customer, type CustomerFull } from '@/lib/types'
@@ -51,11 +51,15 @@ import {
   ChevronUp,
   Coins,
   Receipt,
+  Zap,
+  Split,
+  ImageIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Sale } from '@/lib/types'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
+import { SyncStatusBar } from '@/components/sync-status-bar'
 
 export function PointOfSale() {
   const { products, fetchProducts, cart, addToCart, removeFromCart, updateCartQuantity, applyItemDiscount, setCustomAmount, clearCart, addSale, storeInfo, selectedCustomer, setSelectedCustomer, categories, fetchCategories } = useStore()
@@ -81,6 +85,15 @@ export function PointOfSale() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo')
   const [amountPaid, setAmountPaid] = useState('')
   const [globalDiscount, setGlobalDiscount] = useState(0)
+  // Mixed payment
+  const [mixedSecondMethod, setMixedSecondMethod] = useState<PaymentMethod>('tarjeta')
+  const [mixedCashAmount, setMixedCashAmount] = useState('')
+  // Animation on add
+  const [flashProductId, setFlashProductId] = useState<string | null>(null)
+  // Refs
+  const searchRef = useRef<HTMLInputElement>(null)
+  const barcodeBuffer = useRef('')
+  const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [applyIva, setApplyIva] = useState(false)
   const [customer, setCustomer] = useState<Customer>({ name: '', phone: '', email: '' })
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
@@ -157,7 +170,14 @@ export function PointOfSale() {
   const tax = applyIva ? cartTotals.tax : 0
   const total = applyIva ? cartTotals.total : cartTotals.subtotal
   const finalTotal = total - globalDiscount
-  const change = paymentMethod === 'efectivo' ? Math.max(0, parseFloat(amountPaid || '0') - finalTotal) : 0
+  const mixedCash = parseFloat(mixedCashAmount || '0')
+  const mixedSecondAmount = Math.max(0, finalTotal - mixedCash)
+  const change =
+    paymentMethod === 'efectivo'
+      ? Math.max(0, parseFloat(amountPaid || '0') - finalTotal)
+      : paymentMethod === 'mixto'
+      ? Math.max(0, mixedCash - finalTotal)
+      : 0
   
   // Filter products available for sale (exclude raw materials/insumos)
   const availableProducts = products.filter(p => {
@@ -182,6 +202,8 @@ export function PointOfSale() {
       const cartItem = cart.find(item => item.product.id === productId)
       if (cartItem && cartItem.quantity >= product.stock) return
       addToCart(product)
+      setFlashProductId(productId)
+      setTimeout(() => setFlashProductId(null), 500)
     }
   }
   
@@ -254,6 +276,9 @@ export function PointOfSale() {
     tarjeta: 'Tarjeta',
     transferencia: 'Transferencia',
     fiado: 'Fiado',
+    addi: 'Addi',
+    sistecredito: 'Sistecredito',
+    mixto: 'Pago Mixto',
   }
 
   // Búsqueda de clientes para fiado
@@ -301,9 +326,13 @@ export function PointOfSale() {
     setPaymentMethod(method)
     setShowDenomCalc(false)
     resetDenomCalc()
+    setMixedCashAmount('')
     if (method === 'fiado') {
       setIsCustomerSearchOpen(true)
       setAmountPaid('0')
+    } else if (method === 'mixto') {
+      setAmountPaid(finalTotal.toFixed(2))
+      setMixedCashAmount('')
     } else if (method !== 'efectivo') {
       setAmountPaid(finalTotal.toFixed(2))
     }
@@ -396,18 +425,12 @@ export function PointOfSale() {
             }
             <tr class="total-row"><td>TOTAL:</td><td class="text-right">$${sale.total.toLocaleString('es-CO')}</td></tr>
           </table>
-          ${sale.tax > 0 ? `
-          <div style="margin:15px 0; padding:10px 12px; border:1px dashed #b45309; border-radius:6px; background:#fffbeb; font-size:11px; color:#78350f;">
-            <p style="font-weight:700; margin:0 0 6px 0; font-size:12px;">📋 Datos Contables / Soporte DIAN</p>
-            <p style="margin:2px 0"><strong>NIT Vendedor:</strong> ${storeInfo.taxId}</p>
-            <p style="margin:2px 0"><strong>Base gravable (sin IVA):</strong> $${sale.subtotal.toLocaleString('es-CO')}</p>
-            <p style="margin:2px 0"><strong>IVA 19%:</strong> $${sale.tax.toLocaleString('es-CO')}</p>
-            <p style="margin:2px 0"><strong>Total con IVA:</strong> $${sale.total.toLocaleString('es-CO')}</p>
-            <p style="margin:6px 0 0 0; font-size:10px; color:#92400e;">Factura electrónica solicitada por el cliente. Documento soporte para contabilidad.</p>
-          </div>` : ''}
           <div class="payment-info">
             <h3>Información de Pago</h3>
             <p><strong>Método:</strong> ${paymentLabels[sale.paymentMethod] || sale.paymentMethod}</p>
+            ${sale.paymentMethod === 'mixto' && mixedCash > 0 ? `
+            <p style="margin-left:10px; font-size:12px;"><strong>Efectivo:</strong> $${mixedCash.toLocaleString('es-CO')}</p>
+            <p style="margin-left:10px; font-size:12px;"><strong>${paymentLabels[mixedSecondMethod] || mixedSecondMethod}:</strong> $${mixedSecondAmount.toLocaleString('es-CO')}</p>` : ''}
             <p><strong>Monto Recibido:</strong> $${sale.amountPaid.toLocaleString('es-CO')}</p>
             ${sale.change > 0 ? `<p><strong>Cambio:</strong> $${sale.change.toLocaleString('es-CO')}</p>` : ''}
           </div>
@@ -440,7 +463,10 @@ export function PointOfSale() {
     const result = await addSale({
       items: saleItems,
       paymentMethod,
-      amountPaid: paymentMethod === 'fiado' ? 0 : (parseFloat(amountPaid) || finalTotal),
+      amountPaid:
+        paymentMethod === 'fiado' ? 0
+        : paymentMethod === 'mixto' ? mixedCash + mixedSecondAmount
+        : (parseFloat(amountPaid) || finalTotal),
       globalDiscount: globalDiscount > 0 ? globalDiscount : undefined,
       customerId: selectedCustomer?.id,
       customerName: customer.name || selectedCustomer?.name || undefined,
@@ -460,6 +486,7 @@ export function PointOfSale() {
       setSelectedCustomer(null)
       setShowDenomCalc(false)
       resetDenomCalc()
+      setMixedCashAmount('')
 
       if (result.data) {
         setCompletedSale(result.data)
@@ -467,8 +494,62 @@ export function PointOfSale() {
       }
     }
   }
-  
+
+  // Keyboard shortcuts — placed after all state/function declarations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      if (e.key === 'F2') {
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      }
+      if (e.key === 'F4') {
+        e.preventDefault()
+        if (cart.length > 0 && !isCheckoutOpen && !isFiadoOpen) handleCheckout()
+      }
+      if (e.key === 'Escape' && isCheckoutOpen) {
+        setIsCheckoutOpen(false)
+      }
+      if (e.key === 'Enter' && isCheckoutOpen && !isInput) {
+        e.preventDefault()
+        const canPay =
+          !isProcessing &&
+          !(paymentMethod === 'efectivo' && parseFloat(amountPaid) < Math.round(finalTotal * 100) / 100) &&
+          !(paymentMethod === 'fiado' && !selectedCustomer)
+        if (canPay) handleCompleteSale()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [cart.length, isCheckoutOpen, isFiadoOpen, isProcessing, paymentMethod, amountPaid, finalTotal, selectedCustomer])
+
+  // Auto barcode scanner detection (hardware scanner = fast keyboard input + Enter)
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (isCheckoutOpen || isFiadoOpen || showScanner || showRemoteScanner) return
+      if (e.key === 'Enter') {
+        const code = barcodeBuffer.current.trim()
+        if (code.length >= 4) handleBarcodeScan(code)
+        barcodeBuffer.current = ''
+        return
+      }
+      if (e.key.length === 1) {
+        barcodeBuffer.current += e.key
+        if (barcodeTimer.current) clearTimeout(barcodeTimer.current)
+        barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = '' }, 80)
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKey)
+    return () => window.removeEventListener('keydown', handleGlobalKey)
+  }, [isCheckoutOpen, isFiadoOpen, showScanner, showRemoteScanner])
+
   return (
+    <div className="space-y-4">
+    <SyncStatusBar />
     <div className="grid gap-6 lg:gap-8 lg:grid-cols-3 xl:gap-10">
       {/* Product Selection */}
       <div className="lg:col-span-2 space-y-4 lg:space-y-6">{/* Search */}
@@ -476,9 +557,22 @@ export function PointOfSale() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nombre, SKU o código de barras..."
+              ref={searchRef}
+              placeholder="Buscar por nombre, SKU o código de barras... (F2)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (availableProducts.length === 1) {
+                    handleAddToCart(availableProducts[0].id)
+                    setSearch('')
+                  } else if (availableProducts.length === 0 && search.length >= 4) {
+                    handleBarcodeScan(search)
+                    setSearch('')
+                  }
+                }
+              }}
               className="pl-9 bg-card border-border h-11 lg:h-12"
             />
           </div>
@@ -547,100 +641,84 @@ export function PointOfSale() {
                   const inCart = cart.find(item => item.product.id === product.id)
                   const stockPercentage = (product.stock / (product.stock + 10)) * 100
                   const noInsumos = product.isComposite && product.stock <= 0
+                  const isFlashing = flashProductId === product.id
                   return (
                     <div
                       key={product.id}
                       onClick={() => handleAddToCart(product.id)}
-                      className={`group cursor-pointer rounded-lg border-2 transition-all p-2 sm:p-3 lg:p-4 ${
+                      className={`group cursor-pointer rounded-xl border-2 transition-all overflow-hidden ${
                         noInsumos
                           ? 'border-border bg-muted/30 opacity-60 cursor-not-allowed'
+                          : isFlashing
+                          ? 'border-green-500 bg-green-500/10 scale-[0.97] shadow-lg shadow-green-500/20'
                           : inCart
                           ? 'border-primary bg-primary/5 shadow-md'
                           : 'border-border bg-secondary/50 hover:border-primary/50 hover:bg-secondary/80'
                       }`}
                     >
-                      {/* Top section with product name and quantity badge */}
-                      <div className="flex items-start justify-between gap-1 sm:gap-2 mb-1.5 sm:mb-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <p className="font-semibold text-foreground truncate text-xs sm:text-sm lg:text-base">
-                              {product.name}
-                            </p>
-                            {product.isComposite && (
-                              noInsumos
-                                ? <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-destructive text-destructive flex-shrink-0">Sin insumos</Badge>
-                                : <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600 flex-shrink-0">Ref</Badge>
-                            )}
-                          </div>
-                          {product.brand && (
-                          <p className="text-[10px] sm:text-xs lg:text-sm text-muted-foreground truncate">
-                            {product.brand}
-                          </p>
-                        )}
-                        </div>
-                        {inCart && (
-                          <Badge className="bg-primary text-primary-foreground flex-shrink-0 h-6 lg:h-7 text-sm">
-                            {inCart.quantity}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Category and details */}
-                      <div className="flex items-center gap-1 sm:gap-1.5 mb-1.5 sm:mb-2 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px] sm:text-xs lg:text-sm px-1.5 py-0">
-                          {getCategoryName(product.category)}
-                        </Badge>
-                        {product.size && (
-                          <Badge variant="outline" className="text-[10px] sm:text-xs lg:text-sm px-1.5 py-0">
-                            {product.size}
-                          </Badge>
-                        )}
-                        {product.color && !product.size && (
-                          <Badge variant="outline" className="text-[10px] sm:text-xs lg:text-sm px-1.5 py-0">
-                            {product.color}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Stock indicator */}
-                      <div className="mb-1.5 sm:mb-2">
-                        <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                          <span className="text-[10px] sm:text-xs lg:text-sm text-muted-foreground">Stock</span>
-                          <span className={`text-[10px] sm:text-xs lg:text-sm font-semibold ${
-                            product.stock <= 3 ? 'text-destructive' : product.stock <= 10 ? 'text-amber-600' : 'text-green-600'
-                          }`}>
-                            {product.stock}
-                          </span>
-                        </div>
-                        <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-full transition-all ${
-                              product.stock <= 3
-                                ? 'bg-destructive'
-                                : product.stock <= 10
-                                ? 'bg-amber-500'
-                                : 'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(stockPercentage, 100)}%` }}
+                      {/* Product image */}
+                      {product.imageUrl ? (
+                        <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         </div>
-                      </div>
+                      ) : (
+                        <div className="w-full aspect-[4/3] bg-secondary/70 flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                        </div>
+                      )}
 
-                      {/* Price and action */}
-                      <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t border-border">
-                        <span className="text-sm sm:text-lg lg:text-xl font-bold text-primary">
-                          {formatCOP(product.isComposite && product.bomCost ? product.bomCost : product.salePrice)}
-                        </span>
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 lg:h-9 lg:w-9 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAddToCart(product.id)
-                          }}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                      <div className="p-2 sm:p-3">
+                        {/* Top section with product name and quantity badge */}
+                        <div className="flex items-start justify-between gap-1 mb-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <p className="font-semibold text-foreground truncate text-xs sm:text-sm">
+                                {product.name}
+                              </p>
+                              {product.isComposite && (
+                                noInsumos
+                                  ? <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-destructive text-destructive flex-shrink-0">Sin insumos</Badge>
+                                  : <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-400 text-blue-600 flex-shrink-0">Ref</Badge>
+                              )}
+                            </div>
+                            {product.brand && (
+                              <p className="text-[10px] text-muted-foreground truncate">{product.brand}</p>
+                            )}
+                          </div>
+                          {inCart && (
+                            <Badge className="bg-primary text-primary-foreground flex-shrink-0 h-6 text-sm">
+                              {inCart.quantity}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Price — prominent */}
+                        <div className="flex items-end justify-between mt-2 pt-2 border-t border-border">
+                          <div>
+                            <p className="text-base sm:text-lg lg:text-xl font-bold text-primary leading-tight">
+                              {formatCOP(product.isComposite && product.bomCost ? product.bomCost : product.salePrice)}
+                            </p>
+                            <p className={`text-[10px] font-medium ${
+                              product.stock <= 3 ? 'text-destructive' : product.stock <= 10 ? 'text-amber-600' : 'text-muted-foreground'
+                            }`}>
+                              {product.isComposite ? 'Ref' : `Stock: ${product.stock}`}
+                            </p>
+                          </div>
+                          <Button
+                            size="icon"
+                            className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleAddToCart(product.id)
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -680,7 +758,7 @@ export function PointOfSale() {
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6 pt-0 sm:pt-0">
             {/* Cart Items */}
-            <div className="space-y-2 sm:space-y-3 max-h-[300px] sm:max-h-[400px] lg:max-h-[500px] overflow-y-auto">
+            <div className="space-y-2 sm:space-y-3">
               {cart.length === 0 ? (
                 <div className="py-6 sm:py-8 text-center">
                   <ShoppingCart className="h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 mx-auto text-muted-foreground mb-2 sm:mb-3" />
@@ -746,6 +824,7 @@ export function PointOfSale() {
                                   setCustomAmount(item.product.id, stepMin)
                                 }
                               }}
+                              onWheel={(e) => e.currentTarget.blur()}
                               className="h-7 flex-1 text-xs"
                             />
                           </div>
@@ -801,6 +880,7 @@ export function PointOfSale() {
                     placeholder="0.00"
                     value={globalDiscount || ''}
                     onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+                    onWheel={(e) => e.currentTarget.blur()}
                     className="bg-secondary border-none h-10 lg:h-11"
                   />
                 </div>
@@ -856,33 +936,36 @@ export function PointOfSale() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-1.5 sm:gap-2">
+                <div className="space-y-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 bg-transparent text-xs sm:text-sm lg:text-base lg:h-11"
-                    onClick={clearCart}
-                  >
-                    Limpiar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 bg-transparent text-xs sm:text-sm lg:text-base lg:h-11"
-                    onClick={() => {
-                      if (cart.length === 0) return
-                      setIsFiadoOpen(true)
-                    }}
-                  >
-                    Fiado
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1 text-xs sm:text-sm lg:text-base lg:h-11"
+                    className="w-full h-14 lg:h-16 text-lg lg:text-xl font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-600/30 transition-all gap-2"
                     onClick={handleCheckout}
                   >
-                    Cobrar
+                    <Zap className="h-5 w-5" />
+                    COBRAR {formatCOP(finalTotal)}
+                    <span className="text-xs font-normal opacity-75 ml-1">[F4]</span>
                   </Button>
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-transparent text-xs lg:text-sm h-9"
+                      onClick={clearCart}
+                    >
+                      Limpiar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-transparent text-xs lg:text-sm h-9"
+                      onClick={() => {
+                        if (cart.length === 0) return
+                        setIsFiadoOpen(true)
+                      }}
+                    >
+                      Fiado
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
@@ -1028,36 +1111,39 @@ export function PointOfSale() {
               </div>
               
               {/* Actions */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-2">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    clearCart()
-                    setIsMobileCartOpen(false)
-                  }}
-                >
-                  Limpiar
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIsMobileCartOpen(false)
-                    setIsFiadoOpen(true)
-                  }}
-                >
-                  Fiado
-                </Button>
-                <Button
-                  size="sm"
+                  className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg gap-2"
                   onClick={() => {
                     setIsMobileCartOpen(false)
                     handleCheckout()
                   }}
                 >
-                  Cobrar
+                  <Zap className="h-5 w-5" />
+                  COBRAR {formatCOP(finalTotal)}
                 </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      clearCart()
+                      setIsMobileCartOpen(false)
+                    }}
+                  >
+                    Limpiar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsMobileCartOpen(false)
+                      setIsFiadoOpen(true)
+                    }}
+                  >
+                    Fiado
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1103,8 +1189,92 @@ export function PointOfSale() {
                   <Building className="h-5 w-5" />
                   <span className="text-xs">Transfer.</span>
                 </Button>
+                <Button
+                  variant={paymentMethod === 'addi' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => handlePaymentMethodChange('addi')}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="text-xs">Addi</span>
+                </Button>
+                <Button
+                  variant={paymentMethod === 'sistecredito' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => handlePaymentMethodChange('sistecredito')}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="text-xs">Sistecredito</span>
+                </Button>
+                <Button
+                  variant={paymentMethod === 'mixto' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => handlePaymentMethodChange('mixto')}
+                >
+                  <Split className="h-5 w-5" />
+                  <span className="text-xs">Mixto</span>
+                </Button>
               </div>
             </div>
+
+            {/* Mixed Payment Split UI */}
+            {paymentMethod === 'mixto' && (
+              <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Split className="h-4 w-4" />
+                  División del pago
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Efectivo</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      placeholder="0"
+                      value={mixedCashAmount}
+                      onChange={(e) => setMixedCashAmount(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="text-base font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Segundo método</Label>
+                    <Select value={mixedSecondMethod} onValueChange={(v) => setMixedSecondMethod(v as PaymentMethod)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                        <SelectItem value="transferencia">Transferencia</SelectItem>
+                        <SelectItem value="addi">Addi</SelectItem>
+                        <SelectItem value="sistecredito">Sistecredito</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded bg-card p-2 text-center">
+                    <p className="text-xs text-muted-foreground">Efectivo</p>
+                    <p className="font-bold text-foreground">{formatCOP(mixedCash)}</p>
+                  </div>
+                  <div className="rounded bg-card p-2 text-center">
+                    <p className="text-xs text-muted-foreground">{paymentLabels[mixedSecondMethod]}</p>
+                    <p className="font-bold text-foreground">{formatCOP(mixedSecondAmount)}</p>
+                  </div>
+                </div>
+                {change > 0 && (
+                  <div className="rounded-lg bg-primary/10 p-2 text-center">
+                    <p className="text-xs text-muted-foreground">Cambio a devolver</p>
+                    <p className="text-xl font-bold text-primary">{formatCOP(change)}</p>
+                  </div>
+                )}
+                {mixedCashAmount && mixedCash + mixedSecondAmount < finalTotal && (
+                  <p className="text-xs text-destructive text-center">
+                    Falta {formatCOP(finalTotal - mixedCash - mixedSecondAmount)} por cubrir
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Amount Paid (for cash) */}
             {paymentMethod === 'efectivo' && (
@@ -1341,10 +1511,12 @@ export function PointOfSale() {
             </Button>
             <Button
               onClick={handleCompleteSale}
+              className="bg-green-600 hover:bg-green-700 text-white"
               disabled={
                 isProcessing ||
                 (paymentMethod === 'efectivo' && parseFloat(amountPaid) < Math.round(finalTotal * 100) / 100) ||
-                (paymentMethod === 'fiado' && !selectedCustomer)
+                (paymentMethod === 'fiado' && !selectedCustomer) ||
+                (paymentMethod === 'mixto' && (mixedCash + mixedSecondAmount) < finalTotal - 0.01)
               }
             >
               {isProcessing ? 'Procesando...' : 'Completar Venta'}
@@ -1488,6 +1660,12 @@ export function PointOfSale() {
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Método:</span> {paymentLabels[completedSale.paymentMethod] || completedSale.paymentMethod}
                 </p>
+                {completedSale.paymentMethod === 'mixto' && mixedCash > 0 && (
+                  <div className="text-sm text-foreground pl-2 border-l-2 border-primary/30 space-y-0.5">
+                    <p><span className="font-medium">Efectivo:</span> {formatCOP(mixedCash)}</p>
+                    <p><span className="font-medium">{paymentLabels[mixedSecondMethod]}:</span> {formatCOP(mixedSecondAmount)}</p>
+                  </div>
+                )}
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Monto Recibido:</span> {formatCOP(completedSale.amountPaid)}
                 </p>
@@ -1497,25 +1675,6 @@ export function PointOfSale() {
                   </p>
                 )}
               </div>
-
-              {/* Datos contables DIAN (solo cuando aplica IVA) */}
-              {completedSale.tax > 0 && (
-                <div className="rounded-lg border border-dashed border-amber-400 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                    <Receipt className="h-3.5 w-3.5" />
-                    Datos para Contador / Soporte DIAN
-                  </p>
-                  <div className="text-xs text-amber-800 dark:text-amber-300 space-y-0.5">
-                    <p><span className="font-medium">NIT vendedor:</span> {storeInfo.taxId}</p>
-                    <p><span className="font-medium">Base gravable (sin IVA):</span> {formatCOP(completedSale.subtotal)}</p>
-                    <p><span className="font-medium">IVA 19%:</span> {formatCOP(completedSale.tax)}</p>
-                    <p><span className="font-medium">Total con IVA:</span> {formatCOP(completedSale.total)}</p>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-                      * Factura electrónica solicitada por el cliente. Documento soporte para contabilidad.
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Footer */}
               <div className="text-center border-t border-dashed border-border pt-3 space-y-1">
@@ -1746,6 +1905,7 @@ export function PointOfSale() {
           onClose={() => setShowRemoteScanner(false)}
         />
       )}
+    </div>
     </div>
   )
 }

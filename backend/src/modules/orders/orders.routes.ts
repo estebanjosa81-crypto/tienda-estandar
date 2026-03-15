@@ -6,6 +6,8 @@ import pool from '../../config/database';
 import { authenticate } from '../../common/middleware';
 import { config } from '../../config/env';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
+import crypto from 'crypto';
+import { audit } from '../../utils/audit-logger';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -97,6 +99,17 @@ router.post(
             item.size || null, item.color || null]
         );
       }
+
+      // Fire merchant notification (async, non-blocking)
+      try {
+        const notifTitle = `Nuevo pedido #${orderNumber}`;
+        const notifMsg = `${customerName} realizó un pedido por $${total.toLocaleString('es-CO')}`;
+        await pool.query(
+          `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+           VALUES (?, 'new_order', ?, ?, ?)`,
+          [tenantId, notifTitle, notifMsg, JSON.stringify({ orderId, orderNumber, customerName, total, paymentMethod })]
+        );
+      } catch { /* notifications are non-critical */ }
 
       res.status(201).json({
         success: true,
@@ -254,6 +267,600 @@ router.post(
     }
   }
 );
+
+// =============================================
+// PUBLIC: Crear aplicación de crédito con ADDI
+// =============================================
+router.post(
+  '/addi-application',
+  [
+    body('customerName').notEmpty(),
+    body('customerPhone').notEmpty(),
+    body('customerEmail').optional().isEmail(),
+    body('items').isArray({ min: 1 }),
+    body('items.*.productId').notEmpty(),
+    body('items.*.productName').notEmpty(),
+    body('items.*.quantity').isInt({ min: 1 }),
+    body('items.*.unitPrice').isFloat({ min: 0 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response, _next: NextFunction) => {
+    try {
+      // Read ADDI credentials from env or platform_settings DB
+      let addiClientId = process.env.ADDI_CLIENT_ID || '';
+      let addiClientSecret = process.env.ADDI_CLIENT_SECRET || '';
+      let addiStoreSlug = process.env.ADDI_STORE_SLUG || '';
+      let addiProduction = process.env.ADDI_PRODUCTION === 'true';
+
+      if (!addiClientId || !addiClientSecret) {
+        const [psRows] = await pool.query(
+          "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('addi_client_id','addi_client_secret','addi_store_slug','addi_production')"
+        ) as any;
+        for (const r of psRows) {
+          if (r.setting_key === 'addi_client_id') addiClientId = r.setting_value || addiClientId;
+          if (r.setting_key === 'addi_client_secret') addiClientSecret = r.setting_value || addiClientSecret;
+          if (r.setting_key === 'addi_store_slug') addiStoreSlug = r.setting_value || addiStoreSlug;
+          if (r.setting_key === 'addi_production') addiProduction = r.setting_value === 'true';
+        }
+      }
+
+      // Use staging credentials as fallback if nothing configured
+      if (!addiClientId) addiClientId = 'y61CPhOS0YB7wxz8BgKBpQt4YcTsW0wi';
+      if (!addiClientSecret) addiClientSecret = 'U6zgGfhZ_F-HLbqyM70fkssviIQ2PDL34phvGIL4wIppfoSXv-z63mrldcrnUZUi';
+
+      const addiAudience = addiProduction ? 'https://api.addi.com' : 'https://api.staging.addi.com';
+      const addiAuthUrl = addiProduction ? 'https://auth.addi.com/oauth/token' : 'https://auth.addi-staging.com/oauth/token';
+      const addiApiUrl = addiProduction ? 'https://api.addi.com' : 'https://api.staging.addi.com';
+      const frontendUrl = config.mp.frontendUrl || process.env.FRONTEND_URL || 'http://localhost:3000';
+
+      // Step 1: Authenticate with ADDI
+      const authRes = await fetch(addiAuthUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audience: addiAudience,
+          grant_type: 'client_credentials',
+          client_id: addiClientId,
+          client_secret: addiClientSecret,
+        }),
+      });
+
+      if (!authRes.ok) {
+        const authErr = await authRes.text();
+        console.error('ADDI auth error:', authErr);
+        res.status(503).json({ success: false, error: 'Error al autenticar con ADDI. Verifica las credenciales.' });
+        return;
+      }
+
+      const authData: any = await authRes.json();
+      const addiToken = authData.access_token;
+      if (!addiToken) {
+        res.status(503).json({ success: false, error: 'No se recibió token de ADDI.' });
+        return;
+      }
+
+      const {
+        customerName, customerPhone, customerEmail, customerCedula,
+        department, municipality, address, neighborhood, notes,
+        items, tenantId: requestedTenantId, couponCode, discount = 0,
+      } = req.body;
+
+      // Find tenant
+      let tenantId = requestedTenantId;
+      if (!tenantId) {
+        const [tenants] = await pool.query(
+          'SELECT id FROM tenants WHERE status = ? ORDER BY id ASC LIMIT 1',
+          ['activo']
+        ) as any;
+        if (!tenants || tenants.length === 0) {
+          res.status(400).json({ success: false, error: 'No hay tienda disponible' });
+          return;
+        }
+        tenantId = tenants[0].id;
+      }
+
+      const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const total = Math.max(0, subtotal - discount);
+
+      // Create order in DB
+      const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
+      const orderId = uuidv4();
+      const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
+      const finalNotes = `[PAGO ADDI] ${notes || ''}${couponNote}`.trim();
+
+      await pool.query(
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'addi', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
+          subtotal, discount, total]
+      );
+
+      for (const item of items) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            item.unitPrice * item.quantity]
+        );
+      }
+
+      // Step 2: Create ADDI application
+      const nameParts = customerName.trim().split(' ');
+      const firstName = nameParts[0] || customerName;
+      const lastName = nameParts.slice(1).join(' ') || customerName;
+
+      const addiPayload: Record<string, any> = {
+        orderId,
+        totalAmount: total,
+        currency: 'COP',
+        client: {
+          firstName,
+          lastName,
+          email: customerEmail || '',
+          cellphone: customerPhone,
+          document: customerCedula || '',
+          documentType: 'CC',
+        },
+        products: items.map((item: any) => ({
+          sku: String(item.productId),
+          name: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+        redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
+        cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
+      };
+
+      if (addiStoreSlug) {
+        addiPayload.store = { slug: addiStoreSlug };
+      }
+
+      if (address) {
+        addiPayload.pickUpAddress = {
+          city: municipality || '',
+          street: address,
+        };
+      }
+
+      const appRes = await fetch(`${addiApiUrl}/v1/online-applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${addiToken}`,
+        },
+        body: JSON.stringify(addiPayload),
+      });
+
+      const appData: any = await appRes.json();
+
+      if (!appRes.ok) {
+        console.error('ADDI application error:', appData);
+        res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
+        return;
+      }
+
+      const applicationUrl = appData.applicationUrl || appData.url || appData.redirectUrl;
+      if (!applicationUrl) {
+        console.error('ADDI response missing URL:', appData);
+        res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
+        return;
+      }
+
+      res.status(201).json({
+        success: true,
+        data: {
+          orderId,
+          orderNumber,
+          total,
+          applicationUrl,
+        },
+      });
+    } catch (error) {
+      console.error('ADDI application error:', error);
+      res.status(500).json({ success: false, error: 'Error al crear la aplicación de crédito ADDI.' });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Crear solicitud de crédito con Sistecredito
+// =============================================
+
+// Helper: load Sistecredito credentials from env or platform_settings
+async function loadSisteCredentials() {
+  let apiKey = process.env.SISTECREDITO_API_KEY || '';
+  let apiSecret = process.env.SISTECREDITO_SECRET || process.env.SISTECREDITO_API_SECRET || '';
+  let allyCode = process.env.SISTECREDITO_ALLY || process.env.SISTECREDITO_ALLY_CODE || '';
+  let isProduction = process.env.SISTECREDITO_ENV === 'production' || process.env.SISTECREDITO_PRODUCTION === 'true';
+
+  if (!apiKey) {
+    const [psRows] = await pool.query(
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('sistecredito_api_key','sistecredito_api_secret','sistecredito_ally_code','sistecredito_production')"
+    ) as any;
+    for (const r of psRows) {
+      if (r.setting_key === 'sistecredito_api_key') apiKey = r.setting_value || apiKey;
+      if (r.setting_key === 'sistecredito_api_secret') apiSecret = r.setting_value || apiSecret;
+      if (r.setting_key === 'sistecredito_ally_code') allyCode = r.setting_value || allyCode;
+      if (r.setting_key === 'sistecredito_production') isProduction = r.setting_value === 'true';
+    }
+  }
+
+  const baseUrl = isProduction
+    ? 'https://api.sistecredito.com'
+    : 'https://api-sandbox.sistecredito.com';
+
+  return { apiKey, apiSecret, allyCode, isProduction, baseUrl };
+}
+
+// Helper: build auth headers for Sistecredito
+// Uses HMAC-SHA256 if secret is provided, otherwise Bearer token
+function buildSisteHeaders(apiKey: string, apiSecret: string, payloadStr: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+  };
+
+  if (apiSecret) {
+    const signature = crypto
+      .createHmac('sha256', apiSecret)
+      .update(payloadStr)
+      .digest('hex');
+    headers['x-signature'] = signature;
+  } else {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  return headers;
+}
+
+router.post(
+  '/sistecredito-application',
+  [
+    body('customerName').notEmpty(),
+    body('customerPhone').notEmpty(),
+    body('customerEmail').optional().isEmail(),
+    body('customerCedula').notEmpty().withMessage('La cédula es requerida para Sistecredito'),
+    body('items').isArray({ min: 1 }),
+    body('items.*.productId').notEmpty(),
+    body('items.*.productName').notEmpty(),
+    body('items.*.quantity').isInt({ min: 1 }),
+    body('items.*.unitPrice').isFloat({ min: 0 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response, _next: NextFunction) => {
+    try {
+      const { apiKey, apiSecret, allyCode, baseUrl } = await loadSisteCredentials();
+
+      if (!apiKey) {
+        res.status(503).json({ success: false, error: 'Sistecredito no está configurado. Configúralo en el panel de administración.' });
+        return;
+      }
+
+      const frontendUrl = config.mp.frontendUrl || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+
+      const {
+        customerName, customerPhone, customerEmail, customerCedula,
+        department, municipality, address, notes,
+        items, tenantId: requestedTenantId, couponCode, discount = 0,
+      } = req.body;
+
+      // Find tenant
+      let tenantId = requestedTenantId;
+      if (!tenantId) {
+        const [tenants] = await pool.query(
+          'SELECT id FROM tenants WHERE status = ? ORDER BY id ASC LIMIT 1',
+          ['activo']
+        ) as any;
+        if (!tenants || tenants.length === 0) {
+          res.status(400).json({ success: false, error: 'No hay tienda disponible' });
+          return;
+        }
+        tenantId = tenants[0].id;
+      }
+
+      const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const total = Math.max(0, subtotal - discount);
+
+      // Create order in DB
+      const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
+      const orderId = uuidv4();
+      const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
+      const finalNotes = `[PAGO SISTECREDITO] ${notes || ''}${couponNote}`.trim();
+
+      await pool.query(
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, finalNotes,
+          subtotal, discount, total]
+      );
+
+      for (const item of items) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            item.unitPrice * item.quantity]
+        );
+      }
+
+      // Build payload following Sistecredito structure
+      const sistePayload: Record<string, any> = {
+        customer: {
+          name: customerName,
+          document: customerCedula,
+          phone: customerPhone,
+          email: customerEmail || '',
+          address: address || '',
+          city: municipality || '',
+          department: department || '',
+        },
+        order: {
+          reference: orderNumber,
+          value: total,
+          currency: 'COP',
+        },
+        redirectUrl: `${frontendUrl}/?sistecredito=success&order=${orderId}`,
+        cancelUrl: `${frontendUrl}/?sistecredito=cancel&order=${orderId}`,
+        notifyUrl: `${backendUrl}/api/orders/sistecredito-webhook`,
+      };
+
+      if (allyCode) sistePayload.allyCode = allyCode;
+
+      const payloadStr = JSON.stringify(sistePayload);
+      const headers = buildSisteHeaders(apiKey, apiSecret, payloadStr);
+
+      const appRes = await fetch(`${baseUrl}/credit/application`, {
+        method: 'POST',
+        headers,
+        body: payloadStr,
+      });
+
+      const appData: any = await appRes.json();
+
+      if (!appRes.ok) {
+        console.error('Sistecredito application error:', appData);
+        res.status(502).json({
+          success: false,
+          error: appData?.message || appData?.mensaje || appData?.error || 'Error al crear solicitud en Sistecredito.',
+        });
+        return;
+      }
+
+      // Handle response: approval / rejection / redirect link
+      const status = appData.status || appData.estado || '';
+      if (status === 'rejected' || status === 'rechazado') {
+        // Update order status to reflect rejection
+        await pool.query(
+          "UPDATE storefront_orders SET notes = CONCAT(notes, ' [RECHAZADO POR SISTECREDITO]') WHERE id = ?",
+          [orderId]
+        );
+        res.status(200).json({
+          success: false,
+          error: appData.message || appData.mensaje || 'Crédito no aprobado por Sistecredito.',
+          rejected: true,
+        });
+        return;
+      }
+
+      // Approved or pending — get redirect URL
+      const applicationUrl =
+        appData.url ||
+        appData.redirectUrl ||
+        appData.urlRedireccion ||
+        appData.applicationUrl ||
+        appData.link;
+
+      if (!applicationUrl) {
+        // Sistecredito may approve inline (no redirect needed)
+        if (status === 'approved' || status === 'aprobado') {
+          await pool.query("UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?", [orderId]);
+          res.status(201).json({
+            success: true,
+            data: { orderId, orderNumber, total, approved: true },
+          });
+          return;
+        }
+        console.error('Sistecredito response missing URL:', appData);
+        res.status(502).json({ success: false, error: 'Sistecredito no devolvió una URL de validación.' });
+        return;
+      }
+
+      res.status(201).json({
+        success: true,
+        data: { orderId, orderNumber, total, applicationUrl },
+      });
+    } catch (error) {
+      console.error('Sistecredito application error:', error);
+      res.status(500).json({ success: false, error: 'Error al crear la solicitud de crédito con Sistecredito.' });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Webhook de MercadoPago
+// =============================================
+router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
+  try {
+    // Load MP credentials from DB / env
+    let mpToken = config.mp.accessToken;
+    let mpWebhookSecret: string | null = null;
+    const [psRows] = await pool.query(
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('mp_access_token','mp_webhook_secret')"
+    ) as any;
+    for (const r of psRows) {
+      if (r.setting_key === 'mp_access_token' && !mpToken) mpToken = r.setting_value;
+      if (r.setting_key === 'mp_webhook_secret') mpWebhookSecret = r.setting_value;
+    }
+
+    // Verify MercadoPago HMAC-SHA256 signature
+    // MP signature header format: "ts=<timestamp>,v1=<hmac>"
+    if (mpWebhookSecret) {
+      const sigHeader = req.headers['x-signature'] as string || '';
+      const requestId = req.headers['x-request-id'] as string || '';
+      const dataId = (req.query['data.id'] || req.body?.data?.id) as string || '';
+      const tsMatch = sigHeader.match(/ts=([^,]+)/);
+      const v1Match = sigHeader.match(/v1=([^,]+)/);
+
+      if (!tsMatch || !v1Match) {
+        audit.webhookInvalidSignature('mercadopago', req.ip);
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+
+      const ts = tsMatch[1];
+      const receivedHmac = v1Match[1];
+      const manifest = `id:${dataId};request-date:${ts};`;
+      const expectedHmac = crypto
+        .createHmac('sha256', mpWebhookSecret)
+        .update(manifest)
+        .digest('hex');
+
+      if (!crypto.timingSafeEqual(Buffer.from(receivedHmac), Buffer.from(expectedHmac))) {
+        audit.webhookInvalidSignature('mercadopago', req.ip);
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+    }
+
+    const topic = req.query.topic || req.body?.type;
+    const paymentId = req.query['data.id'] || req.body?.data?.id;
+
+    if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment')) {
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    // Fetch payment details from MP API
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${mpToken}` },
+    });
+
+    if (!mpRes.ok) {
+      console.error('MP webhook: failed to fetch payment', paymentId);
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    const payment = await mpRes.json() as any;
+    const orderId = payment.external_reference;
+    const mpStatus = (payment.status || '').toLowerCase();
+
+    if (!orderId) {
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    if (mpStatus === 'approved') {
+      await pool.query(
+        "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ? AND status = 'pendiente'",
+        [orderId]
+      );
+      console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+    } else if (mpStatus === 'rejected' || mpStatus === 'cancelled') {
+      await pool.query(
+        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
+        [orderId]
+      );
+      console.log(`MP webhook: order ${orderId} cancelled (${mpStatus})`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('MP webhook error:', error);
+    res.status(200).json({ received: true }); // always 200 to prevent MP retries
+  }
+});
+
+// =============================================
+// PUBLIC: Webhook de Sistecredito
+// =============================================
+router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
+  try {
+    const { apiKey, apiSecret } = await loadSisteCredentials();
+
+    // Verify HMAC signature if secret is configured
+    if (apiSecret) {
+      const receivedSig = req.headers['x-signature'] as string || '';
+      const payloadStr = JSON.stringify(req.body);
+      const expectedSig = crypto
+        .createHmac('sha256', apiSecret)
+        .update(payloadStr)
+        .digest('hex');
+      const receivedBuf = Buffer.from(receivedSig.padEnd(expectedSig.length, '\0'));
+      const expectedBuf = Buffer.from(expectedSig);
+      const sigValid = receivedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(receivedBuf, expectedBuf);
+      if (!sigValid) {
+        console.warn('Sistecredito webhook: invalid signature');
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+    } else if (apiKey) {
+      // Some integrations send the API key as a header for webhook validation
+      const receivedKey = req.headers['x-api-key'] as string || '';
+      if (receivedKey && receivedKey !== apiKey) {
+        console.warn('Sistecredito webhook: invalid api key');
+        res.status(401).json({ error: 'Invalid API key' });
+        return;
+      }
+    }
+
+    const { reference, status, orderId: webhookOrderId } = req.body;
+    const resolvedRef = webhookOrderId || reference;
+
+    if (!resolvedRef) {
+      res.status(400).json({ error: 'Missing order reference' });
+      return;
+    }
+
+    // Find order by orderId or orderNumber
+    const [orderRows] = await pool.query(
+      "SELECT id, status FROM storefront_orders WHERE id = ? OR order_number = ? LIMIT 1",
+      [resolvedRef, resolvedRef]
+    ) as any;
+
+    if (!orderRows || orderRows.length === 0) {
+      console.warn('Sistecredito webhook: order not found:', resolvedRef);
+      res.status(200).json({ received: true }); // always 200 to avoid retries
+      return;
+    }
+
+    const order = orderRows[0];
+    const normalizedStatus = (status || '').toLowerCase();
+
+    if ((normalizedStatus === 'approved' || normalizedStatus === 'aprobado') && order.status === 'pendiente') {
+      await pool.query(
+        "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?",
+        [order.id]
+      );
+      console.log(`Sistecredito webhook: order ${order.id} confirmed`);
+    } else if (normalizedStatus === 'rejected' || normalizedStatus === 'rechazado') {
+      await pool.query(
+        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?",
+        [order.id]
+      );
+      console.log(`Sistecredito webhook: order ${order.id} cancelled (rejected)`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Sistecredito webhook error:', error);
+    res.status(200).json({ received: true }); // always 200 to avoid retries
+  }
+});
 
 // =============================================
 // AUTHENTICATED: Endpoints para comerciantes

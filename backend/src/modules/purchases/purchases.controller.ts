@@ -61,6 +61,24 @@ export class PurchasesController {
       next(error);
     }
   }
+
+  async getNextInvoiceNumber(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const number = await purchasesService.getNextInvoiceNumber(req.user!.tenantId!);
+      res.json({ success: true, data: number });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getSupplierStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await purchasesService.getSupplierStats(req.user!.tenantId!, req.params.supplierId);
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const purchasesController = new PurchasesController();

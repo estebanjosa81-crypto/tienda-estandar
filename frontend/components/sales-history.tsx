@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '@/lib/store'
+import { useAuthStore } from '@/lib/auth-store'
 import type { Sale } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,6 +48,8 @@ import {
 
 export function SalesHistory() {
   const { sales, fetchSales, storeInfo } = useStore()
+  const { user } = useAuthStore()
+  const isVendedor = user?.role === 'vendedor'
 
   useEffect(() => {
     fetchSales()
@@ -301,18 +304,27 @@ export function SalesHistory() {
                   <SelectItem value="fiado">Fiado</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-full sm:w-[130px] bg-secondary border-none text-sm"
-              />
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-full sm:w-[130px] bg-secondary border-none text-sm"
-              />
+              {isVendedor ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Ventas del día de hoy
+                </div>
+              ) : (
+                <>
+                  <Input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full sm:w-[130px] bg-secondary border-none text-sm"
+                  />
+                  <Input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full sm:w-[130px] bg-secondary border-none text-sm"
+                  />
+                </>
+              )}
             </div>
           </div>
         </CardContent>
@@ -321,7 +333,9 @@ export function SalesHistory() {
       {/* Sales Table */}
       <Card className="border-border bg-card">
         <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
-          <CardTitle className="text-sm sm:text-base font-medium">Historial de Ventas</CardTitle>
+          <CardTitle className="text-sm sm:text-base font-medium">
+            {isVendedor ? 'Mis Ventas de Hoy' : 'Historial de Ventas'}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">

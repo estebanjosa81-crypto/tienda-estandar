@@ -13,19 +13,43 @@ interface CloudinaryUploadProps {
   accept?: string
 }
 
-/** Lee las credenciales: localStorage tiene prioridad sobre .env.local */
-function getCloudinaryConfig() {
-  if (typeof window !== 'undefined') {
-    const cloudName = localStorage.getItem('cloudinary_cloud_name') ||
-      process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ''
-    const uploadPreset = localStorage.getItem('cloudinary_upload_preset') ||
-      process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ''
-    return { cloudName, uploadPreset }
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+
+// Module-level cache so we don't hit the API on every upload
+let _cloudinaryCache: { cloudName: string; uploadPreset: string } | null = null
+
+async function getCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset: string }> {
+  // 1. Use module cache
+  if (_cloudinaryCache?.cloudName && _cloudinaryCache?.uploadPreset) {
+    return _cloudinaryCache
   }
+  // 2. Try fetching from backend (platform_settings — set by superadmin)
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+    const res = await fetch(`${API_URL}/chatbot/superadmin/integrations`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.success && json.data?.cloudinaryCloudName) {
+        _cloudinaryCache = {
+          cloudName: json.data.cloudinaryCloudName,
+          uploadPreset: json.data.cloudinaryUploadPreset,
+        }
+        return _cloudinaryCache
+      }
+    }
+  } catch { /* fallback */ }
+  // 3. Fallback: env vars
   return {
     cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '',
     uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '',
   }
+}
+
+/** Call this after superadmin updates Cloudinary credentials to force a refresh */
+export function clearCloudinaryCache() {
+  _cloudinaryCache = null
 }
 
 export function CloudinaryUpload({
@@ -43,14 +67,14 @@ export function CloudinaryUpload({
     const file = e.target.files?.[0]
     if (!file) return
 
-    const { cloudName, uploadPreset } = getCloudinaryConfig()
+    const { cloudName, uploadPreset } = await getCloudinaryConfig()
 
-    if (!cloudName || cloudName === 'tu_cloud_name') {
-      setError('Configura el Cloud Name en Configuración → Integraciones')
+    if (!cloudName) {
+      setError('Cloudinary no configurado — el superadmin debe configurar las credenciales en Integraciones')
       return
     }
-    if (!uploadPreset || uploadPreset === 'tu_upload_preset') {
-      setError('Configura el Upload Preset en Configuración → Integraciones')
+    if (!uploadPreset) {
+      setError('Upload Preset no configurado — el superadmin debe configurarlo en Integraciones')
       return
     }
 
@@ -70,9 +94,9 @@ export function CloudinaryUpload({
       if (!res.ok) {
         const data = await res.json()
         const msg = data?.error?.message ?? 'Error al subir la imagen'
-        // 400 casi siempre = preset incorrecto o no existe
         if (res.status === 400) {
-          throw new Error(`${msg} — Verifica que el Upload Preset exista y esté en modo "Unsigned" en tu cuenta de Cloudinary`)
+          _cloudinaryCache = null // force re-fetch next time
+          throw new Error(`${msg} — Verifica que el Upload Preset esté en modo "Unsigned"`)
         }
         throw new Error(msg)
       }

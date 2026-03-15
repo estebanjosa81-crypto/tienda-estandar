@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Image as ImageIcon,
@@ -26,6 +27,14 @@ import {
   Facebook,
   Phone,
   Zap,
+  Eye,
+  EyeOff,
+  Truck,
+  FileText,
+  Bot,
+  MessageCircle,
+  Bell,
+  Package,
 } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { departamentosMunicipios } from '@/constants'
@@ -34,6 +43,7 @@ interface Banner {
   id?: number
   position: string
   imageUrl: string
+  videoUrl?: string
   title: string
   subtitle: string
   linkUrl: string
@@ -44,6 +54,7 @@ interface CategoryItem {
   id: string
   name: string
   imageUrl: string | null
+  hiddenInStore?: boolean
 }
 
 interface FeaturedProduct {
@@ -67,8 +78,9 @@ interface StoreExtendedInfo {
   logoUrl: string
   schedule: string
   locationMapUrl: string
-  termsUrl: string
-  privacyUrl: string
+  termsContent: string
+  privacyContent: string
+  shippingTerms: string
   paymentMethods: string
   socialInstagram: string
   socialFacebook: string
@@ -77,6 +89,9 @@ interface StoreExtendedInfo {
   department: string
   municipality: string
   productCardStyle: string
+  allowContraentrega: boolean
+  showInfoModule: boolean
+  infoModuleDescription: string
 }
 
 interface AnnouncementBar {
@@ -99,7 +114,7 @@ interface Drop {
   products?: Array<{ productId: string; customDiscount: number | null; name: string; imageUrl: string | null; salePrice: number }>
 }
 
-type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops'
+type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot'
 
 export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('banners')
@@ -113,14 +128,31 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([])
   const [publishedProducts, setPublishedProducts] = useState<PublishedProduct[]>([])
   const [storeInfo, setStoreInfo] = useState<StoreExtendedInfo>({
-    logoUrl: '', schedule: '', locationMapUrl: '', termsUrl: '', privacyUrl: '',
+    logoUrl: '', schedule: '', locationMapUrl: '', termsContent: '', privacyContent: '', shippingTerms: '',
     paymentMethods: '', socialInstagram: '', socialFacebook: '',
     socialTiktok: '', socialWhatsapp: '',
     department: '', municipality: '', productCardStyle: 'style1',
+    allowContraentrega: true, showInfoModule: false, infoModuleDescription: '',
   })
 
+  // Chatbot config
+  const [chatbotConfig, setChatbotConfig] = useState({
+    isEnabled: false,
+    botName: 'Asistente',
+    botAvatarUrl: '',
+    accentColor: '#f59e0b',
+    businessInfo: '',
+    systemPrompt: '',
+    faqs: '',
+    tone: 'amigable' as 'amigable' | 'profesional' | 'formal' | 'casual',
+    notifyEmail: true,
+    notifyWhatsapp: true,
+  })
+  const [isSavingChatbot, setIsSavingChatbot] = useState(false)
+  const [chatbotMsg, setChatbotMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
   // Banner form
-  const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', title: '', subtitle: '', linkUrl: '' })
+  const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
   const [editingBannerId, setEditingBannerId] = useState<number | null>(null)
 
   // Announcement bar
@@ -169,8 +201,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             logoUrl: result.data.storeInfo.logoUrl || '',
             schedule: result.data.storeInfo.schedule || '',
             locationMapUrl: result.data.storeInfo.locationMapUrl || '',
-            termsUrl: result.data.storeInfo.termsUrl || '',
-            privacyUrl: result.data.storeInfo.privacyUrl || '',
+            termsContent: result.data.storeInfo.termsContent || '',
+            privacyContent: result.data.storeInfo.privacyContent || '',
+            shippingTerms: result.data.storeInfo.shippingTerms || '',
             paymentMethods: result.data.storeInfo.paymentMethods || '',
             socialInstagram: result.data.storeInfo.socialInstagram || '',
             socialFacebook: result.data.storeInfo.socialFacebook || '',
@@ -179,6 +212,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             department: result.data.storeInfo.department || '',
             municipality: result.data.storeInfo.municipality || '',
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
+            allowContraentrega: result.data.storeInfo.allowContraentrega !== false,
+            showInfoModule: !!result.data.storeInfo.showInfoModule,
+            infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
           })
         }
       }
@@ -187,9 +223,51 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     } finally {
       setLoading(false)
     }
+    // Load chatbot config separately
+    try {
+      const cbResult = await api.getChatbotConfig()
+      if (cbResult.success && cbResult.data) {
+        const d = cbResult.data as any
+        setChatbotConfig({
+          isEnabled: !!d.is_enabled,
+          botName: d.bot_name || 'Asistente',
+          botAvatarUrl: d.bot_avatar_url || '',
+          accentColor: d.accent_color || '#f59e0b',
+          businessInfo: d.business_info || '',
+          systemPrompt: d.system_prompt || '',
+          faqs: d.faqs || '',
+          tone: d.tone || 'amigable',
+          notifyEmail: d.notify_email !== false && d.notify_email !== 0,
+          notifyWhatsapp: d.notify_whatsapp !== false && d.notify_whatsapp !== 0,
+        })
+      }
+    } catch { /* chatbot table may not exist yet */ }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // ========== CHATBOT HANDLERS ==========
+  const handleSaveChatbot = async () => {
+    setIsSavingChatbot(true)
+    const result = await api.updateChatbotConfig({
+      botName: chatbotConfig.botName,
+      botAvatarUrl: chatbotConfig.botAvatarUrl || undefined,
+      accentColor: chatbotConfig.accentColor || '#f59e0b',
+      systemPrompt: chatbotConfig.systemPrompt || undefined,
+      businessInfo: chatbotConfig.businessInfo || undefined,
+      faqs: chatbotConfig.faqs || undefined,
+      tone: chatbotConfig.tone,
+      notifyEmail: chatbotConfig.notifyEmail,
+      notifyWhatsapp: chatbotConfig.notifyWhatsapp,
+    })
+    if (result.success) {
+      setChatbotMsg({ type: 'ok', text: 'Configuración del chatbot guardada' })
+    } else {
+      setChatbotMsg({ type: 'error', text: result.error || 'Error al guardar' })
+    }
+    setIsSavingChatbot(false)
+    setTimeout(() => setChatbotMsg(null), 4000)
+  }
 
   // ========== BANNER HANDLERS ==========
   const handleSaveBanner = async () => {
@@ -205,7 +283,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
       const result = await api.updateBanner(payload)
       if (result.success) {
         showMsg('success', editingBannerId ? 'Banner actualizado' : 'Banner creado')
-        setBannerForm({ position: 'hero1', imageUrl: '', title: '', subtitle: '', linkUrl: '' })
+        setBannerForm({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
         setEditingBannerId(null)
         fetchData()
       } else {
@@ -239,6 +317,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     setBannerForm({
       position: banner.position,
       imageUrl: banner.imageUrl,
+      videoUrl: banner.videoUrl || '',
       title: banner.title || '',
       subtitle: banner.subtitle || '',
       linkUrl: banner.linkUrl || '',
@@ -246,7 +325,19 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     setEditingBannerId(banner.id || null)
   }
 
-  // ========== CATEGORY IMAGE HANDLERS ==========
+  // ========== CATEGORY HANDLERS ==========
+  const handleToggleCategoryVisibility = async (cat: CategoryItem) => {
+    const newHidden = !cat.hiddenInStore
+    setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, hiddenInStore: newHidden } : c))
+    try {
+      await api.toggleCategoryVisibility(cat.id, newHidden)
+      showMsg('success', newHidden ? 'Categoría oculta en tienda' : 'Categoría visible en tienda')
+    } catch {
+      setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, hiddenInStore: cat.hiddenInStore } : c))
+      showMsg('error', 'Error al actualizar visibilidad')
+    }
+  }
+
   const handleSaveCategoryImage = async (categoryId: string) => {
     setSaving(true)
     try {
@@ -393,6 +484,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     { key: 'announcement', label: 'Anuncio', icon: <ExternalLink className="h-4 w-4" /> },
     { key: 'drops', label: 'Drops', icon: <Zap className="h-4 w-4" /> },
     { key: 'info', label: 'Info Tienda', icon: <Info className="h-4 w-4" /> },
+    { key: 'chatbot', label: 'Chatbot IA', icon: <Bot className="h-4 w-4" /> },
   ]
 
   const featuredIds = new Set(featuredProducts.map(f => f.productId))
@@ -429,18 +521,6 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
           </Button>
         </div>
       </div>
-
-      {/* Message */}
-      {msg && (
-        <div className={`flex items-center gap-2 rounded-lg border p-3 ${
-          msg.type === 'success'
-            ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300'
-            : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'
-        }`}>
-          {msg.type === 'success' ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-          <span className="text-sm">{msg.text}</span>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b pb-0 overflow-x-auto">
@@ -491,6 +571,17 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     accept="image/*"
                   />
                 </div>
+                {bannerForm.position === 'hero4' && (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Video del Banner (opcional)</label>
+                    <Input
+                      placeholder="https://res.cloudinary.com/.../video.mp4"
+                      value={bannerForm.videoUrl || ''}
+                      onChange={e => setBannerForm(prev => ({ ...prev, videoUrl: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Si se ingresa un video, se mostrará en lugar de la imagen en el Hero 4.</p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -538,7 +629,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={handleSaveBanner} disabled={saving}>
                   <Save className="h-4 w-4 mr-2" />
                   {editingBannerId ? 'Actualizar' : 'Guardar'} Banner
@@ -546,10 +637,16 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 {editingBannerId && (
                   <Button variant="outline" onClick={() => {
                     setEditingBannerId(null)
-                    setBannerForm({ position: 'hero1', imageUrl: '', title: '', subtitle: '', linkUrl: '' })
+                    setBannerForm({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
                   }}>
                     Cancelar
                   </Button>
+                )}
+                {msg && (
+                  <span className={`text-sm font-medium flex items-center gap-1 ${msg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                    {msg.type === 'success' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                    {msg.text}
+                  </span>
                 )}
               </div>
             </CardContent>
@@ -614,7 +711,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {categories.map(cat => (
-                <Card key={cat.id} className="overflow-hidden">
+                <Card key={cat.id} className={`overflow-hidden transition-opacity ${cat.hiddenInStore ? 'opacity-50' : ''}`}>
                   <div className="relative h-32 bg-muted flex items-center justify-center">
                     {cat.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -622,9 +719,23 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     ) : (
                       <Grid3X3 className="h-10 w-10 text-muted-foreground/30" />
                     )}
+                    {cat.hiddenInStore && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <EyeOff className="h-8 w-8 text-white/70" />
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-3 space-y-2">
-                    <p className="text-sm font-medium">{cat.name}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">{cat.name}</p>
+                      <button
+                        onClick={() => handleToggleCategoryVisibility(cat)}
+                        title={cat.hiddenInStore ? 'Mostrar en tienda' : 'Ocultar en tienda'}
+                        className={`p-1 rounded transition-colors ${cat.hiddenInStore ? 'text-muted-foreground hover:text-foreground' : 'text-green-600 hover:text-red-500'}`}
+                      >
+                        {cat.hiddenInStore ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     {editingCategoryId === cat.id ? (
                       <div className="space-y-2">
                         <CloudinaryUpload
@@ -722,34 +833,55 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
           </div>
 
           {/* Available products */}
-          {featuredProducts.length < 8 && availableForFeatured.length > 0 && (
+          {featuredProducts.length < 8 && (
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                 Agregar Producto Destacado
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
-                {availableForFeatured.map(p => (
-                  <Card key={p.id} className="overflow-hidden hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" onClick={() => handleAddFeatured(p.id)}>
-                    <div className="relative h-20 bg-muted">
-                      {p.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground/20" />
-                        </div>
-                      )}
-                    </div>
-                    <CardContent className="p-2">
-                      <p className="text-xs font-medium truncate">{p.name}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-muted-foreground">{formatCurrency(p.salePrice)}</p>
-                        <Plus className="h-3 w-3 text-amber-500" />
+
+              {publishedProducts.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm font-medium">No tienes productos publicados en la tienda</p>
+                    <p className="text-xs mt-1 max-w-xs mx-auto">
+                      Ve a <strong>Inventario</strong>, selecciona un producto y activa{' '}
+                      <strong>"Publicar en tienda"</strong> para que aparezca aquí.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : availableForFeatured.length === 0 ? (
+                <Card>
+                  <CardContent className="py-6 text-center text-muted-foreground">
+                    <Star className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Todos los productos publicados ya están en destacados.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
+                  {availableForFeatured.map(p => (
+                    <Card key={p.id} className="overflow-hidden hover:border-amber-300 dark:hover:border-amber-700 transition-colors cursor-pointer" onClick={() => handleAddFeatured(p.id)}>
+                      <div className="relative h-20 bg-muted">
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="h-5 w-5 text-muted-foreground/20" />
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      <CardContent className="p-2">
+                        <p className="text-xs font-medium truncate">{p.name}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-muted-foreground">{formatCurrency(p.salePrice)}</p>
+                          <Plus className="h-3 w-3 text-amber-500" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -833,10 +965,18 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               )}
             </CardContent>
           </Card>
-          <Button onClick={handleSaveAnnouncement} disabled={saving} className="w-full sm:w-auto">
-            <Save className="h-4 w-4 mr-2" />
-            Guardar Barra de Anuncio
-          </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={handleSaveAnnouncement} disabled={saving} className="w-full sm:w-auto">
+              <Save className="h-4 w-4 mr-2" />
+              Guardar Barra de Anuncio
+            </Button>
+            {msg && (
+              <span className={`text-sm font-medium flex items-center gap-1 ${msg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {msg.type === 'success' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                {msg.text}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -891,11 +1031,17 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                   previewClassName="max-h-32 w-auto object-contain rounded border"
                   accept="image/*"
                 />
-                <div className="flex gap-2">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Button onClick={handleSaveDrop} disabled={saving}>
                     <Save className="h-4 w-4 mr-1" /> {editingDropId ? 'Actualizar' : 'Crear'} Drop
                   </Button>
                   <Button variant="outline" onClick={() => setShowDropForm(false)}>Cancelar</Button>
+                  {msg && (
+                    <span className={`text-sm font-medium flex items-center gap-1 ${msg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                      {msg.type === 'success' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                      {msg.text}
+                    </span>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1008,6 +1154,57 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             Configura la información que aparecerá en el footer (Hero 6) de tu tienda online.
           </p>
 
+          {/* Módulo de Información */}
+          <Card className="border-amber-500/30 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Info className="h-4 w-4 text-amber-500" />
+                Módulo de Información
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Cuando está activo, la sección de productos de tu tienda pública es reemplazada por una tarjeta de información de tu negocio (horario, contacto, redes sociales, métodos de pago, etc.).
+              </p>
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                <div>
+                  <p className="text-sm font-medium">Activar módulo de información</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {storeInfo.showInfoModule
+                      ? 'Tu tienda pública muestra la tarjeta de información en lugar del catálogo de productos'
+                      : 'Tu tienda pública muestra el catálogo de productos normalmente'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStoreInfo(prev => ({ ...prev, showInfoModule: !prev.showInfoModule }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    storeInfo.showInfoModule ? 'bg-amber-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      storeInfo.showInfoModule ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {storeInfo.showInfoModule && (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Descripción del módulo (opcional)</label>
+                  <Textarea
+                    placeholder="Escribe una descripción o mensaje de bienvenida para tus clientes..."
+                    value={storeInfo.infoModuleDescription}
+                    onChange={e => setStoreInfo(prev => ({ ...prev, infoModuleDescription: e.target.value }))}
+                    rows={3}
+                    className="resize-y"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Este texto aparecerá en la tarjeta de información de tu tienda.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Logo */}
           <Card>
             <CardHeader>
@@ -1092,33 +1289,61 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               </CardContent>
             </Card>
 
-            {/* Legal Links */}
-            <Card>
+            {/* Legal Content */}
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Shield className="h-4 w-4" />
-                  Enlaces Legales
+                  Información Legal
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Términos y condiciones (URL)</label>
-                  <Input
-                    placeholder="https://ejemplo.com/terminos"
-                    value={storeInfo.termsUrl}
-                    onChange={e => setStoreInfo(prev => ({ ...prev, termsUrl: e.target.value }))}
-                  />
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Términos y condiciones
+                    </label>
+                    <p className="text-xs text-muted-foreground">Este texto se mostrará a tus clientes como tus términos y condiciones.</p>
+                    <Textarea
+                      placeholder="Escribe aquí tus términos y condiciones..."
+                      value={storeInfo.termsContent}
+                      onChange={e => setStoreInfo(prev => ({ ...prev, termsContent: e.target.value }))}
+                      rows={8}
+                      className="resize-y"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <Shield className="h-3 w-3" />
+                      Política de privacidad
+                    </label>
+                    <p className="text-xs text-muted-foreground">Este texto se mostrará a tus clientes como tu política de privacidad.</p>
+                    <Textarea
+                      placeholder="Escribe aquí tu política de privacidad..."
+                      value={storeInfo.privacyContent}
+                      onChange={e => setStoreInfo(prev => ({ ...prev, privacyContent: e.target.value }))}
+                      rows={8}
+                      className="resize-y"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <Truck className="h-3 w-3" />
+                      Términos de envío
+                    </label>
+                    <p className="text-xs text-muted-foreground">Indica tus políticas de envío, tiempos de entrega, costos, etc.</p>
+                    <Textarea
+                      placeholder="Escribe aquí tus términos de envío y entrega..."
+                      value={storeInfo.shippingTerms}
+                      onChange={e => setStoreInfo(prev => ({ ...prev, shippingTerms: e.target.value }))}
+                      rows={8}
+                      className="resize-y"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Política de privacidad (URL)</label>
-                  <Input
-                    placeholder="https://ejemplo.com/privacidad"
-                    value={storeInfo.privacyUrl}
-                    onChange={e => setStoreInfo(prev => ({ ...prev, privacyUrl: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                  <label className="text-sm font-medium mb-1 flex items-center gap-1">
                     <CreditCard className="h-3 w-3" />
                     Medios de pago
                   </label>
@@ -1127,6 +1352,32 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     value={storeInfo.paymentMethods}
                     onChange={e => setStoreInfo(prev => ({ ...prev, paymentMethods: e.target.value }))}
                   />
+                </div>
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      <Truck className="h-3 w-3" />
+                      Permitir pago contraentrega
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {storeInfo.allowContraentrega
+                        ? 'Los clientes pueden pagar al recibir el pedido'
+                        : 'Solo se aceptan métodos de pago en línea'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStoreInfo(prev => ({ ...prev, allowContraentrega: !prev.allowContraentrega }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      storeInfo.allowContraentrega ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        storeInfo.allowContraentrega ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                 </div>
               </CardContent>
             </Card>
@@ -1278,10 +1529,199 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             </CardContent>
           </Card>
 
-          <Button onClick={handleSaveStoreInfo} disabled={saving} className="w-full sm:w-auto">
-            <Save className="h-4 w-4 mr-2" />
-            Guardar Información de Tienda
-          </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={handleSaveStoreInfo} disabled={saving} className="w-full sm:w-auto">
+              <Save className="h-4 w-4 mr-2" />
+              Guardar Información de Tienda
+            </Button>
+            {msg && (
+              <span className={`text-sm font-medium flex items-center gap-1 ${msg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {msg.type === 'success' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                {msg.text}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ──────────────────────────────────────────
+          TAB: CHATBOT IA
+      ────────────────────────────────────────── */}
+      {activeTab === 'chatbot' && (
+        <div className="space-y-4">
+          {/* Status banner */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg border ${chatbotConfig.isEnabled ? 'bg-green-500/10 border-green-500/20' : 'bg-muted border-border'}`}>
+            <Bot className={`h-5 w-5 flex-shrink-0 ${chatbotConfig.isEnabled ? 'text-green-600' : 'text-muted-foreground'}`} />
+            <div>
+              <p className="text-sm font-medium">
+                {chatbotConfig.isEnabled ? `Chatbot activo — "${chatbotConfig.botName}"` : 'Chatbot inactivo'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {chatbotConfig.isEnabled
+                  ? 'El chatbot está visible en tu tienda. Configura aquí su base de conocimiento.'
+                  : 'El superadmin debe activar el chatbot para tu comercio. Puedes preparar tu configuración aquí.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Identity */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageCircle className="h-4 w-4" />
+                Identidad del Bot
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Nombre del asistente</label>
+                  <Input
+                    placeholder="ej: Luna, Valeria, Asistente..."
+                    value={chatbotConfig.botName}
+                    onChange={e => setChatbotConfig(p => ({ ...p, botName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Tono de conversación</label>
+                  <select
+                    value={chatbotConfig.tone}
+                    onChange={e => setChatbotConfig(p => ({ ...p, tone: e.target.value as any }))}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="amigable">Amigable y cercano</option>
+                    <option value="profesional">Profesional y cordial</option>
+                    <option value="formal">Formal y respetuoso</option>
+                    <option value="casual">Casual y relajado</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">URL del avatar del bot (opcional)</label>
+                <Input
+                  placeholder="https://... imagen del avatar"
+                  value={chatbotConfig.botAvatarUrl}
+                  onChange={e => setChatbotConfig(p => ({ ...p, botAvatarUrl: e.target.value }))}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Color de acento del chat</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={chatbotConfig.accentColor}
+                    onChange={e => setChatbotConfig(p => ({ ...p, accentColor: e.target.value }))}
+                    className="w-10 h-10 rounded cursor-pointer border border-gray-200"
+                  />
+                  <Input
+                    value={chatbotConfig.accentColor}
+                    onChange={e => setChatbotConfig(p => ({ ...p, accentColor: e.target.value }))}
+                    className="font-mono text-sm w-32"
+                    maxLength={7}
+                  />
+                  <span className="text-xs text-gray-500">Color del encabezado y botones del chatbot</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Knowledge base */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Info className="h-4 w-4" />
+                Base de Conocimiento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Información del negocio</label>
+                <p className="text-xs text-muted-foreground mb-1.5">Describe tu tienda: qué vendes, horarios, ubicación, políticas, precios de envío, etc.</p>
+                <Textarea
+                  placeholder="Somos una perfumería online especializada en fragancias de lujo. Atendemos de Lunes a Sábado 8am-6pm. Envíos a todo Colombia en 2-5 días hábiles. Envío gratis en compras mayores a $150.000..."
+                  value={chatbotConfig.businessInfo}
+                  onChange={e => setChatbotConfig(p => ({ ...p, businessInfo: e.target.value }))}
+                  rows={5}
+                  className="resize-y"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Preguntas frecuentes (FAQ)</label>
+                <p className="text-xs text-muted-foreground mb-1.5">Escribe preguntas y respuestas. El bot aprenderá de estas.</p>
+                <Textarea
+                  placeholder="¿Hacen envíos internacionales? — Por ahora solo envíos nacionales en Colombia.&#10;¿Aceptan devoluciones? — Sí, tienes 5 días después de recibir tu pedido para reportar cualquier novedad.&#10;¿Los perfumes son originales? — Sí, todos nuestros productos son 100% originales con garantía."
+                  value={chatbotConfig.faqs}
+                  onChange={e => setChatbotConfig(p => ({ ...p, faqs: e.target.value }))}
+                  rows={6}
+                  className="resize-y"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Instrucciones adicionales para el bot</label>
+                <p className="text-xs text-muted-foreground mb-1.5">Reglas especiales, frases que debe usar, productos que debe promover, etc.</p>
+                <Textarea
+                  placeholder="Siempre saluda con '¡Hola! Soy [nombre], ¿en qué te puedo ayudar?'. Cuando el cliente pregunte por el mejor perfume, recomienda primero los productos en oferta. No compartas precios de mayoristas..."
+                  value={chatbotConfig.systemPrompt}
+                  onChange={e => setChatbotConfig(p => ({ ...p, systemPrompt: e.target.value }))}
+                  rows={4}
+                  className="resize-y"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Notificaciones de Pedidos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">Recibe notificaciones cuando llegue un pedido nuevo. Se almacenan en tu panel y las verás en el ícono de notificaciones.</p>
+              <div className={`flex items-center justify-between p-3 border rounded-lg ${chatbotConfig.notifyEmail ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/30'}`}>
+                <div>
+                  <p className="text-sm font-medium">Notificaciones de pedidos en panel</p>
+                  <p className="text-xs text-muted-foreground">Se registra cada pedido nuevo como notificación en tu panel</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatbotConfig(p => ({ ...p, notifyEmail: !p.notifyEmail }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatbotConfig.notifyEmail ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${chatbotConfig.notifyEmail ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              <div className={`flex items-center justify-between p-3 border rounded-lg ${chatbotConfig.notifyWhatsapp ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/30'}`}>
+                <div>
+                  <p className="text-sm font-medium">Activar chatbot en WhatsApp flotante</p>
+                  <p className="text-xs text-muted-foreground">El botón de WhatsApp abrirá el chat IA en lugar de redirigir a WhatsApp</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatbotConfig(p => ({ ...p, notifyWhatsapp: !p.notifyWhatsapp }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatbotConfig.notifyWhatsapp ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${chatbotConfig.notifyWhatsapp ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={handleSaveChatbot} disabled={isSavingChatbot} className="w-full sm:w-auto gap-2">
+              {isSavingChatbot ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Guardar Configuración del Chatbot
+            </Button>
+            {chatbotMsg && (
+              <span className={`text-sm font-medium flex items-center gap-1 ${chatbotMsg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
+                {chatbotMsg.type === 'ok' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                {chatbotMsg.text}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>

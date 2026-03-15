@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Product, Sale, CartItem, StockMovement, StoreInfo, CustomerFull, CategoryItem } from './types'
+import type { Product, Sale, CartItem, StockMovement, StoreInfo, CustomerFull, CategoryItem, Sede } from './types'
 import { api } from './api'
 
 interface AppState {
@@ -91,6 +91,13 @@ interface AppState {
   pendingOrdersCount: number
   fetchPendingOrdersCount: () => Promise<void>
   navigateToPedidos: () => void
+
+  // Sedes (sucursales)
+  sedes: Sede[]
+  fetchSedes: () => Promise<void>
+  addSede: (data: { name: string; address?: string }) => Promise<{ success: boolean; error?: string }>
+  updateSede: (id: string, data: { name?: string; address?: string }) => Promise<{ success: boolean; error?: string }>
+  deleteSede: (id: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useStore = create<AppState>()(
@@ -117,6 +124,7 @@ export const useStore = create<AppState>()(
       selectedCustomer: null,
       categories: [],
       isLoadingCategories: false,
+      sedes: [],
       preferredCameraDeviceId: null,
       setPreferredCameraDeviceId: (deviceId) => set({ preferredCameraDeviceId: deviceId }),
 
@@ -146,7 +154,7 @@ export const useStore = create<AppState>()(
       // Products Actions
       fetchProducts: async () => {
         set({ isLoadingProducts: true })
-        const result = await api.getProducts({ limit: 100 })
+        const result = await api.getProducts({ limit: 1000 })
         if (result.success && result.data) {
           const products = Array.isArray(result.data) ? result.data : []
           set({ products, isLoadingProducts: false })
@@ -370,6 +378,43 @@ export const useStore = create<AppState>()(
           return { success: true }
         }
         return { success: false, error: result.error || 'Error al eliminar categoría' }
+      },
+
+      // Sedes Actions
+      fetchSedes: async () => {
+        const result = await api.getSedes()
+        if (result.success && result.data) {
+          set({ sedes: Array.isArray(result.data) ? result.data : [] })
+        }
+      },
+
+      addSede: async (data) => {
+        const result = await api.createSede(data)
+        if (result.success && result.data) {
+          set(state => ({ sedes: [...state.sedes, result.data] }))
+          return { success: true }
+        }
+        return { success: false, error: result.error || 'Error al crear sede' }
+      },
+
+      updateSede: async (id, data) => {
+        const result = await api.updateSede(id, data)
+        if (result.success) {
+          set(state => ({
+            sedes: state.sedes.map(s => s.id === id ? { ...s, ...data } : s)
+          }))
+          return { success: true }
+        }
+        return { success: false, error: result.error || 'Error al actualizar sede' }
+      },
+
+      deleteSede: async (id) => {
+        const result = await api.deleteSede(id)
+        if (result.success) {
+          set(state => ({ sedes: state.sedes.filter(s => s.id !== id) }))
+          return { success: true }
+        }
+        return { success: false, error: result.error || 'Error al eliminar sede' }
       }
     }),
     {

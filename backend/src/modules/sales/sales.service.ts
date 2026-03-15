@@ -62,6 +62,8 @@ export interface SaleFilters {
   startDate?: Date;
   endDate?: Date;
   search?: string;
+  sellerId?: string;
+  todayOnly?: boolean;
 }
 
 export interface CreateSaleItem {
@@ -186,6 +188,15 @@ export class SalesService {
       conditions.push('(invoice_number LIKE ? OR customer_name LIKE ?)');
       const searchTerm = `%${filters.search}%`;
       values.push(searchTerm, searchTerm);
+    }
+
+    if (filters?.sellerId) {
+      conditions.push('seller_id = ?');
+      values.push(filters.sellerId);
+    }
+
+    if (filters?.todayOnly) {
+      conditions.push('DATE(created_at) = CURDATE()');
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -590,8 +601,10 @@ export class SalesService {
       await connection.beginTransaction();
 
       const [saleRows] = await connection.execute<SaleRow[]>(
-        'SELECT * FROM sales WHERE id = ? FOR UPDATE',
-        [id]
+        tenantId
+          ? 'SELECT * FROM sales WHERE id = ? AND tenant_id = ? FOR UPDATE'
+          : 'SELECT * FROM sales WHERE id = ? FOR UPDATE',
+        tenantId ? [id, tenantId] : [id]
       );
 
       if (saleRows.length === 0) {
@@ -666,6 +679,85 @@ export class SalesService {
     );
 
     return rows.map((row) => this.mapSale(row));
+  }
+
+  async getVendedoresPerformance(tenantId: string, from?: string, to?: string, sellerId?: string): Promise<RowDataPacket[]> {
+    const conditions: string[] = ['s.tenant_id = ?', "s.status = 'completada'"];
+    const params: (string | Date)[] = [tenantId];
+
+    if (from) {
+      conditions.push('s.created_at >= ?');
+      params.push(new Date(from + 'T00:00:00'));
+    }
+    if (to) {
+      conditions.push('s.created_at <= ?');
+      params.push(new Date(to + 'T23:59:59'));
+    }
+    if (sellerId) {
+      conditions.push('s.seller_id = ?');
+      params.push(sellerId);
+    }
+
+    const where = conditions.join(' AND ');
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         s.seller_id,
+         s.seller_name,
+         COUNT(s.id)                                                                   AS total_ventas,
+         COALESCE(SUM(s.total), 0)                                                     AS total_monto,
+         COALESCE(AVG(s.total), 0)                                                     AS promedio_venta,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'efectivo'      THEN s.total ELSE 0 END), 0) AS total_efectivo,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'tarjeta'       THEN s.total ELSE 0 END), 0) AS total_tarjeta,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'transferencia' THEN s.total ELSE 0 END), 0) AS total_transferencia,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'fiado'         THEN s.total ELSE 0 END), 0) AS total_fiado,
+         COALESCE(SUM(agg.qty), 0)                                                     AS total_items
+       FROM sales s
+       LEFT JOIN (
+         SELECT sale_id, SUM(quantity) AS qty
+         FROM sale_items
+         GROUP BY sale_id
+       ) agg ON agg.sale_id = s.id
+       WHERE ${where}
+       GROUP BY s.seller_id, s.seller_name
+       ORDER BY total_monto DESC`,
+      params
+    );
+
+    return rows;
+  }
+
+  async getVendedorSales(tenantId: string, sellerId: string, from?: string, to?: string, page = 1, limit = 20): Promise<{ data: Sale[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const conditions: string[] = ['s.tenant_id = ?', 's.seller_id = ?', "s.status = 'completada'"];
+    const params: (string | Date | number)[] = [tenantId, sellerId];
+
+    if (from) {
+      conditions.push('s.created_at >= ?');
+      params.push(new Date(from + 'T00:00:00'));
+    }
+    if (to) {
+      conditions.push('s.created_at <= ?');
+      params.push(new Date(to + 'T23:59:59'));
+    }
+
+    const where = conditions.join(' AND ');
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await db.execute<CountRow[]>(
+      `SELECT COUNT(*) AS total FROM sales s WHERE ${where}`,
+      params
+    );
+    const total = countRows[0].total;
+
+    const [rows] = await db.execute<SaleRow[]>(
+      `SELECT s.* FROM sales s WHERE ${where} ORDER BY s.created_at DESC LIMIT ? OFFSET ?`,
+      [...params, String(limit), String(offset)]
+    );
+
+    return {
+      data: rows.map((r) => this.mapSale(r)),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 }
 

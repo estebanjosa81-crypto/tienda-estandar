@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
 import { useAuthStore } from '@/lib/auth-store'
 import { Input } from '@/components/ui/input'
@@ -55,6 +55,30 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [loginBgUrl, setLoginBgUrl] = useState('/image/giflogin.gif')
+  const googleBtnRef = useRef<HTMLDivElement>(null)
+  const [googleBtnWidth, setGoogleBtnWidth] = useState(380)
+
+  useEffect(() => {
+    const el = googleBtnRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const w = Math.floor(entries[0].contentRect.width)
+      if (w > 0) setGoogleBtnWidth(Math.min(w, 400))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    fetch(`${API_URL.replace('/api', '')}/api/storefront/platform-settings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const url = json?.data?.login_image_url
+        if (url) setLoginBgUrl(url)
+      })
+      .catch(() => {/* mantiene el gif por defecto */})
+  }, [])
 
   const [formData, setFormData] = useState({
     email: '',
@@ -144,7 +168,7 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/image/giflogin.gif"
+          src={loginBgUrl}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -472,17 +496,15 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
                 Conectando con Google...
               </div>
             ) : (
-              // wrap to control max width for responsive layout
-              <div className="w-full max-w-sm">
+              <div ref={googleBtnRef} className="w-full max-w-sm">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => setError('Error al conectar con Google')}
                   theme="filled_black"
                   size="large"
-                  width={380}
+                  width={googleBtnWidth}
                   text={isLogin ? 'signin_with' : 'signup_with'}
                   shape="pill"
-                  className="w-full"
                 />
               </div>
             )}

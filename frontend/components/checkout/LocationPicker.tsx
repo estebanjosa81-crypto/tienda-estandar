@@ -7,9 +7,11 @@ interface LocationPickerProps {
   latitude: number | null;
   longitude: number | null;
   onChange: (lat: number, lng: number) => void;
+  hideButton?: boolean;
+  readOnly?: boolean;
 }
 
-export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange }: LocationPickerProps) {
+export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange, hideButton = false, readOnly = false }: LocationPickerProps) {
   const latitude  = latProp  != null ? Number(latProp)  : null;
   const longitude = lngProp  != null ? Number(lngProp)  : null;
   const mapRef = useRef<HTMLDivElement>(null);
@@ -77,29 +79,33 @@ export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange
 
       // Add marker if we have coordinates
       if (latitude && longitude) {
-        const marker = L.marker([latitude, longitude], { draggable: true }).addTo(map);
-        marker.on('dragend', () => {
-          const pos = marker.getLatLng();
-          onChange(pos.lat, pos.lng);
-        });
-        markerRef.current = marker;
-      }
-
-      // Click on map to place/move marker
-      map.on('click', (e: any) => {
-        const { lat, lng } = e.latlng;
-        if (markerRef.current) {
-          markerRef.current.setLatLng([lat, lng]);
-        } else {
-          const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        const marker = L.marker([latitude, longitude], { draggable: !readOnly }).addTo(map);
+        if (!readOnly) {
           marker.on('dragend', () => {
             const pos = marker.getLatLng();
             onChange(pos.lat, pos.lng);
           });
-          markerRef.current = marker;
         }
-        onChange(lat, lng);
-      });
+        markerRef.current = marker;
+      }
+
+      // Click on map to place/move marker (disabled in readOnly mode)
+      if (!readOnly) {
+        map.on('click', (e: any) => {
+          const { lat, lng } = e.latlng;
+          if (markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+          } else {
+            const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', () => {
+              const pos = marker.getLatLng();
+              onChange(pos.lat, pos.lng);
+            });
+            markerRef.current = marker;
+          }
+          onChange(lat, lng);
+        });
+      }
 
       mapInstanceRef.current = map;
 
@@ -117,6 +123,31 @@ export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange
       }
     };
   }, [leafletLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync map when coordinates change externally (e.g. from parent's "Usar mi ubicación")
+  useEffect(() => {
+    if (!mapInstanceRef.current || latitude == null || longitude == null) return;
+
+    const updateMap = async () => {
+      const L = (await import('leaflet')).default;
+      mapInstanceRef.current.setView([latitude, longitude], 16, { animate: true });
+
+      if (markerRef.current) {
+        markerRef.current.setLatLng([latitude, longitude]);
+      } else {
+        const marker = L.marker([latitude, longitude], { draggable: !readOnly }).addTo(mapInstanceRef.current);
+        if (!readOnly) {
+          marker.on('dragend', () => {
+            const pos = marker.getLatLng();
+            onChange(pos.lat, pos.lng);
+          });
+        }
+        markerRef.current = marker;
+      }
+    };
+
+    updateMap();
+  }, [latitude, longitude]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
@@ -167,21 +198,23 @@ export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
           <MapPin className="h-4 w-4" />
-          Ubicación en el mapa
+          Ajusta el pin en el mapa
         </label>
-        <button
-          type="button"
-          onClick={handleUseMyLocation}
-          disabled={isLocating}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {isLocating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Navigation className="h-3.5 w-3.5" />
-          )}
-          {isLocating ? 'Buscando...' : 'Usar mi ubicación'}
-        </button>
+        {!hideButton && (
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={isLocating}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {isLocating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Navigation className="h-3.5 w-3.5" />
+            )}
+            {isLocating ? 'Buscando...' : 'Usar mi ubicación'}
+          </button>
+        )}
       </div>
 
       <div
@@ -196,13 +229,15 @@ export function LocationPicker({ latitude: latProp, longitude: lngProp, onChange
 
       {latitude && longitude && (
         <p className="text-xs text-gray-400">
-          Coordenadas: {latitude.toFixed(5)}, {longitude.toFixed(5)} — Arrastra el pin para ajustar
+          {readOnly
+            ? `📍 ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+            : `Coordenadas: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — Arrastra el pin para ajustar`}
         </p>
       )}
 
       {!latitude && !longitude && !error && (
         <p className="text-xs text-gray-400">
-          Toca el mapa o usa el botón para marcar tu ubicación de entrega
+          Toca el mapa para ajustar el pin de entrega
         </p>
       )}
     </div>

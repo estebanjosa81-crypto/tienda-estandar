@@ -30,22 +30,26 @@ router.get(
   '/products',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Pagina invalida'),
-    query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limite invalido'),
+    query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('Limite invalido'),
     query('category').optional().notEmpty().withMessage('Categoria invalida'),
     query('search').optional().notEmpty(),
     query('store').optional().notEmpty(),
     query('municipality').optional().notEmpty(),
+    query('no_location').optional().isBoolean(),
+    query('sede').optional().notEmpty(),
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || 200;
       const offset = (page - 1) * limit;
       const category = req.query.category as string | undefined;
       const search = req.query.search as string | undefined;
       const store = req.query.store as string | undefined;
       const municipality = req.query.municipality as string | undefined;
+      const noLocation = req.query.no_location === 'true';
+      const sedeId = req.query.sede as string | undefined;
 
       // Get tenants — optionally filter by store slug
       let tenantId: string | null = null;
@@ -82,13 +86,25 @@ router.get(
       }
 
       // Save fallback params (without municipality) before adding location filter
-      const fallbackWhereClause = whereClause;
+      let fallbackWhereClause = whereClause;
       const fallbackParams = [...params];
 
-      // Location filter: hide domicilio products from clients outside the store's municipality
+      // Location filter
       if (municipality) {
+        // Client has location: show envio/ambos everywhere + domicilio only in same municipality
         whereClause += ` AND (p.delivery_type IS NULL OR p.delivery_type IN ('envio', 'ambos') OR (p.delivery_type = 'domicilio' AND si.municipality = ?))`;
         params.push(municipality);
+      } else if (noLocation) {
+        // Client skipped location: hide domicilio-only products, show envio/ambos/null
+        whereClause += ` AND (p.delivery_type IS NULL OR p.delivery_type IN ('envio', 'ambos'))`;
+      }
+
+      // Sede filter: show products of that sede OR products without a sede
+      if (sedeId) {
+        whereClause += ` AND (p.sede_id = ? OR p.sede_id IS NULL)`;
+        fallbackWhereClause += ` AND (p.sede_id = ? OR p.sede_id IS NULL)`;
+        params.push(sedeId);
+        fallbackParams.push(sedeId);
       }
 
       // Count total (JOIN store_info when municipality filtering is active)
@@ -122,6 +138,7 @@ router.get(
             p.offer_label as offerLabel,
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             p.delivery_type as deliveryType,
+            p.sede_id as sedeId,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -144,6 +161,7 @@ router.get(
             p.offer_label as offerLabel,
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             NULL as deliveryType,
+            NULL as sedeId,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -216,6 +234,26 @@ router.get('/categories', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/storefront/sedes — Public: sedes of a store
+router.get('/sedes', async (req: Request, res: Response) => {
+  try {
+    const store = req.query.store as string | undefined;
+    if (!store) return res.json({ success: true, data: [] });
+    const [tenants] = await pool.query(
+      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
+      ['activo', store]
+    ) as any;
+    if (!tenants?.length) return res.json({ success: true, data: [] });
+    const [rows] = await pool.query(
+      'SELECT id, name, address FROM sedes WHERE tenant_id = ? ORDER BY created_at ASC',
+      [tenants[0].id]
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch {
+    res.json({ success: true, data: [] });
+  }
+});
+
 // GET /api/storefront/stores — Lista de tiendas activas (público)
 // ?municipality=Mocoa  → filtra tiendas del mismo municipio O que tienen productos de envío
 router.get('/stores', async (req: Request, res: Response) => {
@@ -226,8 +264,8 @@ router.get('/stores', async (req: Request, res: Response) => {
     const params: any[] = [];
 
     if (municipality) {
-      // Show stores in same municipality OR stores that have envio/ambos products (visible to all)
-      municipalityFilter = `AND (si.municipality = ? OR EXISTS (
+      // Show: stores in same municipality, OR stores with envio/ambos products, OR stores with no location set
+      municipalityFilter = `AND (si.municipality IS NULL OR si.municipality = ? OR EXISTS (
         SELECT 1 FROM products p2
         WHERE p2.tenant_id = t.id AND p2.stock > 0 AND p2.published_in_store = 1
           AND p2.delivery_type IN ('envio', 'ambos')
@@ -585,7 +623,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     let banners: any[] = [];
     try {
       const [rows] = await pool.query(
-        'SELECT id, position, image_url as imageUrl, title, subtitle, link_url as linkUrl, sort_order as sortOrder FROM store_banners WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order ASC',
+        'SELECT id, position, image_url as imageUrl, video_url as videoUrl, title, subtitle, link_url as linkUrl, sort_order as sortOrder FROM store_banners WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order ASC',
         [tenantId]
       ) as any;
       banners = rows;
@@ -600,6 +638,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
          FROM products p
          LEFT JOIN categories c ON c.tenant_id = p.tenant_id AND c.id = p.category
          WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
+           AND COALESCE(c.hidden_in_store, 0) = 0
          ORDER BY p.category`,
         [tenantId]
       ) as any;
@@ -626,9 +665,13 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
                 p.stock, p.color, p.size, p.gender,
                 p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
-                p.offer_label as offerLabel
+                p.offer_label as offerLabel,
+                IF(p.available_for_delivery, 1, 0) as availableForDelivery,
+                p.delivery_type as deliveryType,
+                p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM store_featured_products sfp
          INNER JOIN products p ON p.id = sfp.product_id
+         LEFT JOIN tenants t ON t.id = p.tenant_id
          WHERE sfp.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
          ORDER BY sfp.sort_order ASC
          LIMIT 8`,
@@ -643,8 +686,12 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
               p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
               p.stock, p.color, p.size, p.gender,
               p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
-              p.offer_label as offerLabel
+              p.offer_label as offerLabel,
+              IF(p.available_for_delivery, 1, 0) as availableForDelivery,
+              p.delivery_type as deliveryType,
+              p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
        FROM products p
+       LEFT JOIN tenants t ON t.id = p.tenant_id
        WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
        ORDER BY p.is_on_offer DESC, p.updated_at DESC
        LIMIT 8`,
@@ -657,11 +704,14 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       const [storeInfo] = await pool.query(
         `SELECT si.name, si.address, si.phone, si.email, si.logo_url as logoUrl,
                 si.schedule, si.location_map_url as locationMapUrl,
-                si.terms_url as termsUrl, si.privacy_url as privacyUrl,
+                si.terms_url as termsContent, si.privacy_url as privacyContent,
+                si.shipping_terms as shippingTerms,
                 si.payment_methods as paymentMethods,
                 si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
-                si.product_card_style as productCardStyle
+                si.product_card_style as productCardStyle,
+                si.show_info_module as showInfoModule,
+                si.info_module_description as infoModuleDescription
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -708,9 +758,13 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                   p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
                   p.stock, p.color, p.size, p.gender,
                   sdp.custom_discount as customDiscount,
-                  ROUND(p.sale_price * (1 - COALESCE(sdp.custom_discount, ?) / 100)) as finalPrice
+                  ROUND(p.sale_price * (1 - COALESCE(sdp.custom_discount, ?) / 100)) as finalPrice,
+                  IF(p.available_for_delivery, 1, 0) as availableForDelivery,
+                  p.delivery_type as deliveryType,
+                  p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
            FROM store_drop_products sdp
            INNER JOIN products p ON p.id = sdp.product_id
+           LEFT JOIN tenants t ON t.id = p.tenant_id
            WHERE sdp.drop_id = ? AND p.stock > 0 AND p.published_in_store = 1
            ORDER BY p.name`,
           [drop.globalDiscount, drop.id]
@@ -727,8 +781,12 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
                 p.stock, p.color, p.size, p.gender,
                 p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
-                p.offer_label as offerLabel, p.launch_date as launchDate
+                p.offer_label as offerLabel, p.launch_date as launchDate,
+                IF(p.available_for_delivery, 1, 0) as availableForDelivery,
+                p.delivery_type as deliveryType,
+                p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM products p
+         LEFT JOIN tenants t ON t.id = p.tenant_id
          WHERE p.tenant_id = ? AND p.is_new_launch = 1 AND p.stock > 0 AND p.published_in_store = 1
          ORDER BY p.launch_date DESC, p.updated_at DESC
          LIMIT 12`,
@@ -769,20 +827,100 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/storefront/payment-config/:storeSlug — Public: which payment methods are configured
+router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => {
+  try {
+    const { storeSlug } = req.params;
+
+    const [tenants] = await pool.query(
+      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
+      ['activo', storeSlug]
+    ) as any;
+
+    if (!tenants || tenants.length === 0) {
+      res.status(404).json({ success: false, error: 'Tienda no encontrada' });
+      return;
+    }
+
+    const tenantId = tenants[0].id;
+
+    // Load platform_settings for this tenant
+    const [psRows] = await pool.query(
+      'SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN (?, ?, ?, ?, ?)',
+      ['mp_access_token', 'addi_client_id', 'addi_client_secret', 'sistecredito_api_key', 'contraentrega_enabled']
+    ) as any;
+
+    const settings: Record<string, string> = {};
+    for (const row of psRows) {
+      settings[row.setting_key] = row.setting_value;
+    }
+
+    const mercadopago = !!(
+      (settings['mp_access_token'] && settings['mp_access_token'].trim()) ||
+      process.env.MP_ACCESS_TOKEN
+    );
+    const addi = !!(
+      (settings['addi_client_id'] && settings['addi_client_id'].trim() &&
+       settings['addi_client_secret'] && settings['addi_client_secret'].trim()) ||
+      (process.env.ADDI_CLIENT_ID && process.env.ADDI_CLIENT_SECRET)
+    );
+    const sistecredito = !!(
+      (settings['sistecredito_api_key'] && settings['sistecredito_api_key'].trim()) ||
+      process.env.SISTECREDITO_API_KEY
+    );
+
+    // Read per-tenant contraentrega setting from store_info
+    let contraentrega = true;
+    try {
+      const [siRows] = await pool.query(
+        'SELECT allow_contraentrega FROM store_info WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      if (siRows && siRows.length > 0 && siRows[0].allow_contraentrega !== undefined) {
+        contraentrega = siRows[0].allow_contraentrega === 1 || siRows[0].allow_contraentrega === true;
+      }
+    } catch { /* column may not exist yet — default to true */ }
+
+    res.json({
+      success: true,
+      data: {
+        mercadopago,
+        addi,
+        sistecredito,
+        contraentrega,
+      },
+    });
+  } catch (error) {
+    console.error('Payment config error:', error);
+    // On error, return safe defaults (only contraentrega)
+    res.json({ success: true, data: { mercadopago: false, addi: false, sistecredito: false, contraentrega: true } });
+  }
+});
+
 // GET /api/storefront/customization — Authenticated: config para admin
 router.get('/customization', authenticate, async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
 
     const [banners] = await pool.query(
-      'SELECT id, position, image_url as imageUrl, title, subtitle, link_url as linkUrl, is_active as isActive, sort_order as sortOrder FROM store_banners WHERE tenant_id = ? ORDER BY position, sort_order',
+      'SELECT id, position, image_url as imageUrl, video_url as videoUrl, title, subtitle, link_url as linkUrl, is_active as isActive, sort_order as sortOrder FROM store_banners WHERE tenant_id = ? ORDER BY position, sort_order',
       [tenantId]
     ) as any;
 
-    const [categories] = await pool.query(
-      'SELECT id, name, image_url as imageUrl FROM categories WHERE tenant_id = ? ORDER BY name',
-      [tenantId]
-    ) as any;
+    let categories: any[] = [];
+    try {
+      const [catRows] = await pool.query(
+        'SELECT id, name, image_url as imageUrl, hidden_in_store as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
+        [tenantId]
+      ) as any;
+      categories = catRows;
+    } catch {
+      const [catRows] = await pool.query(
+        'SELECT id, name, image_url as imageUrl, 0 as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
+        [tenantId]
+      ) as any;
+      categories = catRows;
+    }
 
     const [featured] = await pool.query(
       `SELECT sfp.id, sfp.product_id as productId, sfp.sort_order as sortOrder,
@@ -799,12 +937,16 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
       const [siRows] = await pool.query(
         `SELECT si.name, si.address, si.phone, si.email, si.logo_url as logoUrl,
                 si.schedule, si.location_map_url as locationMapUrl,
-                si.terms_url as termsUrl, si.privacy_url as privacyUrl,
+                si.terms_url as termsContent, si.privacy_url as privacyContent,
+                si.shipping_terms as shippingTerms,
                 si.payment_methods as paymentMethods,
                 si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.department, si.municipality,
-                si.product_card_style as productCardStyle
+                si.product_card_style as productCardStyle,
+                si.allow_contraentrega as allowContraentrega,
+                si.show_info_module as showInfoModule,
+                si.info_module_description as infoModuleDescription
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -815,7 +957,8 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
         const [siRows] = await pool.query(
           `SELECT si.name, si.address, si.phone, si.email, si.logo_url as logoUrl,
                   si.schedule, si.location_map_url as locationMapUrl,
-                  si.terms_url as termsUrl, si.privacy_url as privacyUrl,
+                  si.terms_url as termsContent, si.privacy_url as privacyContent,
+                  si.shipping_terms as shippingTerms,
                   si.payment_methods as paymentMethods,
                   si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                   si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp
@@ -827,10 +970,10 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
       } catch { /* ignore */ }
     }
 
-    // Published products for featured selection
+    // Published products for featured selection (stock filter removed so admins can feature any published product)
     const [publishedProducts] = await pool.query(
       `SELECT id, name, image_url as imageUrl, sale_price as salePrice, category
-       FROM products WHERE tenant_id = ? AND published_in_store = 1 AND stock > 0
+       FROM products WHERE tenant_id = ? AND published_in_store = 1
        ORDER BY name ASC`,
       [tenantId]
     ) as any;
@@ -898,7 +1041,7 @@ router.put('/banners', authenticate, async (req: Request, res: Response) => {
     const user = (req as any).user;
     // Superadmin can pass tenantId in body; regular users use their own
     const tenantId = user.role === 'superadmin' ? (req.body.tenantId || user.tenantId) : user.tenantId;
-    const { id, position, imageUrl, title, subtitle, linkUrl } = req.body;
+    const { id, position, imageUrl, videoUrl, title, subtitle, linkUrl } = req.body;
 
     if (!tenantId) {
       res.status(400).json({ success: false, error: 'No se pudo determinar el comercio. Si eres superadmin, envía tenantId en el body.' });
@@ -918,9 +1061,9 @@ router.put('/banners', authenticate, async (req: Request, res: Response) => {
     if (id) {
       // Update existing
       const [result] = await pool.query(
-        `UPDATE store_banners SET image_url = ?, title = ?, subtitle = ?, link_url = ?
+        `UPDATE store_banners SET image_url = ?, video_url = ?, title = ?, subtitle = ?, link_url = ?
          WHERE id = ? AND tenant_id = ?`,
-        [imageUrl, title || null, subtitle || null, linkUrl || null, id, tenantId]
+        [imageUrl, videoUrl || null, title || null, subtitle || null, linkUrl || null, id, tenantId]
       ) as any;
 
       if (result.affectedRows === 0) {
@@ -931,9 +1074,9 @@ router.put('/banners', authenticate, async (req: Request, res: Response) => {
     } else {
       // Create new
       const [result] = await pool.query(
-        `INSERT INTO store_banners (tenant_id, position, image_url, title, subtitle, link_url)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [tenantId, position, imageUrl, title || null, subtitle || null, linkUrl || null]
+        `INSERT INTO store_banners (tenant_id, position, image_url, video_url, title, subtitle, link_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [tenantId, position, imageUrl, videoUrl || null, title || null, subtitle || null, linkUrl || null]
       ) as any;
 
       res.json({ success: true, data: { id: result.insertId, created: true } });
@@ -989,6 +1132,25 @@ router.put('/categories/:id/image', authenticate, async (req: Request, res: Resp
   } catch (error) {
     console.error('Update category image error:', error);
     res.status(500).json({ success: false, error: 'Error al actualizar imagen de categoría' });
+  }
+});
+
+// PUT /api/storefront/categories/:id/visibility — Toggle hidden_in_store
+router.put('/categories/:id/visibility', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { id } = req.params;
+    const { hidden } = req.body;
+
+    await pool.query(
+      'UPDATE categories SET hidden_in_store = ? WHERE id = ? AND tenant_id = ?',
+      [hidden ? 1 : 0, id, tenantId]
+    );
+
+    res.json({ success: true, data: { id, hiddenInStore: !!hidden } });
+  } catch (error) {
+    console.error('Toggle category visibility error:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar visibilidad de categoría' });
   }
 });
 
@@ -1063,26 +1225,32 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
   try {
     const tenantId = (req as any).user.tenantId;
     const {
-      logoUrl, schedule, locationMapUrl, termsUrl, privacyUrl, paymentMethods,
+      logoUrl, schedule, locationMapUrl, termsContent, privacyContent, shippingTerms, paymentMethods,
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
-      department, municipality, productCardStyle,
+      department, municipality, productCardStyle, allowContraentrega,
+      showInfoModule, infoModuleDescription,
     } = req.body;
+
+    const allowCod = allowContraentrega === false ? 0 : 1;
+    const infoModule = showInfoModule ? 1 : 0;
 
     let result: any;
     try {
       // Full update with all columns
       [result] = await pool.query(
         `UPDATE store_info SET
-          logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
+          logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
-          department = ?, municipality = ?, product_card_style = ?
+          department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
+          show_info_module = ?, info_module_description = ?
          WHERE tenant_id = ?`,
         [
-          logoUrl || null, schedule || null, locationMapUrl || null, termsUrl || null, privacyUrl || null,
+          logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
-          department || null, municipality || null, productCardStyle || 'style1', tenantId,
+          department || null, municipality || null, productCardStyle || 'style1', allowCod,
+          infoModule, infoModuleDescription || null, tenantId,
         ]
       ) as any;
     } catch {
@@ -1096,7 +1264,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
             department = ?, municipality = ?
            WHERE tenant_id = ?`,
           [
-            logoUrl || null, schedule || null, locationMapUrl || null, termsUrl || null, privacyUrl || null,
+            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
             paymentMethods || null, socialInstagram || null, socialFacebook || null,
             socialTiktok || null, socialWhatsapp || null,
             department || null, municipality || null, tenantId,
@@ -1110,7 +1278,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
             social_tiktok = ?, social_whatsapp = ?
            WHERE tenant_id = ?`,
           [
-            logoUrl || null, schedule || null, locationMapUrl || null, termsUrl || null, privacyUrl || null,
+            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
             paymentMethods || null, socialInstagram || null, socialFacebook || null,
             socialTiktok || null, socialWhatsapp || null, tenantId,
           ]
@@ -1655,6 +1823,166 @@ router.get('/new-launches', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get new launches error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener nuevos lanzamientos' });
+  }
+});
+
+
+// =============================================
+// SUPERADMIN: Sales timeline per tenant
+// =============================================
+router.get('/superadmin/sales-timeline', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') {
+      res.status(403).json({ success: false, error: 'Solo superadmin puede acceder' });
+      return;
+    }
+    const days = parseInt(req.query.days as string) || 30;
+
+    // Storefront orders per tenant per day
+    const [orderRows] = await pool.query(
+      `SELECT t.id as tenantId, t.name as tenantName, t.slug,
+        DATE(o.created_at) as saleDate,
+        COUNT(*) as orderCount,
+        COALESCE(SUM(o.total), 0) as revenue
+      FROM storefront_orders o
+      JOIN tenants t ON t.id = o.tenant_id
+      WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND o.status != 'cancelado'
+      GROUP BY t.id, t.name, t.slug, DATE(o.created_at)
+      ORDER BY saleDate ASC`,
+      [days]
+    ) as any;
+
+    // POS sales per tenant per day
+    const [posRows] = await pool.query(
+      `SELECT t.id as tenantId, t.name as tenantName, t.slug,
+        DATE(s.created_at) as saleDate,
+        COUNT(*) as orderCount,
+        COALESCE(SUM(s.total), 0) as revenue
+      FROM sales s
+      JOIN tenants t ON t.id = s.tenant_id
+      WHERE s.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND s.status = 'completada'
+      GROUP BY t.id, t.name, t.slug, DATE(s.created_at)
+      ORDER BY saleDate ASC`,
+      [days]
+    ) as any;
+
+    // Merge: aggregate by tenantId + date
+    const map = new Map<string, { tenantId: string; tenantName: string; slug: string; days: Record<string, { orderCount: number; revenue: number }> }>();
+    const process = (rows: any[]) => {
+      for (const row of rows) {
+        const key = row.tenantId;
+        if (!map.has(key)) map.set(key, { tenantId: row.tenantId, tenantName: row.tenantName, slug: row.slug, days: {} });
+        const entry = map.get(key)!;
+        const dateStr = typeof row.saleDate === 'string' ? row.saleDate : new Date(row.saleDate).toISOString().split('T')[0];
+        if (!entry.days[dateStr]) entry.days[dateStr] = { orderCount: 0, revenue: 0 };
+        entry.days[dateStr].orderCount += Number(row.orderCount);
+        entry.days[dateStr].revenue += Number(row.revenue);
+      }
+    };
+    process(orderRows);
+    process(posRows);
+
+    // Build date range for the period
+    const dateRange: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dateRange.push(d.toISOString().split('T')[0]);
+    }
+
+    // Format output
+    const tenants = Array.from(map.values()).map(t => ({
+      tenantId: t.tenantId,
+      tenantName: t.tenantName,
+      slug: t.slug,
+      totalRevenue: Object.values(t.days).reduce((s, d) => s + d.revenue, 0),
+      totalOrders: Object.values(t.days).reduce((s, d) => s + d.orderCount, 0),
+      timeline: dateRange.map(date => ({
+        date,
+        revenue: t.days[date]?.revenue || 0,
+        orderCount: t.days[date]?.orderCount || 0,
+      })),
+    })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    res.json({ success: true, data: { tenants, dateRange } });
+  } catch (error) {
+    console.error('Sales timeline error:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener línea de tiempo de ventas' });
+  }
+});
+
+// =============================================
+// PLATFORM FEATURED PRODUCTS (Superadmin pinned)
+// =============================================
+
+// GET /api/storefront/platform-featured — Public
+router.get('/platform-featured', async (req: Request, res: Response) => {
+  try {
+    const [settings] = await pool.query(
+      "SELECT setting_value FROM platform_settings WHERE setting_key = 'platform_featured_product_ids' LIMIT 1"
+    ) as any;
+    if (!settings || settings.length === 0 || !settings[0].setting_value) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+    let ids: number[] = [];
+    try { ids = JSON.parse(settings[0].setting_value); } catch { ids = []; }
+    if (!ids.length) { res.json({ success: true, data: [] }); return; }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT p.id, p.name, p.category, p.brand, p.description,
+        p.sale_price as salePrice, p.image_url as imageUrl, p.images,
+        p.stock, p.color, p.size, p.gender,
+        p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
+        p.offer_label as offerLabel, p.product_type as productType,
+        p.available_for_delivery as availableForDelivery,
+        p.delivery_type as deliveryType,
+        p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
+      FROM products p
+      LEFT JOIN tenants t ON t.id = p.tenant_id
+      WHERE p.id IN (${placeholders})
+        AND p.published_in_store = 1
+        AND p.stock > 0
+        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`,
+      ids
+    ) as any;
+
+    // Preserve order from ids array
+    const byId = new Map(rows.map((r: any) => [r.id, parseImages(r)]));
+    const ordered = ids.map(id => byId.get(id)).filter(Boolean);
+    res.json({ success: true, data: ordered });
+  } catch (error) {
+    console.error('Platform featured error:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener productos destacados' });
+  }
+});
+
+// PUT /api/storefront/platform-featured — Superadmin only
+router.put('/platform-featured', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') {
+      res.status(403).json({ success: false, error: 'Solo superadmin puede gestionar productos destacados' });
+      return;
+    }
+    const { productIds } = req.body;
+    if (!Array.isArray(productIds)) {
+      res.status(400).json({ success: false, error: 'productIds debe ser un array' });
+      return;
+    }
+    const value = JSON.stringify(productIds.map(Number).filter(Boolean));
+    await pool.query(
+      "INSERT INTO platform_settings (setting_key, setting_value) VALUES ('platform_featured_product_ids', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
+      [value, value]
+    );
+    res.json({ success: true, data: { productIds } });
+  } catch (error) {
+    console.error('Update platform featured error:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar productos destacados' });
   }
 });
 

@@ -1,23 +1,12 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 class ApiService {
+  // Token kept only in memory (not localStorage). The httpOnly cookie is the
+  // authoritative auth credential sent automatically by the browser.
   private token: string | null = null
-
-  constructor() {
-    if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('authToken')
-    }
-  }
 
   setToken(token: string | null) {
     this.token = token
-    if (typeof window !== 'undefined') {
-      if (token) {
-        localStorage.setItem('authToken', token)
-      } else {
-        localStorage.removeItem('authToken')
-      }
-    }
   }
 
   getToken() {
@@ -33,6 +22,7 @@ class ApiService {
       ...(options.headers || {}),
     }
 
+    // Send Authorization header as fallback for clients that can't use cookies
     if (this.token) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`
     }
@@ -41,6 +31,7 @@ class ApiService {
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers,
+        credentials: 'include', // always send httpOnly cookie
       })
 
       const data = await response.json()
@@ -49,11 +40,11 @@ class ApiService {
         const errorMsg = data.message || data.error || 'Error en la solicitud'
         const details = data.details
 
-        // Force logout if account/tenant is suspended or deactivated (only if already logged in)
-        if (response.status === 403 && this.token && (
-          errorMsg.includes('suspendido') || errorMsg.includes('desactivada')
+        // Force logout if account/tenant is suspended, deactivated, or login blocked
+        if (response.status === 403 && (
+          errorMsg.includes('suspendido') || errorMsg.includes('desactivada') || errorMsg.includes('permiso para iniciar')
         )) {
-          this.setToken(null)
+          await this.logout()
           if (typeof window !== 'undefined') {
             window.location.reload()
           }
@@ -149,8 +140,17 @@ class ApiService {
     })
   }
 
-  logout() {
+  async logout() {
     this.setToken(null)
+    // Ask backend to clear the httpOnly cookie
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {
+      // ignore network errors on logout
+    }
   }
 
   // Users endpoints (admin only)
@@ -162,7 +162,7 @@ class ApiService {
     return this.request<{ users: any[]; pagination: any }>(`/users${query ? `?${query}` : ''}`)
   }
 
-  async createUser(data: { email: string; password: string; name: string; role: 'comerciante' | 'vendedor' | 'repartidor' | 'cliente'; phone?: string; tenantId?: string | null }) {
+  async createUser(data: { email: string; password: string; name: string; role: 'comerciante' | 'vendedor' | 'repartidor' | 'cliente'; phone?: string; tenantId?: string | null; cargoId?: string | null }) {
     return this.request<any>('/users', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -182,6 +182,73 @@ class ApiService {
     })
   }
 
+  // Cargos endpoints (employee positions, merchant-managed)
+  async getCargos() {
+    return this.request<any[]>('/cargos')
+  }
+
+  async createCargo(data: { name: string; description?: string }) {
+    return this.request<any>('/cargos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteCargo(id: string) {
+    return this.request<any>(`/cargos/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Novedades endpoints (permisos, incapacidades, vacaciones)
+  async getNovedades(params?: { userId?: string; type?: string; status?: string; from?: string; to?: string }) {
+    const sp = new URLSearchParams()
+    if (params?.userId) sp.set('userId', params.userId)
+    if (params?.type)   sp.set('type',   params.type)
+    if (params?.status) sp.set('status', params.status)
+    if (params?.from)   sp.set('from',   params.from)
+    if (params?.to)     sp.set('to',     params.to)
+    const q = sp.toString()
+    return this.request<any[]>(`/novedades${q ? `?${q}` : ''}`)
+  }
+
+  async createNovedad(data: {
+    userId: string;
+    type: string;
+    startDate: string;
+    endDate: string;
+    description?: string;
+    attachmentUrl?: string;
+  }) {
+    return this.request<any>('/novedades', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateNovedadStatus(id: string, status: 'aprobado' | 'rechazado' | 'pendiente', rejectionReason?: string) {
+    return this.request<any>(`/novedades/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, rejectionReason }),
+    })
+  }
+
+  async deleteNovedad(id: string) {
+    return this.request<any>(`/novedades/${id}`, { method: 'DELETE' })
+  }
+
+  async getVacationBalances(year?: number) {
+    const q = year ? `?year=${year}` : ''
+    return this.request<any[]>(`/novedades/vacaciones${q}`)
+  }
+
+  async updateVacationBalance(data: { userId: string; year: number; daysGranted: number }) {
+    return this.request<any>('/novedades/vacaciones/balance', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   // Products endpoints
   async getProducts(params?: {
     page?: number
@@ -189,6 +256,7 @@ class ApiService {
     category?: string
     stockStatus?: string
     search?: string
+    sedeId?: string
   }) {
     const searchParams = new URLSearchParams()
     if (params?.page) searchParams.set('page', String(params.page))
@@ -196,9 +264,50 @@ class ApiService {
     if (params?.category) searchParams.set('category', params.category)
     if (params?.stockStatus) searchParams.set('stockStatus', params.stockStatus)
     if (params?.search) searchParams.set('search', params.search)
+    if (params?.sedeId) searchParams.set('sedeId', params.sedeId)
 
     const query = searchParams.toString()
     return this.request<{ products: any[]; pagination: any }>(`/products${query ? `?${query}` : ''}`)
+  }
+
+  async exportProductsCSV(params?: {
+    category?: string
+    stockStatus?: string
+    search?: string
+    productType?: string
+  }) {
+    const searchParams = new URLSearchParams()
+    if (params?.category) searchParams.set('category', params.category)
+    if (params?.stockStatus) searchParams.set('stockStatus', params.stockStatus)
+    if (params?.search) searchParams.set('search', params.search)
+    if (params?.productType) searchParams.set('productType', params.productType)
+
+    const query = searchParams.toString()
+    const url = `${API_URL}/products/export/csv${query ? `?${query}` : ''}`
+
+    const headers: Record<string, string> = {}
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`
+
+    const response = await fetch(url, { headers })
+    if (!response.ok) throw new Error('Error al exportar el inventario')
+    return response.blob()
+  }
+
+  // Sedes endpoints
+  async getSedes() {
+    return this.request<any[]>('/sedes')
+  }
+
+  async createSede(data: { name: string; address?: string }) {
+    return this.request<any>('/sedes', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateSede(id: string, data: { name?: string; address?: string }) {
+    return this.request<any>(`/sedes/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async deleteSede(id: string) {
+    return this.request<any>(`/sedes/${id}`, { method: 'DELETE' })
   }
 
   async getProduct(id: string) {
@@ -255,12 +364,14 @@ class ApiService {
     limit?: number
     status?: string
     paymentMethod?: string
+    search?: string
   }) {
     const searchParams = new URLSearchParams()
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.limit) searchParams.set('limit', String(params.limit))
     if (params?.status) searchParams.set('status', params.status)
     if (params?.paymentMethod) searchParams.set('paymentMethod', params.paymentMethod)
+    if (params?.search) searchParams.set('search', params.search)
 
     const query = searchParams.toString()
     return this.request<{ sales: any[]; pagination: any }>(`/sales${query ? `?${query}` : ''}`)
@@ -297,6 +408,88 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify({ reason }),
     })
+  }
+
+  // ── Vendedores module ──────────────────────────────────────────────────────
+
+  // Legacy endpoint (kept for compatibility)
+  async getVendedoresPerformance(params?: { from?: string; to?: string; sellerId?: string }) {
+    const q = new URLSearchParams()
+    if (params?.from) q.set('from', params.from)
+    if (params?.to) q.set('to', params.to)
+    if (params?.sellerId) q.set('sellerId', params.sellerId)
+    const query = q.toString()
+    return this.request<any[]>(`/vendedores/performance${query ? `?${query}` : ''}`)
+  }
+
+  async getVendedorSales(sellerId: string, params?: { from?: string; to?: string; page?: number; limit?: number }) {
+    const q = new URLSearchParams()
+    if (params?.from) q.set('from', params.from)
+    if (params?.to) q.set('to', params.to)
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const query = q.toString()
+    return this.request<{ data: any[]; pagination: any }>(`/sales/vendedor/${sellerId}${query ? `?${query}` : ''}`)
+  }
+
+  async getVendedoresList() {
+    return this.request<any[]>('/vendedores')
+  }
+
+  async updateSellerCommission(sellerId: string, data: {
+    commissionType: string; commissionValue: number;
+    salaryBase: number; monthlyGoal: number; goalBonus: number;
+  }) {
+    return this.request<any>(`/vendedores/${sellerId}/commission`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getPayrollAdjustments(params: { from: string; to: string; sellerId?: string }) {
+    const q = new URLSearchParams({ from: params.from, to: params.to })
+    if (params.sellerId) q.set('sellerId', params.sellerId)
+    return this.request<any[]>(`/vendedores/adjustments?${q.toString()}`)
+  }
+
+  async addPayrollAdjustment(data: {
+    sellerId: string; sellerName: string; periodFrom: string; periodTo: string;
+    type: 'bono' | 'descuento'; concept: string; amount: number;
+  }) {
+    return this.request<any>('/vendedores/adjustments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePayrollAdjustment(id: string) {
+    return this.request<any>(`/vendedores/adjustments/${id}`, { method: 'DELETE' })
+  }
+
+  async generatePayroll(data: { periodFrom: string; periodTo: string; periodLabel: string }) {
+    return this.request<any[]>('/vendedores/payroll/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getPayrollHistory(params?: { page?: number; limit?: number }) {
+    const q = new URLSearchParams()
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.limit) q.set('limit', String(params.limit))
+    const query = q.toString()
+    return this.request<{ data: any[]; pagination: any }>(`/vendedores/payroll${query ? `?${query}` : ''}`)
+  }
+
+  async markPayrollPaid(ids: string[]) {
+    return this.request<any>('/vendedores/payroll/mark-paid', {
+      method: 'PUT',
+      body: JSON.stringify({ ids }),
+    })
+  }
+
+  async deletePayrollRecord(id: string) {
+    return this.request<any>(`/vendedores/payroll/${id}`, { method: 'DELETE' })
   }
 
   // Inventory endpoints
@@ -634,6 +827,13 @@ class ApiService {
     })
   }
 
+  async toggleCategoryVisibility(categoryId: string, hidden: boolean) {
+    return this.request<any>(`/storefront/categories/${categoryId}/visibility`, {
+      method: 'PUT',
+      body: JSON.stringify({ hidden }),
+    })
+  }
+
   async addFeaturedProduct(productId: string) {
     return this.request<any>('/storefront/featured-products', {
       method: 'POST',
@@ -648,10 +848,12 @@ class ApiService {
   }
 
   async updateStoreExtendedInfo(data: {
-    logoUrl?: string; schedule?: string; locationMapUrl?: string; termsUrl?: string; privacyUrl?: string;
+    logoUrl?: string; schedule?: string; locationMapUrl?: string;
+    termsContent?: string; privacyContent?: string; shippingTerms?: string;
     paymentMethods?: string; socialInstagram?: string; socialFacebook?: string;
     socialTiktok?: string; socialWhatsapp?: string;
     department?: string; municipality?: string; productCardStyle?: string;
+    allowContraentrega?: boolean; showInfoModule?: boolean; infoModuleDescription?: string;
   }) {
     return this.request<any>('/storefront/store-extended-info', {
       method: 'PUT',
@@ -933,9 +1135,13 @@ class ApiService {
     supplierId?: string
     supplierName: string
     purchaseDate: string
+    documentType?: string
     items: Array<{ productId: string; quantity: number; unitCost: number }>
-    paymentMethod?: 'efectivo' | 'tarjeta' | 'transferencia' | 'credito'
-    paymentStatus?: 'pagado' | 'pendiente' | 'parcial'
+    paymentMethod?: string
+    paymentStatus?: string
+    dueDate?: string
+    fileUrl?: string
+    discount?: number
     notes?: string
   }) {
     return this.request<any>('/purchases', {
@@ -960,6 +1166,14 @@ class ApiService {
     notes?: string
   }) {
     return this.request<any>('/purchases/suppliers', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async getNextPurchaseInvoiceNumber() {
+    return this.request<string>('/purchases/next-invoice-number')
+  }
+
+  async getPurchaseSupplierStats(supplierId: string) {
+    return this.request<any>(`/purchases/suppliers/${supplierId}/stats`)
   }
 
   // =============================================
@@ -1038,6 +1252,23 @@ class ApiService {
     })
   }
 
+  // Superadmin - sales timeline
+  async getSalesTimeline(days = 30) {
+    return this.request<any>(`/storefront/superadmin/sales-timeline?days=${days}`)
+  }
+
+  // Platform featured products
+  async getPlatformFeatured() {
+    return this.request<any[]>('/storefront/platform-featured')
+  }
+
+  async updatePlatformFeatured(productIds: number[]) {
+    return this.request<any>('/storefront/platform-featured', {
+      method: 'PUT',
+      body: JSON.stringify({ productIds }),
+    })
+  }
+
   // Public - services & booking
   async getPublicServices(store: string) {
     return this.request<any[]>(`/services/public?store=${encodeURIComponent(store)}`)
@@ -1056,6 +1287,209 @@ class ApiService {
     return this.request<any>(`/services/bookings?store=${encodeURIComponent(store)}`, {
       method: 'POST', body: JSON.stringify(data),
     })
+  }
+
+  // =============================================
+  // Chatbot & Integrations
+  // =============================================
+
+  async getChatbotStatus(slug: string) {
+    return this.request<any>(`/chatbot/status/${slug}`)
+  }
+
+  async sendChatMessage(data: { slug: string; sessionToken?: string; message: string; customerName?: string }) {
+    return this.request<any>('/chatbot/message', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getChatbotConfig() {
+    return this.request<any>('/chatbot/config')
+  }
+
+  async updateChatbotConfig(data: {
+    botName?: string; botAvatarUrl?: string; systemPrompt?: string;
+    businessInfo?: string; faqs?: string; tone?: string;
+    notifyEmail?: boolean; notifyWhatsapp?: boolean;
+  }) {
+    return this.request<any>('/chatbot/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getNotifications() {
+    return this.request<any>('/chatbot/notifications')
+  }
+
+  async markNotificationsRead() {
+    return this.request<any>('/chatbot/notifications/read', { method: 'PUT' })
+  }
+
+  async getSuperadminIntegrations() {
+    return this.request<any>('/chatbot/superadmin/integrations')
+  }
+
+  async updateSuperadminIntegrations(data: {
+    cloudinaryCloudName?: string; cloudinaryUploadPreset?: string; openaiApiKey?: string;
+  }) {
+    return this.request<any>('/chatbot/superadmin/integrations', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getSuperadminChatbotTenants() {
+    return this.request<any[]>('/chatbot/superadmin/tenants')
+  }
+
+  async toggleChatbotForTenant(tenantId: string, enabled: boolean) {
+    return this.request<any>(`/chatbot/superadmin/tenant/${tenantId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    })
+  }
+
+  // ─── Printers ─────────────────────────────────────────────────────────────────
+
+  async getPrinters() {
+    return this.request<any[]>('/printers')
+  }
+
+  async getPrinter(id: string) {
+    return this.request<any>(`/printers/${id}`)
+  }
+
+  async createPrinter(data: {
+    name: string
+    connectionType: 'lan' | 'usb' | 'bluetooth'
+    ip?: string
+    port?: number
+    paperWidth?: 58 | 80
+    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | null
+  }) {
+    return this.request<any>('/printers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updatePrinter(id: string, data: {
+    name?: string
+    connectionType?: 'lan' | 'usb' | 'bluetooth'
+    ip?: string
+    port?: number
+    paperWidth?: 58 | 80
+    isActive?: boolean
+    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | null
+  }) {
+    return this.request<any>(`/printers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePrinter(id: string) {
+    return this.request<any>(`/printers/${id}`, { method: 'DELETE' })
+  }
+
+  async testPrinter(id: string) {
+    return this.request<any>(`/printers/${id}/test`, { method: 'POST' })
+  }
+
+  async printTicket(printerId: string, ticket: {
+    storeName: string
+    invoiceNumber: string
+    items: Array<{ name: string; quantity: number; price: number }>
+    subtotal: number
+    tax: number
+    total: number
+    paymentMethod: string
+    amountPaid: number
+    change: number
+    notes?: string
+    footerText?: string
+  }) {
+    return this.request<any>(`/printers/${printerId}/print-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ ticket }),
+    })
+  }
+
+  async printTicketByModule(module: 'caja' | 'cocina' | 'bar' | 'factura', ticket: {
+    storeName: string
+    invoiceNumber: string
+    items: Array<{ name: string; quantity: number; price: number }>
+    subtotal: number
+    tax: number
+    total: number
+    paymentMethod: string
+    amountPaid: number
+    change: number
+    notes?: string
+    footerText?: string
+  }) {
+    return this.request<any>(`/printers/module/${module}/print-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ ticket }),
+    })
+  }
+  // Reviews endpoints
+  async toggleEmployeeLogin(userId: string, canLogin: boolean) {
+    return this.request<any>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ canLogin }),
+    })
+  }
+
+  async getReviews(params?: { productId?: string; status?: string }) {
+    const q = new URLSearchParams()
+    if (params?.productId) q.set('productId', params.productId)
+    if (params?.status) q.set('status', params.status)
+    const qs = q.toString()
+    return this.request<any[]>(`/reviews${qs ? `?${qs}` : ''}`)
+  }
+
+  async getPublicReviews(tenantId: string, productId: string) {
+    return this.request<any[]>(`/reviews/public/${tenantId}/${productId}`)
+  }
+
+  async createReview(data: {
+    tenantId: string
+    productId: string
+    reviewerName: string
+    reviewerEmail?: string
+    rating: number
+    title?: string
+    body?: string
+    imageUrl1?: string
+    imageUrl2?: string
+  }) {
+    return this.request<any>('/reviews', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateReview(id: string, data: {
+    reviewerName?: string
+    reviewerEmail?: string
+    rating?: number
+    title?: string
+    body?: string
+    imageUrl1?: string | null
+    imageUrl2?: string | null
+  }) {
+    return this.request<any>(`/reviews/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async updateReviewStatus(id: string, status: 'pendiente' | 'aprobado' | 'rechazado', reply?: string) {
+    return this.request<any>(`/reviews/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, reply }),
+    })
+  }
+
+  async deleteReview(id: string) {
+    return this.request<any>(`/reviews/${id}`, { method: 'DELETE' })
   }
 }
 

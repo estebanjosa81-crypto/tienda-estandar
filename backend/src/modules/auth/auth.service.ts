@@ -6,6 +6,7 @@ import { db, config } from '../../config';
 import { User, JWTPayload, UserRole } from '../../common/types';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { encryptNullable, decryptNullable } from '../../utils/crypto';
 
 const googleClient = new OAuth2Client(config.google.clientId);
 
@@ -18,6 +19,7 @@ interface UserRow extends RowDataPacket {
   role: UserRole;
   avatar: string | null;
   is_active: boolean;
+  can_login: boolean;
   auth_provider: 'local' | 'google';
   google_id: string | null;
   // Delivery / profile fields
@@ -63,6 +65,11 @@ export class AuthService {
       throw new AppError('Tu cuenta ha sido desactivada. Contacta al administrador.', 403);
     }
 
+    // Check if user is allowed to login (can_login = false for non-system employees)
+    if (user.can_login === false) {
+      throw new AppError('Tu cuenta no tiene acceso al sistema. Contacta al administrador.', 403);
+    }
+
     // Check if tenant is active (for non-superadmin users)
     if (user.tenant_id && user.role !== 'superadmin') {
       const [tenantRows] = await db.execute<RowDataPacket[]>(
@@ -76,7 +83,9 @@ export class AuthService {
 
     const payload: JWTPayload = {
       userId: user.id,
+      id: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
       tenantId: user.tenant_id,
     };
@@ -118,7 +127,9 @@ export class AuthService {
 
     const payload: JWTPayload = {
       userId: id,
+      id,
       email,
+      name,
       role,
       tenantId: tenantId || null,
     };
@@ -195,7 +206,9 @@ export class AuthService {
 
     const payload: JWTPayload = {
       userId: id,
+      id,
       email,
+      name,
       role: 'cliente' as UserRole,
       tenantId,
     };
@@ -294,7 +307,9 @@ export class AuthService {
 
     const jwtPayload: JWTPayload = {
       userId: user.id,
+      id: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
       tenantId: user.tenant_id,
     };
@@ -371,12 +386,12 @@ export class AuthService {
 
     if (data.name) { updates.push('name = ?'); values.push(data.name); }
     if (data.avatar) { updates.push('avatar = ?'); values.push(data.avatar); }
-    if (data.phone !== undefined) { updates.push('phone = ?'); values.push(data.phone || null); }
-    if (data.cedula !== undefined) { updates.push('cedula = ?'); values.push(data.cedula || null); }
-    if (data.department !== undefined) { updates.push('department = ?'); values.push(data.department || null); }
-    if (data.municipality !== undefined) { updates.push('municipality = ?'); values.push(data.municipality || null); }
-    if (data.address !== undefined) { updates.push('address = ?'); values.push(data.address || null); }
-    if (data.neighborhood !== undefined) { updates.push('neighborhood = ?'); values.push(data.neighborhood || null); }
+    if (data.phone !== undefined) { updates.push('phone = ?'); values.push(encryptNullable(data.phone)); }
+    if (data.cedula !== undefined) { updates.push('cedula = ?'); values.push(encryptNullable(data.cedula)); }
+    if (data.department !== undefined) { updates.push('department = ?'); values.push(encryptNullable(data.department)); }
+    if (data.municipality !== undefined) { updates.push('municipality = ?'); values.push(encryptNullable(data.municipality)); }
+    if (data.address !== undefined) { updates.push('address = ?'); values.push(encryptNullable(data.address)); }
+    if (data.neighborhood !== undefined) { updates.push('neighborhood = ?'); values.push(encryptNullable(data.neighborhood)); }
     if (data.deliveryLatitude !== undefined) { updates.push('delivery_latitude = ?'); values.push(data.deliveryLatitude); }
     if (data.deliveryLongitude !== undefined) { updates.push('delivery_longitude = ?'); values.push(data.deliveryLongitude); }
 

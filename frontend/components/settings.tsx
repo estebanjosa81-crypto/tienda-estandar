@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,8 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Briefcase,
+  X,
 } from 'lucide-react'
 
 export function Settings() {
@@ -109,13 +112,56 @@ export function Settings() {
   const isAdmin = user?.role === 'comerciante' || user?.role === 'superadmin'
   const [usersList, setUsersList] = useState<any[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
-  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '' })
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'vendedor', cargoId: '' })
   const [creatingUser, setCreatingUser] = useState(false)
   const [userError, setUserError] = useState('')
   const [userSuccess, setUserSuccess] = useState('')
   const [resetPasswordDialog, setResetPasswordDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: '', userName: '' })
   const [newPassword, setNewPassword] = useState('')
   const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: '', userName: '' })
+
+  // Cargos state
+  const [cargosList, setCargosList] = useState<any[]>([])
+  const [newCargoName, setNewCargoName] = useState('')
+  const [newCargoDesc, setNewCargoDesc] = useState('')
+  const [creatingCargo, setCreatingCargo] = useState(false)
+  const [cargoError, setCargoError] = useState('')
+
+  const fetchCargos = async () => {
+    const result = await api.getCargos()
+    if (result.success && result.data) {
+      setCargosList(Array.isArray(result.data) ? result.data : [])
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) fetchCargos()
+  }, [isAdmin])
+
+  const handleCreateCargo = async () => {
+    setCargoError('')
+    if (!newCargoName.trim()) { setCargoError('El nombre del cargo es requerido'); return }
+    setCreatingCargo(true)
+    const result = await api.createCargo({ name: newCargoName.trim(), description: newCargoDesc.trim() || undefined })
+    if (result.success) {
+      setNewCargoName('')
+      setNewCargoDesc('')
+      fetchCargos()
+    } else {
+      setCargoError(result.error || 'Error al crear cargo')
+    }
+    setCreatingCargo(false)
+  }
+
+  const handleDeleteCargo = async (id: string) => {
+    const result = await api.deleteCargo(id)
+    if (result.success) {
+      fetchCargos()
+      if (newUserForm.cargoId === id) setNewUserForm(f => ({ ...f, cargoId: '' }))
+    } else {
+      setCargoError(result.error || 'Error al eliminar cargo')
+    }
+  }
 
   const fetchUsers = async () => {
     setLoadingUsers(true)
@@ -143,10 +189,10 @@ export function Settings() {
       return
     }
     setCreatingUser(true)
-    const result = await api.createUser({ ...newUserForm, role: 'vendedor' })
+    const result = await api.createUser({ ...newUserForm, role: newUserForm.role as any, cargoId: newUserForm.cargoId || null })
     if (result.success) {
       setUserSuccess('Usuario creado exitosamente')
-      setNewUserForm({ name: '', email: '', password: '' })
+      setNewUserForm({ name: '', email: '', password: '', role: 'vendedor', cargoId: '' })
       fetchUsers()
     } else {
       setUserError(result.error || 'Error al crear usuario')
@@ -246,12 +292,6 @@ export function Settings() {
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" />
               Usuarios
-            </TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger value="integrations" className="gap-2">
-              <Plug className="h-4 w-4" />
-              Integraciones
             </TabsTrigger>
           )}
         </TabsList>
@@ -489,19 +529,70 @@ export function Settings() {
                 </div>
               )}
 
+              {/* Cargos Management */}
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-primary" />
+                    Cargos
+                  </CardTitle>
+                  <CardDescription>
+                    Crea los cargos de tu empresa para asignarlos a los empleados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCargoName}
+                      onChange={(e) => setNewCargoName(e.target.value)}
+                      placeholder="Nombre del cargo (ej: Cajero, Bodeguero...)"
+                      className="bg-secondary border-none"
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateCargo()}
+                    />
+                    <Input
+                      value={newCargoDesc}
+                      onChange={(e) => setNewCargoDesc(e.target.value)}
+                      placeholder="Descripción (opcional)"
+                      className="bg-secondary border-none"
+                    />
+                    <Button onClick={handleCreateCargo} disabled={creatingCargo} className="gap-2 shrink-0">
+                      {creatingCargo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      Agregar
+                    </Button>
+                  </div>
+                  {cargoError && <p className="text-xs text-destructive">{cargoError}</p>}
+                  {cargosList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-3">No hay cargos creados. Agrega el primero.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {cargosList.map((c) => (
+                        <div key={c.id} className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm">
+                          <Briefcase className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-foreground font-medium">{c.name}</span>
+                          {c.description && <span className="text-muted-foreground">— {c.description}</span>}
+                          <button onClick={() => handleDeleteCargo(c.id)} className="ml-1 text-muted-foreground hover:text-destructive transition-colors">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Create User Form */}
               <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Plus className="h-5 w-5 text-primary" />
-                    Crear Usuario Vendedor
+                    Crear Empleado
                   </CardTitle>
                   <CardDescription>
-                    Crea un usuario que solo tendrá acceso al Punto de Venta
+                    Crea un empleado y asígnale un cargo
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="newUserName">Nombre</Label>
                       <Input
@@ -534,14 +625,37 @@ export function Settings() {
                         className="bg-secondary border-none"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Cargo</Label>
+                      <Select
+                        value={newUserForm.cargoId}
+                        onValueChange={(v) => setNewUserForm({ ...newUserForm, cargoId: v })}
+                      >
+                        <SelectTrigger className="bg-secondary border-none">
+                          <SelectValue placeholder="Sin cargo asignado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cargosList.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">Crea cargos primero</div>
+                          ) : (
+                            cargosList.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg bg-secondary/50 p-3 text-sm text-muted-foreground">
                     <Shield className="h-4 w-4" />
-                    Este usuario tendrá rol <strong className="text-foreground">vendedor</strong> y solo podrá acceder al Punto de Venta.
+                    {newUserForm.cargoId
+                      ? <>Cargo: <strong className="text-foreground">{cargosList.find(c => c.id === newUserForm.cargoId)?.name}</strong>. Acceso al Punto de Venta, Inventario y Caja.</>
+                      : <>Sin cargo asignado — podrás asignarlo después desde el módulo de Empleados.</>
+                    }
                   </div>
                   <Button onClick={handleCreateUser} disabled={creatingUser} className="gap-2">
                     {creatingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    {creatingUser ? 'Creando...' : 'Crear Usuario'}
+                    {creatingUser ? 'Creando...' : 'Crear Empleado'}
                   </Button>
                 </CardContent>
               </Card>
@@ -611,121 +725,6 @@ export function Settings() {
           </TabsContent>
         )}
 
-        {/* ── Integraciones (Admin Only) ──────────────────────────────── */}
-        {isAdmin && (
-          <TabsContent value="integrations">
-            <div className="space-y-6">
-              {/* Cloudinary Card */}
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plug className="h-5 w-5 text-primary" />
-                    Cloudinary — Subida de Imágenes
-                  </CardTitle>
-                  <CardDescription>
-                    Configura tu cuenta de Cloudinary para subir imágenes directamente desde la plataforma
-                    (banners, logos, categorías y productos).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {/* How-to banner */}
-                  <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-4 text-sm space-y-1">
-                    <p className="font-medium text-blue-600 dark:text-blue-400">¿Cómo obtener las credenciales?</p>
-                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-                      <li>Crea una cuenta gratuita en{' '}
-                        <a
-                          href="https://cloudinary.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline text-blue-500 inline-flex items-center gap-0.5"
-                        >
-                          cloudinary.com <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </li>
-                      <li>En el Dashboard copia tu <strong>Cloud Name</strong></li>
-                      <li>Ve a <strong>Settings → Upload → Upload presets</strong></li>
-                      <li>Crea un preset con <strong>Signing Mode: Unsigned</strong></li>
-                      <li>Copia el nombre del preset y pégalo abajo</li>
-                    </ol>
-                  </div>
-
-                  {/* Feedback */}
-                  {cloudinaryMsg && (
-                    <div className={`rounded-lg p-3 text-sm ${cloudinaryMsg.type === 'ok' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-destructive/10 text-destructive'}`}>
-                      {cloudinaryMsg.text}
-                    </div>
-                  )}
-
-                  {/* Cloud Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="cloudName">Cloud Name</Label>
-                    <Input
-                      id="cloudName"
-                      placeholder="ej: dxy123abc"
-                      value={cloudinaryForm.cloudName}
-                      onChange={e => setCloudinaryForm(prev => ({ ...prev, cloudName: e.target.value }))}
-                      className="bg-secondary border-none font-mono"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Lo encuentras en la página principal de tu dashboard de Cloudinary.
-                    </p>
-                  </div>
-
-                  {/* Upload Preset */}
-                  <div className="space-y-2">
-                    <Label htmlFor="uploadPreset">Upload Preset (Unsigned)</Label>
-                    <div className="relative">
-                      <Input
-                        id="uploadPreset"
-                        type={showPreset ? 'text' : 'password'}
-                        placeholder="ej: perfumeria_uploads"
-                        value={cloudinaryForm.uploadPreset}
-                        onChange={e => setCloudinaryForm(prev => ({ ...prev, uploadPreset: e.target.value }))}
-                        className="bg-secondary border-none font-mono pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPreset(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showPreset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      El nombre del preset <strong>Unsigned</strong> creado en Settings → Upload de Cloudinary.
-                    </p>
-                  </div>
-
-                  {/* Estado actual */}
-                  <div className="rounded-lg bg-secondary/50 p-3 flex items-center gap-3 text-sm">
-                    <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${cloudinaryForm.cloudName && cloudinaryForm.uploadPreset ? 'bg-green-500' : 'bg-amber-400'}`} />
-                    <span className="text-muted-foreground">
-                      {cloudinaryForm.cloudName && cloudinaryForm.uploadPreset
-                        ? `Configurado — Cloud: ${cloudinaryForm.cloudName}`
-                        : 'Sin configurar — las imágenes se gestionan por URL manual'}
-                    </span>
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveCloudinary} className="gap-2">
-                      {cloudinaryMsg?.type === 'ok'
-                        ? <Check className="h-4 w-4" />
-                        : <Save className="h-4 w-4" />}
-                      Guardar Credenciales
-                    </Button>
-                    {(cloudinaryForm.cloudName || cloudinaryForm.uploadPreset) && (
-                      <Button variant="outline" onClick={handleClearCloudinary} className="gap-2 bg-transparent text-destructive border-destructive/30 hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4" />
-                        Eliminar
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        )}
       </Tabs>
 
       {/* Reset Password Dialog */}

@@ -1,6 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# ============================================
+# DEPENDENCIAS
+# ============================================
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +10,65 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ============================================
+# VARIABLES DE ENTORNO / SECRETOS
+# ============================================
+.env
+.env.*
+!.env.example
+*.env
 
-# next.js
+# ============================================
+# NEXT.JS BUILD
+# ============================================
 /.next/
 /out/
-
-# production
 /build
 
-# misc
-.DS_Store
-*.pem
+# ============================================
+# TYPESCRIPT
+# ============================================
+*.tsbuildinfo
+next-env.d.ts
 
-# debug
+# ============================================
+# COBERTURA DE TESTS
+# ============================================
+/coverage
+
+# ============================================
+# LOGS
+# ============================================
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
+# ============================================
+# VERCEL
+# ============================================
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ============================================
+# ARCHIVOS DE SISTEMA
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# CERTIFICADOS
+# ============================================
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ============================================
+# IDEs
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo

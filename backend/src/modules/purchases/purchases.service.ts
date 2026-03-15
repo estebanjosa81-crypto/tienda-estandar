@@ -10,11 +10,15 @@ interface PurchaseInvoiceRow extends RowDataPacket {
   supplier_id: string | null;
   supplier_name: string;
   purchase_date: Date;
+  document_type: string;
   subtotal: number;
+  discount: number;
   tax: number;
   total: number;
   payment_method: string;
   payment_status: string;
+  due_date: Date | null;
+  file_url: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: Date;
@@ -37,6 +41,7 @@ interface ProductRow extends RowDataPacket {
   stock: number;
   name: string;
   sku: string;
+  purchase_price: number | null;
 }
 
 interface SupplierRow extends RowDataPacket {
@@ -46,6 +51,10 @@ interface SupplierRow extends RowDataPacket {
   phone: string | null;
   email: string | null;
   city: string | null;
+  address: string | null;
+  tax_id: string | null;
+  payment_terms: string | null;
+  notes: string | null;
 }
 
 interface CountRow extends RowDataPacket {
@@ -63,9 +72,13 @@ export interface CreatePurchaseData {
   supplierId?: string;
   supplierName: string;
   purchaseDate: string;
+  documentType?: 'factura' | 'remision' | 'orden_compra' | 'nota_credito';
   items: CreatePurchaseItem[];
-  paymentMethod?: 'efectivo' | 'transferencia' | 'tarjeta' | 'credito';
+  paymentMethod?: 'efectivo' | 'transferencia' | 'tarjeta' | 'credito' | 'nequi' | 'daviplata' | 'credito_proveedor' | 'mixto';
   paymentStatus?: 'pagado' | 'pendiente' | 'parcial';
+  dueDate?: string;
+  fileUrl?: string;
+  discount?: number;
   notes?: string;
 }
 
@@ -77,11 +90,15 @@ export class PurchasesService {
       supplierId: row.supplier_id,
       supplierName: row.supplier_name,
       purchaseDate: row.purchase_date,
+      documentType: row.document_type || 'factura',
       subtotal: Number(row.subtotal),
+      discount: Number(row.discount || 0),
       tax: Number(row.tax),
       total: Number(row.total),
       paymentMethod: row.payment_method,
       paymentStatus: row.payment_status,
+      dueDate: row.due_date || null,
+      fileUrl: row.file_url || null,
       notes: row.notes,
       createdBy: row.created_by,
       createdAt: row.created_at,
@@ -96,6 +113,21 @@ export class PurchasesService {
         unitCost: Number(i.unit_cost),
         subtotal: Number(i.subtotal),
       })),
+    };
+  }
+
+  private mapSupplier(row: SupplierRow) {
+    return {
+      id: row.id,
+      name: row.name,
+      contactName: row.contact_name,
+      phone: row.phone,
+      email: row.email,
+      city: row.city,
+      address: row.address,
+      taxId: row.tax_id,
+      paymentTerms: row.payment_terms,
+      notes: row.notes,
     };
   }
 
@@ -151,6 +183,35 @@ export class PurchasesService {
     return this.mapInvoice(rows[0], itemRows);
   }
 
+  async getNextInvoiceNumber(tenantId: string): Promise<string> {
+    const year = new Date().getFullYear();
+    const [rows] = await db.execute<CountRow[]>(
+      `SELECT COUNT(*) as total FROM purchase_invoices WHERE tenant_id = ? AND YEAR(created_at) = ?`,
+      [tenantId, year]
+    );
+    const count = (rows[0].total || 0) + 1;
+    return `FC-${year}-${String(count).padStart(4, '0')}`;
+  }
+
+  async getSupplierStats(tenantId: string, supplierId: string) {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         COUNT(*) AS total_facturas,
+         COALESCE(SUM(total), 0) AS total_comprado,
+         MAX(purchase_date) AS ultima_compra,
+         SUM(CASE WHEN payment_status = 'pendiente' THEN 1 ELSE 0 END) AS facturas_pendientes
+       FROM purchase_invoices
+       WHERE tenant_id = ? AND supplier_id = ?`,
+      [tenantId, supplierId]
+    );
+    return {
+      totalFacturas: Number(rows[0].total_facturas || 0),
+      totalComprado: Number(rows[0].total_comprado || 0),
+      ultimaCompra: rows[0].ultima_compra || null,
+      facturasPendientes: Number(rows[0].facturas_pendientes || 0),
+    };
+  }
+
   async create(tenantId: string, userId: string, data: CreatePurchaseData) {
     const connection = await db.getConnection();
 
@@ -159,6 +220,7 @@ export class PurchasesService {
 
       const invoiceId = uuidv4();
       let subtotal = 0;
+      const discount = data.discount || 0;
 
       interface ItemToInsert {
         id: string;
@@ -169,13 +231,14 @@ export class PurchasesService {
         unitCost: number;
         subtotal: number;
         currentStock: number;
+        currentPurchasePrice: number;
       }
 
       const itemsToInsert: ItemToInsert[] = [];
 
       for (const item of data.items) {
         const [productRows] = await connection.execute<ProductRow[]>(
-          'SELECT id, stock, name, sku FROM products WHERE id = ? AND tenant_id = ? FOR UPDATE',
+          'SELECT id, stock, name, sku, purchase_price FROM products WHERE id = ? AND tenant_id = ? FOR UPDATE',
           [item.productId, tenantId]
         );
 
@@ -195,15 +258,26 @@ export class PurchasesService {
           quantity: item.quantity,
           unitCost: item.unitCost,
           subtotal: itemSubtotal,
-          currentStock: product.stock,
+          currentStock: Number(product.stock),
+          currentPurchasePrice: Number(product.purchase_price || 0),
         });
       }
+
+      // Determine payment status automatically if not explicitly provided
+      const paymentMethod = data.paymentMethod || 'efectivo';
+      let paymentStatus = data.paymentStatus;
+      if (!paymentStatus) {
+        paymentStatus = paymentMethod === 'credito_proveedor' ? 'pendiente' : 'pagado';
+      }
+
+      const total = subtotal - discount;
 
       // Insert purchase invoice header
       await connection.execute<ResultSetHeader>(
         `INSERT INTO purchase_invoices
-          (id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date, subtotal, tax, total, payment_method, payment_status, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+          (id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date, document_type,
+           subtotal, discount, tax, total, payment_method, payment_status, due_date, file_url, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceId,
           tenantId,
@@ -211,16 +285,20 @@ export class PurchasesService {
           data.supplierId || null,
           data.supplierName,
           data.purchaseDate,
+          data.documentType || 'factura',
           subtotal,
-          subtotal,
-          data.paymentMethod || 'efectivo',
-          data.paymentStatus || 'pagado',
+          discount,
+          total,
+          paymentMethod,
+          paymentStatus,
+          data.dueDate || null,
+          data.fileUrl || null,
           data.notes || null,
           userId,
         ]
       );
 
-      // Insert items, update stock and register movements
+      // Insert items, update stock with weighted average cost
       for (const item of itemsToInsert) {
         await connection.execute(
           `INSERT INTO purchase_invoice_items (id, tenant_id, invoice_id, product_id, product_name, product_sku, quantity, unit_cost, subtotal)
@@ -240,10 +318,19 @@ export class PurchasesService {
 
         const newStock = item.currentStock + item.quantity;
 
-        // Update product stock
+        // Weighted average cost formula:
+        // new_avg = (current_stock * current_cost + quantity * new_cost) / new_stock
+        let newAvgCost: number;
+        if (item.currentStock > 0 && item.currentPurchasePrice > 0) {
+          newAvgCost = ((item.currentStock * item.currentPurchasePrice) + (item.quantity * item.unitCost)) / newStock;
+        } else {
+          newAvgCost = item.unitCost;
+        }
+
+        // Update product stock and weighted average cost
         await connection.execute(
-          'UPDATE products SET stock = ? WHERE id = ?',
-          [newStock, item.productId]
+          'UPDATE products SET stock = ?, purchase_price = ? WHERE id = ?',
+          [newStock, newAvgCost, item.productId]
         );
 
         // Register stock movement (entrada)
@@ -262,14 +349,6 @@ export class PurchasesService {
             userId,
           ]
         );
-
-        // Update purchase_price to reflect actual cost paid
-        if (item.unitCost > 0) {
-          await connection.execute(
-            'UPDATE products SET purchase_price = ? WHERE id = ? AND tenant_id = ?',
-            [item.unitCost, item.productId, tenantId]
-          );
-        }
       }
 
       await connection.commit();
@@ -285,10 +364,11 @@ export class PurchasesService {
 
   async getSuppliers(tenantId: string) {
     const [rows] = await db.execute<SupplierRow[]>(
-      'SELECT id, name, contact_name, phone, email, city FROM suppliers WHERE tenant_id = ? AND is_active = TRUE ORDER BY name',
+      `SELECT id, name, contact_name, phone, email, address, city, tax_id, payment_terms, notes
+       FROM suppliers WHERE tenant_id = ? AND is_active = TRUE ORDER BY name`,
       [tenantId]
     );
-    return rows;
+    return rows.map(this.mapSupplier);
   }
 
   async createSupplier(tenantId: string, data: {
@@ -321,10 +401,11 @@ export class PurchasesService {
       ]
     );
     const [rows] = await db.execute<SupplierRow[]>(
-      'SELECT id, name, contact_name, phone, email, city FROM suppliers WHERE id = ?',
+      `SELECT id, name, contact_name, phone, email, address, city, tax_id, payment_terms, notes
+       FROM suppliers WHERE id = ?`,
       [id]
     );
-    return rows[0];
+    return this.mapSupplier(rows[0]);
   }
 }
 

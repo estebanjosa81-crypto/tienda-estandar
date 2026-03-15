@@ -275,7 +275,7 @@ export class TenantsService {
 
       for (const cat of defaultCategories) {
         await connection.execute<ResultSetHeader>(
-          'INSERT INTO categories (id, tenant_id, name, description) VALUES (?, ?, ?, ?)',
+          'INSERT IGNORE INTO categories (id, tenant_id, name, description) VALUES (?, ?, ?, ?)',
           [cat.id, tenantId, cat.name, cat.description]
         );
       }

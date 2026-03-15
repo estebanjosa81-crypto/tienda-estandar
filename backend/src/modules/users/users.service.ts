@@ -4,6 +4,7 @@ import { db } from '../../config';
 import { User, UserRole, PaginatedResponse } from '../../common/types';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { encryptNullable } from '../../utils/crypto';
 
 interface UserRow extends RowDataPacket {
   id: string;
@@ -14,6 +15,9 @@ interface UserRow extends RowDataPacket {
   role: UserRole;
   avatar: string | null;
   is_active: boolean;
+  can_login: boolean;
+  cargo_id: string | null;
+  cargo_name: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -23,7 +27,7 @@ interface CountRow extends RowDataPacket {
 }
 
 export class UsersService {
-  private mapUser(row: UserRow): Omit<User, 'password'> {
+  private mapUser(row: UserRow): Omit<User, 'password'> & { cargoId?: string; cargoName?: string; canLogin: boolean } {
     return {
       id: row.id,
       tenantId: row.tenant_id,
@@ -32,6 +36,9 @@ export class UsersService {
       role: row.role,
       avatar: row.avatar || undefined,
       isActive: row.is_active,
+      canLogin: row.can_login !== false, // default true if column missing
+      cargoId: row.cargo_id || undefined,
+      cargoName: row.cargo_name || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -48,7 +55,9 @@ export class UsersService {
       const total = countResult[0].total;
 
       const [rows] = await db.execute<UserRow[]>(
-        'SELECT id, tenant_id, email, name, role, avatar, is_active, created_at, updated_at FROM users WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active, u.can_login, u.cargo_id, ec.name AS cargo_name, u.created_at, u.updated_at
+         FROM users u LEFT JOIN employee_cargos ec ON u.cargo_id = ec.id
+         WHERE u.tenant_id = ? ORDER BY u.created_at DESC LIMIT ? OFFSET ?`,
         [tenantId, String(limit), String(offset)]
       );
 
@@ -64,7 +73,9 @@ export class UsersService {
       const total = countResult[0].total;
 
       const [rows] = await db.execute<UserRow[]>(
-        'SELECT id, tenant_id, email, name, role, avatar, is_active, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active, u.can_login, u.cargo_id, ec.name AS cargo_name, u.created_at, u.updated_at
+         FROM users u LEFT JOIN employee_cargos ec ON u.cargo_id = ec.id
+         ORDER BY u.created_at DESC LIMIT ? OFFSET ?`,
         [String(limit), String(offset)]
       );
 
@@ -75,9 +86,10 @@ export class UsersService {
     }
   }
 
-  async findById(id: string): Promise<Omit<User, 'password'>> {
+  async findById(id: string): Promise<Omit<User, 'password'> & { cargoId?: string; cargoName?: string }> {
     const [rows] = await db.execute<UserRow[]>(
-      'SELECT id, tenant_id, email, name, role, avatar, is_active, created_at, updated_at FROM users WHERE id = ?',
+      `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active, u.can_login, u.cargo_id, ec.name AS cargo_name, u.created_at, u.updated_at
+       FROM users u LEFT JOIN employee_cargos ec ON u.cargo_id = ec.id WHERE u.id = ?`,
       [id]
     );
 
@@ -95,7 +107,9 @@ export class UsersService {
     role?: UserRole;
     tenantId?: string | null;
     phone?: string | null;
-  }): Promise<Omit<User, 'password'>> {
+    cargoId?: string | null;
+    canLogin?: boolean;
+  }): Promise<Omit<User, 'password'> & { cargoId?: string; cargoName?: string; canLogin: boolean }> {
     const [existing] = await db.execute<UserRow[]>(
       'SELECT id FROM users WHERE email = ?',
       [data.email]
@@ -107,10 +121,11 @@ export class UsersService {
 
     const id = uuidv4();
     const hashedPassword = await bcrypt.hash(data.password, 10);
+    const canLogin = data.canLogin !== false ? 1 : 0;
 
     await db.execute<ResultSetHeader>(
-      'INSERT INTO users (id, tenant_id, email, password, name, role, phone) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, data.tenantId || null, data.email, hashedPassword, data.name, data.role || 'vendedor', data.phone || null]
+      'INSERT INTO users (id, tenant_id, email, password, name, role, phone, cargo_id, can_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, data.tenantId || null, data.email, hashedPassword, data.name, data.role || 'vendedor', encryptNullable(data.phone || null), data.cargoId || null, canLogin]
     );
 
     return this.findById(id);
@@ -118,12 +133,12 @@ export class UsersService {
 
   async update(
     id: string,
-    data: { name?: string; role?: UserRole; avatar?: string }
+    data: { name?: string; role?: UserRole; avatar?: string; canLogin?: boolean }
   ): Promise<Omit<User, 'password'>> {
     await this.findById(id);
 
     const updates: string[] = [];
-    const values: (string | undefined)[] = [];
+    const values: (string | number | undefined)[] = [];
 
     if (data.name) {
       updates.push('name = ?');
@@ -138,6 +153,11 @@ export class UsersService {
     if (data.avatar) {
       updates.push('avatar = ?');
       values.push(data.avatar);
+    }
+
+    if (data.canLogin !== undefined) {
+      updates.push('can_login = ?');
+      values.push(data.canLogin ? 1 : 0);
     }
 
     if (updates.length === 0) {

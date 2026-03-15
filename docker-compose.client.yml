@@ -1,0 +1,81 @@
+# ============================================================
+# Docker Compose — Instalación LOCAL en PC del cliente
+# ============================================================
+# Instrucciones de uso:
+#   1. Copia este archivo y el archivo .env.client al PC del cliente
+#   2. Renombra .env.client a .env
+#   3. Ejecuta: docker compose -f docker-compose.client.yml up -d
+#   4. Accede desde el navegador: http://localhost:3000
+# ============================================================
+
+services:
+
+  # ── Base de datos MySQL local ──────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: lopbuk_db_local
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      # Datos persistentes: aunque se reinicie Docker los datos no se pierden
+      - lopbuk_db_data:/var/lib/mysql
+      # Script inicial: crea las tablas la primera vez
+      - ./backend/inventarioEsteban_v3_multitenant.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend Node.js local ─────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lopbuk_backend_local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: http://localhost:3000
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # ── Sync offline → nube ──
+      IS_LOCAL_INSTANCE: "true"
+      CLOUD_API_URL: ${CLOUD_API_URL}
+      SYNC_SECRET: ${SYNC_SECRET}
+      SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-30000}
+    ports:
+      - "3001:3001"
+
+  # ── Frontend Next.js local ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lopbuk_frontend_local
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    ports:
+      - "3000:3000"
+
+volumes:
+  lopbuk_db_data:
+    name: lopbuk_db_data

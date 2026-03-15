@@ -4,7 +4,7 @@ export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL'
 
 export type ProductType = 'general' | 'alimentos' | 'bebidas' | 'ropa' | 'electronica' | 'farmacia' | 'ferreteria' | 'libreria' | 'juguetes' | 'cosmetica' | 'perfumes' | 'deportes' | 'hogar' | 'mascotas' | 'otros'
 
-export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado'
+export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'addi' | 'sistecredito' | 'mixto'
 
 export type StockStatus = 'suficiente' | 'bajo' | 'agotado'
 
@@ -94,6 +94,8 @@ export interface Product {
   packageDimensions?: string
   packageContents?: string
   safetyWarnings?: string
+  // Sede
+  sedeId?: string
   // BOM / Producto Compuesto
   isComposite?: boolean
   bomCost?: number
@@ -139,6 +141,13 @@ export interface Sale {
   creditStatus?: CreditStatus
   dueDate?: string
   notes?: string
+}
+
+export interface Sede {
+  id: string
+  name: string
+  address?: string
+  created_at?: string
 }
 
 export interface SaleItem {
@@ -330,8 +339,9 @@ export interface CashSessionTotals {
 export const TAX_RATE = 0.19 // 19% IVA Colombia
 
 // Purchase Invoice Types
-export type PurchasePaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'credito'
+export type PurchasePaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'credito' | 'nequi' | 'daviplata' | 'credito_proveedor' | 'mixto'
 export type PurchasePaymentStatus = 'pagado' | 'pendiente' | 'parcial'
+export type PurchaseDocumentType = 'factura' | 'remision' | 'orden_compra' | 'nota_credito'
 
 export interface PurchaseInvoiceItem {
   id: string
@@ -350,11 +360,15 @@ export interface PurchaseInvoice {
   supplierId?: string | null
   supplierName: string
   purchaseDate: string
+  documentType: PurchaseDocumentType
   subtotal: number
+  discount: number
   tax: number
   total: number
   paymentMethod: PurchasePaymentMethod
   paymentStatus: PurchasePaymentStatus
+  dueDate?: string | null
+  fileUrl?: string | null
   notes?: string | null
   createdBy?: string | null
   createdAt: string
@@ -496,4 +510,38 @@ export interface Tenant {
   totalSales?: number
   createdAt: string
   updatedAt: string
+}
+
+// ─── Printers ───────────────────────────────────────────────────────────────────
+
+export type PrinterConnectionType = 'lan' | 'usb' | 'bluetooth'
+export type PrinterPaperWidth = 58 | 80
+export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura'
+
+export interface Printer {
+  id: string
+  tenantId: string
+  name: string
+  connectionType: PrinterConnectionType
+  ip: string | null
+  port: number
+  paperWidth: PrinterPaperWidth
+  isActive: boolean
+  assignedModule: PrinterModule | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PrintTicketData {
+  storeName: string
+  invoiceNumber: string
+  items: Array<{ name: string; quantity: number; price: number }>
+  subtotal: number
+  tax: number
+  total: number
+  paymentMethod: string
+  amountPaid: number
+  change: number
+  notes?: string
+  footerText?: string
 }

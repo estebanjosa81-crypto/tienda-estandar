@@ -9,10 +9,11 @@ interface AuthStore {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  isCheckingAuth: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   googleLogin: (credential: string, storeSlug?: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => Promise<{ success: boolean; error?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   updateProfile: (updates: {
     name?: string; avatar?: string; phone?: string; cedula?: string;
     department?: string; municipality?: string; address?: string;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isCheckingAuth: true,
 
       login: async (email: string, password: string) => {
         set({ isLoading: true })
@@ -87,8 +89,8 @@ export const useAuthStore = create<AuthStore>()(
         return { success: false, error: result.error || 'Error al registrar usuario' }
       },
 
-      logout: () => {
-        api.logout()
+      logout: async () => {
+        await api.logout()
         set({
           user: null,
           isAuthenticated: false
@@ -113,21 +115,19 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       checkAuth: async () => {
-        const token = api.getToken()
-        if (!token) {
-          set({ user: null, isAuthenticated: false })
-          return
-        }
-
+        set({ isCheckingAuth: true })
+        // Token is in an httpOnly cookie — invisible to JS.
+        // Always call getProfile(); the browser sends the cookie automatically.
         const result = await api.getProfile()
         if (result.success && result.data) {
           set({
             user: result.data,
-            isAuthenticated: true
+            isAuthenticated: true,
+            isCheckingAuth: false,
           })
         } else {
-          api.logout()
-          set({ user: null, isAuthenticated: false })
+          await api.logout()
+          set({ user: null, isAuthenticated: false, isCheckingAuth: false })
         }
       }
     }),

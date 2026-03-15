@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, Bell, ExternalLink, Menu, PackageX, Search, ShoppingBag, User } from 'lucide-react'
+import { AlertTriangle, Bell, ExternalLink, Menu, PackageX, Search, ShoppingBag, User, Package, Receipt, Users, X } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { api } from '@/lib/api'
 
 const sectionTitles: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -27,6 +28,188 @@ const sectionTitles: Record<string, string> = {
   superadmin: 'Panel Admin',
   'pagina-principal': 'Página Principal',
 }
+
+// ─── Global search component ──────────────────────────────────────────────────
+
+function GlobalSearch() {
+  const { products, navigateToInventory, setActiveSection } = useStore()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [salesResults, setSalesResults] = useState<any[]>([])
+  const [customerResults, setCustomerResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Filter products locally (fast)
+  const productResults = query.trim().length >= 2
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.sku.toLowerCase().includes(query.toLowerCase()) ||
+        (p.barcode && p.barcode.toLowerCase().includes(query.toLowerCase()))
+      ).slice(0, 5)
+    : []
+
+  // Debounced API search for sales + customers
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSalesResults([])
+      setCustomerResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      const [salesRes, customersRes] = await Promise.all([
+        api.getSales({ page: 1, limit: 5, search: query }),
+        api.getCustomers({ page: 1, limit: 5, search: query }),
+      ])
+      if (salesRes.success) setSalesResults((salesRes as any).data ?? [])
+      if (customersRes.success) setCustomerResults((customersRes as any).data ?? [])
+      setSearching(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const hasResults = productResults.length > 0 || salesResults.length > 0 || customerResults.length > 0
+  const showDropdown = open && query.trim().length >= 2
+
+  const clear = () => { setQuery(''); setOpen(false); inputRef.current?.focus() }
+
+  const goProduct = (name: string) => {
+    navigateToInventory(undefined, name)
+    setQuery(''); setOpen(false)
+  }
+
+  const goSale = (invoiceNumber: string) => {
+    setActiveSection('history')
+    setQuery(''); setOpen(false)
+    // Pass search via store would be ideal but history page has its own search —
+    // we navigate there and the user can see it
+  }
+
+  const goCustomer = (name: string) => {
+    setActiveSection('customers')
+    setQuery(''); setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative hidden md:block">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <Input
+        ref={inputRef}
+        type="search"
+        value={query}
+        placeholder="Buscar productos, facturas, clientes…"
+        className="w-64 lg:w-80 xl:w-96 pl-9 pr-8 bg-secondary border-none h-10 lg:h-11"
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setQuery('') } }}
+      />
+      {query && (
+        <button onClick={clear} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {showDropdown && (
+        <div className="absolute top-full mt-1.5 left-0 w-full min-w-[340px] rounded-lg border border-border bg-popover shadow-lg z-50 overflow-hidden">
+          {searching && !hasResults && (
+            <p className="px-4 py-3 text-sm text-muted-foreground">Buscando…</p>
+          )}
+          {!searching && !hasResults && (
+            <p className="px-4 py-3 text-sm text-muted-foreground">Sin resultados para "{query}"</p>
+          )}
+
+          {/* Productos */}
+          {productResults.length > 0 && (
+            <div>
+              <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest bg-muted/30">
+                Productos
+              </p>
+              {productResults.map(p => (
+                <button key={p.id} onClick={() => goProduct(p.name)}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-left">
+                  <Package className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{p.name}</p>
+                    <p className="text-[11px] text-muted-foreground">SKU: {p.sku} · Stock: {p.stock}</p>
+                  </div>
+                  <span className={`text-xs font-medium shrink-0 ${p.stock === 0 ? 'text-destructive' : p.stock <= p.reorderPoint ? 'text-amber-400' : 'text-green-400'}`}>
+                    {p.stock === 0 ? 'Agotado' : p.stock <= p.reorderPoint ? 'Stock bajo' : 'En stock'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Facturas */}
+          {salesResults.length > 0 && (
+            <div>
+              <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest bg-muted/30">
+                Facturas / Ventas
+              </p>
+              {salesResults.map((s: any) => (
+                <button key={s.id} onClick={() => goSale(s.invoiceNumber)}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-left">
+                  <Receipt className="h-4 w-4 text-blue-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground">{s.invoiceNumber}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{s.customerName ?? 'Cliente general'} · {s.sellerName}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-foreground shrink-0">
+                    ${Number(s.total).toLocaleString('es-CO')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Clientes */}
+          {customerResults.length > 0 && (
+            <div>
+              <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest bg-muted/30">
+                Clientes
+              </p>
+              {customerResults.map((c: any) => (
+                <button key={c.id} onClick={() => goCustomer(c.name)}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-left">
+                  <Users className="h-4 w-4 text-purple-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{c.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{c.phone ?? ''} · CC: {c.cedula}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Ver todos en sección */}
+          {hasResults && (
+            <div className="border-t border-border px-4 py-2">
+              <button onClick={() => { navigateToInventory(undefined, query); setOpen(false) }}
+                className="text-xs text-primary hover:underline flex items-center gap-1">
+                <Search className="h-3 w-3" /> Ver todos los resultados en Inventario
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────────
 
 export function Header() {
   const { activeSection, products, toggleSidebar, navigateToInventory, pendingOrdersCount, fetchPendingOrdersCount, navigateToPedidos } = useStore()
@@ -61,14 +244,7 @@ export function Header() {
 
       <div className="flex items-center gap-3 lg:gap-4">
         {/* Search */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Buscar productos, facturas..."
-            className="w-64 lg:w-80 xl:w-96 pl-9 bg-secondary border-none h-10 lg:h-11"
-          />
-        </div>
+        <GlobalSearch />
 
         {/* Notifications */}
         <DropdownMenu>
