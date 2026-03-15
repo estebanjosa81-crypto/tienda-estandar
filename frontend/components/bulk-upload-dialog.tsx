@@ -199,7 +199,7 @@ function downloadTemplate() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'plantilla_productos_stockpro.csv'
+  a.download = 'plantilla_productos_lopbuk.csv'
   a.click()
   URL.revokeObjectURL(url)
 }

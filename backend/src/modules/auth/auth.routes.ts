@@ -28,12 +28,42 @@ router.post(
     body('name').notEmpty().withMessage('El nombre es requerido'),
     body('role')
       .optional()
-      .isIn(['superadmin', 'comerciante', 'vendedor'])
+      .isIn(['superadmin', 'comerciante', 'vendedor', 'repartidor'])
       .withMessage('Rol invalido'),
     validateRequest,
   ],
   authController.register.bind(authController)
 );
+
+// POST /api/auth/google (PUBLIC - Google OAuth login/register)
+router.post(
+  '/google',
+  [
+    body('credential').notEmpty().withMessage('Token de Google es requerido'),
+    body('storeSlug').optional().notEmpty().withMessage('Identificador de tienda invalido'),
+    validateRequest,
+  ],
+  authController.googleLogin.bind(authController)
+);
+
+// POST /api/auth/register-client (PUBLIC - no auth required)
+router.post(
+  '/register-client',
+  [
+    body('email').isEmail().withMessage('Email invalido'),
+    body('password')
+      .isLength({ min: 6 })
+      .withMessage('La contrasena debe tener al menos 6 caracteres'),
+    body('name').notEmpty().withMessage('El nombre es requerido'),
+    body('phone').optional().notEmpty().withMessage('Telefono invalido'),
+    body('storeSlug').optional().notEmpty().withMessage('Identificador de tienda invalido'),
+    validateRequest,
+  ],
+  authController.registerClient.bind(authController)
+);
+
+// POST /api/auth/logout
+router.post('/logout', authController.logout.bind(authController));
 
 // GET /api/auth/profile
 router.get(

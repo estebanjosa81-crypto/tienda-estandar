@@ -1,12 +1,12 @@
 // Tipos base
 export type Category = string;
 export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL';
-export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado';
+export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'addi' | 'sistecredito' | 'mixto';
 export type StockStatus = 'suficiente' | 'bajo' | 'agotado';
 export type SaleStatus = 'completada' | 'anulada';
 export type CreditStatus = 'pendiente' | 'parcial' | 'pagado';
 export type StockMovementType = 'entrada' | 'salida' | 'ajuste' | 'venta' | 'devolucion';
-export type UserRole = 'superadmin' | 'comerciante' | 'vendedor';
+export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor' | 'auxiliar_bodega';
 export type TenantStatus = 'activo' | 'suspendido' | 'cancelado';
 export type TenantPlan = 'basico' | 'profesional' | 'empresarial';
 export type ProductType = 'general' | 'alimentos' | 'bebidas' | 'ropa' | 'electronica' | 'farmacia' | 'ferreteria' | 'libreria' | 'juguetes' | 'cosmetica' | 'perfumes' | 'deportes' | 'hogar' | 'mascotas' | 'otros';
@@ -62,6 +62,7 @@ export interface Product {
   supplierId?: string;
   entryDate: Date;
   imageUrl?: string;
+  images?: string[];
   locationInStore?: string;
   notes?: string;
   tags?: string[];
@@ -132,6 +133,7 @@ export interface Product {
   updatedAt: Date;
   stockStatus?: StockStatus;
   isComposite?: boolean;
+  bomCost?: number;
 }
 
 export interface Customer {
@@ -298,7 +300,11 @@ export interface CashMovement {
 // JWT Payload
 export interface JWTPayload {
   userId: string;
+  id: string;
   email: string;
+  name: string;
   role: UserRole;
   tenantId: string | null;
+  /** Permisos del cargo asignado. Cargados desde la BD en cada request (no en el JWT). */
+  permissions?: string[];
 }

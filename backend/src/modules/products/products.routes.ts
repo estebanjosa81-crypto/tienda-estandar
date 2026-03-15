@@ -16,7 +16,7 @@ router.get(
   '/',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Pagina invalida'),
-    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limite invalido'),
+    query('limit').optional().isInt({ min: 1, max: 2000 }).withMessage('Limite invalido'),
     query('category')
       .optional()
       .notEmpty()
@@ -29,6 +29,7 @@ router.get(
       .optional()
       .isIn(['suficiente', 'bajo', 'agotado'])
       .withMessage('Estado de stock invalido'),
+    query('sedeId').optional().isString(),
     validateRequest,
   ],
   productsController.findAll.bind(productsController)
@@ -39,6 +40,9 @@ router.get('/low-stock', productsController.getLowStock.bind(productsController)
 
 // GET /api/products/out-of-stock
 router.get('/out-of-stock', productsController.getOutOfStock.bind(productsController));
+
+// GET /api/products/export/csv
+router.get('/export/csv', productsController.exportCsv.bind(productsController));
 
 // GET /api/products/sku/:sku
 router.get(

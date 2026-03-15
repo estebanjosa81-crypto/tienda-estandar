@@ -291,10 +291,13 @@ export class CashSessionsService {
           changeGiven = Number(row.total_change);
           break;
         case 'tarjeta':
-          cardSales = amount;
+        case 'addi':
+        case 'sistecredito':
+          cardSales += amount;
           break;
         case 'transferencia':
-          transferSales = amount;
+        case 'mixto':
+          transferSales += amount;
           break;
         case 'fiado':
           fiadoSales = amount;
@@ -388,10 +391,13 @@ export class CashSessionsService {
             totalChangeGiven = Number(row.total_change);
             break;
           case 'tarjeta':
-            totalCardSales = amount;
+          case 'addi':
+          case 'sistecredito':
+            totalCardSales += amount;
             break;
           case 'transferencia':
-            totalTransferSales = amount;
+          case 'mixto':
+            totalTransferSales += amount;
             break;
           case 'fiado':
             totalFiadoSales = amount;

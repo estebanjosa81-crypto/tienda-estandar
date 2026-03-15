@@ -36,6 +36,10 @@ export class ProductsController {
         filters.maxPrice = parseFloat(req.query.maxPrice as string);
       }
 
+      if (req.query.sedeId) {
+        filters.sedeId = req.query.sedeId as string;
+      }
+
       const result = await productsService.findAll(tenantId, page, limit, filters);
 
       res.json({
@@ -189,6 +193,27 @@ export class ProductsController {
         success: true,
         data: products,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportCsv(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+
+      const filters: ProductFilters = {};
+      if (req.query.category) filters.category = req.query.category as Category;
+      if (req.query.productType) filters.productType = req.query.productType as ProductType;
+      if (req.query.stockStatus) filters.stockStatus = req.query.stockStatus as StockStatus;
+      if (req.query.search) filters.search = req.query.search as string;
+
+      const csv = await productsService.exportCsv(tenantId, filters);
+
+      const date = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="inventario_${date}.csv"`);
+      res.send('\uFEFF' + csv); // BOM para que Excel abra con tildes correctas
     } catch (error) {
       next(error);
     }

@@ -25,7 +25,21 @@ router.get(
 // GET /api/tenants/stats - Platform statistics
 router.get('/stats', tenantsController.getStats.bind(tenantsController));
 
-// GET /api/tenants/:id - Get tenant detail
+// GET /api/tenants/platform-settings - Get platform settings
+router.get('/platform-settings', tenantsController.getPlatformSettings.bind(tenantsController));
+
+// PUT /api/tenants/platform-settings - Update platform setting
+router.put(
+  '/platform-settings',
+  [
+    body('key').notEmpty().withMessage('La clave es requerida'),
+    body('value').exists().withMessage('El valor es requerido'),
+    validateRequest,
+  ],
+  tenantsController.updatePlatformSettings.bind(tenantsController)
+);
+
+// GET /api/tenants/:id - Get tenant detail (MUST be after /platform-settings to avoid conflict)
 router.get(
   '/:id',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
@@ -79,6 +93,9 @@ router.put(
     body('maxProducts')
       .optional()
       .isInt({ min: 1 }).withMessage('Máximo de productos debe ser al menos 1'),
+    body('bgColor')
+      .optional()
+      .matches(/^#[0-9a-fA-F]{6}$/).withMessage('Color de fondo inválido (formato: #RRGGBB)'),
     validateRequest,
   ],
   tenantsController.update.bind(tenantsController)

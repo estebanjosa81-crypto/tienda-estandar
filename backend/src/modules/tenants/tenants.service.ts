@@ -30,6 +30,7 @@ interface TenantSummaryRow extends RowDataPacket {
   status: string;
   max_users: number;
   max_products: number;
+  bg_color: string | null;
   total_users: number;
   total_products: number;
   total_sales: number;
@@ -58,6 +59,7 @@ export interface TenantWithSummary extends Tenant {
   businessType?: string;
   ownerName?: string;
   ownerEmail?: string;
+  bgColor?: string;
   totalUsers: number;
   totalProducts: number;
   totalSales: number;
@@ -88,6 +90,7 @@ export class TenantsService {
       ownerId: row.owner_id || undefined,
       ownerName: row.owner_name || undefined,
       ownerEmail: row.owner_email || undefined,
+      bgColor: row.bg_color || undefined,
       plan: row.plan,
       status: row.status,
       maxUsers: row.max_users,
@@ -126,7 +129,7 @@ export class TenantsService {
     const [rows] = await db.execute<TenantSummaryRow[]>(
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
-        t.max_users, t.max_products, t.created_at, t.updated_at,
+        t.max_users, t.max_products, t.bg_color, t.created_at, t.updated_at,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,
@@ -154,7 +157,7 @@ export class TenantsService {
     const [rows] = await db.execute<TenantSummaryRow[]>(
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
-        t.max_users, t.max_products, t.created_at, t.updated_at,
+        t.max_users, t.max_products, t.bg_color, t.created_at, t.updated_at,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,
@@ -272,7 +275,7 @@ export class TenantsService {
 
       for (const cat of defaultCategories) {
         await connection.execute<ResultSetHeader>(
-          'INSERT INTO categories (id, tenant_id, name, description) VALUES (?, ?, ?, ?)',
+          'INSERT IGNORE INTO categories (id, tenant_id, name, description) VALUES (?, ?, ?, ?)',
           [cat.id, tenantId, cat.name, cat.description]
         );
       }
@@ -297,6 +300,7 @@ export class TenantsService {
       status?: string;
       maxUsers?: number;
       maxProducts?: number;
+      bgColor?: string;
     }
   ): Promise<TenantWithSummary> {
     await this.findById(id);
@@ -327,6 +331,10 @@ export class TenantsService {
     if (data.maxProducts !== undefined) {
       updates.push('max_products = ?');
       values.push(data.maxProducts);
+    }
+    if (data.bgColor !== undefined) {
+      updates.push('bg_color = ?');
+      values.push(data.bgColor);
     }
 
     if (updates.length === 0) {
@@ -383,6 +391,29 @@ export class TenantsService {
       totalProducts: rows[0].total_products,
       totalSales: rows[0].total_sales,
     };
+  }
+
+  async getPlatformSettings(): Promise<Record<string, string>> {
+    try {
+      const [rows] = await db.execute<RowDataPacket[]>(
+        'SELECT setting_key, setting_value FROM platform_settings'
+      );
+      const settings: Record<string, string> = {};
+      for (const row of rows) {
+        settings[row.setting_key] = row.setting_value;
+      }
+      return settings;
+    } catch {
+      return { bg_color: '#000000' };
+    }
+  }
+
+  async updatePlatformSetting(key: string, value: string): Promise<void> {
+    await db.execute(
+      `INSERT INTO platform_settings (setting_key, setting_value) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE setting_value = ?, updated_at = CURRENT_TIMESTAMP`,
+      [key, value, value]
+    );
   }
 }
 

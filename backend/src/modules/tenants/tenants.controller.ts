@@ -87,6 +87,25 @@ export class TenantsController {
       next(error);
     }
   }
+
+  async getPlatformSettings(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const settings = await tenantsService.getPlatformSettings();
+      res.json({ success: true, data: settings });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updatePlatformSettings(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { key, value } = req.body;
+      await tenantsService.updatePlatformSetting(key, value);
+      res.json({ success: true, message: 'Configuración actualizada' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const tenantsController = new TenantsController();

@@ -9,10 +9,16 @@ interface AuthStore {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  isCheckingAuth: boolean
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; attemptsLeft?: number; lockedUntil?: number }>
+  googleLogin: (credential: string, storeSlug?: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => Promise<{ success: boolean; error?: string }>
-  logout: () => void
-  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>
+  logout: () => Promise<void>
+  updateProfile: (updates: {
+    name?: string; avatar?: string; phone?: string; cedula?: string;
+    department?: string; municipality?: string; address?: string;
+    neighborhood?: string; deliveryLatitude?: number; deliveryLongitude?: number;
+  }) => Promise<{ success: boolean; error?: string }>
   checkAuth: () => Promise<void>
 }
 
@@ -22,6 +28,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isCheckingAuth: true,
 
       login: async (email: string, password: string) => {
         set({ isLoading: true })
@@ -38,7 +45,25 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         set({ isLoading: false })
-        return { success: false, error: result.error || 'Correo o contraseña incorrectos' }
+        return { success: false, error: result.error, attemptsLeft: result.attemptsLeft, lockedUntil: result.lockedUntil }
+      },
+
+      googleLogin: async (credential: string, storeSlug?: string) => {
+        set({ isLoading: true })
+
+        const result = await api.googleLogin(credential, storeSlug)
+
+        if (result.success && result.data) {
+          set({
+            user: result.data.user,
+            isAuthenticated: true,
+            isLoading: false
+          })
+          return { success: true }
+        }
+
+        set({ isLoading: false })
+        return { success: false, error: result.error || 'Error al iniciar sesion con Google' }
       },
 
       register: async (email: string, password: string, name: string, role: 'comerciante' | 'vendedor') => {
@@ -64,15 +89,19 @@ export const useAuthStore = create<AuthStore>()(
         return { success: false, error: result.error || 'Error al registrar usuario' }
       },
 
-      logout: () => {
-        api.logout()
+      logout: async () => {
+        await api.logout()
         set({
           user: null,
           isAuthenticated: false
         })
       },
 
-      updateProfile: async (updates: Partial<User>) => {
+      updateProfile: async (updates: {
+        name?: string; avatar?: string; phone?: string; cedula?: string;
+        department?: string; municipality?: string; address?: string;
+        neighborhood?: string; deliveryLatitude?: number; deliveryLongitude?: number;
+      }) => {
         const result = await api.updateProfile(updates)
 
         if (result.success && result.data) {
@@ -86,26 +115,24 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       checkAuth: async () => {
-        const token = api.getToken()
-        if (!token) {
-          set({ user: null, isAuthenticated: false })
-          return
-        }
-
+        set({ isCheckingAuth: true })
+        // Token is in an httpOnly cookie — invisible to JS.
+        // Always call getProfile(); the browser sends the cookie automatically.
         const result = await api.getProfile()
         if (result.success && result.data) {
           set({
             user: result.data,
-            isAuthenticated: true
+            isAuthenticated: true,
+            isCheckingAuth: false,
           })
         } else {
-          api.logout()
-          set({ user: null, isAuthenticated: false })
+          await api.logout()
+          set({ user: null, isAuthenticated: false, isCheckingAuth: false })
         }
       }
     }),
     {
-      name: 'stockpro-auth',
+      name: 'lopbuk-auth',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated

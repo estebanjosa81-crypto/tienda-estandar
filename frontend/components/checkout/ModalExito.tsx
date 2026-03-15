@@ -75,8 +75,13 @@ export function ModalExito({ pedido, onCerrar }: ModalExitoProps) {
                     <div className="text-xs font-light text-gray-900 truncate">{item.nombre}</div>
                     <div className="text-xs text-gray-500">Cantidad: {item.cantidad}</div>
                   </div>
-                  <div className="text-xs font-light text-gray-900">
-                    {formatCOP(item.precio * item.cantidad)}
+                  <div className="text-right">
+                    {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
+                      <div className="text-[9px] text-green-600">-{item.descuentoPorcentaje}%</div>
+                    )}
+                    <div className="text-xs font-light text-gray-900">
+                      {formatCOP(item.precio * item.cantidad)}
+                    </div>
                   </div>
                 </div>
               ))}

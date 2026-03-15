@@ -21,7 +21,7 @@ router.get(
       .withMessage('Estado invalido'),
     query('paymentMethod')
       .optional()
-      .isIn(['efectivo', 'tarjeta', 'transferencia', 'fiado'])
+      .isIn(['efectivo', 'tarjeta', 'transferencia', 'fiado', 'addi', 'sistecredito', 'mixto'])
       .withMessage('Metodo de pago invalido'),
     validateRequest,
   ],
@@ -30,6 +30,20 @@ router.get(
 
 // GET /api/sales/recent
 router.get('/recent', salesController.getRecentSales.bind(salesController));
+
+// GET /api/sales/vendedores-performance  (solo comerciante/superadmin)
+router.get(
+  '/vendedores-performance',
+  authorize('comerciante', 'superadmin'),
+  salesController.getVendedoresPerformance.bind(salesController)
+);
+
+// GET /api/sales/vendedor/:sellerId  (ventas individuales de un vendedor)
+router.get(
+  '/vendedor/:sellerId',
+  authorize('comerciante', 'superadmin'),
+  salesController.getVendedorSales.bind(salesController)
+);
 
 // GET /api/sales/invoice/:invoiceNumber
 router.get(
@@ -67,11 +81,15 @@ router.post(
       .isFloat({ gt: 0 })
       .withMessage('El monto personalizado debe ser mayor a 0'),
     body('paymentMethod')
-      .isIn(['efectivo', 'tarjeta', 'transferencia', 'fiado'])
+      .isIn(['efectivo', 'tarjeta', 'transferencia', 'fiado', 'addi', 'sistecredito', 'mixto'])
       .withMessage('Metodo de pago invalido'),
     body('amountPaid')
       .isFloat({ min: 0 })
       .withMessage('El monto pagado debe ser mayor a 0'),
+    body('globalDiscount')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('El descuento global debe ser mayor o igual a 0'),
     body('customerName')
       .optional()
       .notEmpty()

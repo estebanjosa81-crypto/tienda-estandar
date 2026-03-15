@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,13 @@ import {
   Key,
   Loader2,
   Sun,
-  Moon
+  Moon,
+  Plug,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Briefcase,
+  X,
 } from 'lucide-react'
 
 export function Settings() {
@@ -47,6 +54,46 @@ export function Settings() {
 
   useEffect(() => { setMounted(true) }, [])
   const [showResetDialog, setShowResetDialog] = useState(false)
+
+  // ── Cloudinary integration state ──────────────────────────────────────────
+  const [cloudinaryForm, setCloudinaryForm] = useState({
+    cloudName: '',
+    uploadPreset: '',
+  })
+  const [showPreset, setShowPreset] = useState(false)
+
+  const [cloudinaryMsg, setCloudinaryMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false)
+
+  // Cargar credenciales guardadas (solo localStorage — son claves del lado cliente)
+  useEffect(() => {
+    if (cloudinaryLoaded) return
+    setCloudinaryLoaded(true)
+    setCloudinaryForm({
+      cloudName: localStorage.getItem('cloudinary_cloud_name') || '',
+      uploadPreset: localStorage.getItem('cloudinary_upload_preset') || '',
+    })
+  }, [cloudinaryLoaded])
+
+  const handleSaveCloudinary = () => {
+    if (!cloudinaryForm.cloudName.trim() || !cloudinaryForm.uploadPreset.trim()) {
+      setCloudinaryMsg({ type: 'error', text: 'Completa ambos campos' })
+      return
+    }
+    localStorage.setItem('cloudinary_cloud_name', cloudinaryForm.cloudName.trim())
+    localStorage.setItem('cloudinary_upload_preset', cloudinaryForm.uploadPreset.trim())
+    setCloudinaryMsg({ type: 'ok', text: 'Credenciales guardadas correctamente' })
+    setTimeout(() => setCloudinaryMsg(null), 4000)
+  }
+
+  const handleClearCloudinary = () => {
+    localStorage.removeItem('cloudinary_cloud_name')
+    localStorage.removeItem('cloudinary_upload_preset')
+    setCloudinaryForm({ cloudName: '', uploadPreset: '' })
+    setCloudinaryMsg({ type: 'ok', text: 'Credenciales eliminadas' })
+    setTimeout(() => setCloudinaryMsg(null), 3000)
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [storeForm, setStoreForm] = useState({
     name: storeInfo.name,
@@ -65,13 +112,56 @@ export function Settings() {
   const isAdmin = user?.role === 'comerciante' || user?.role === 'superadmin'
   const [usersList, setUsersList] = useState<any[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
-  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '' })
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'vendedor', cargoId: '' })
   const [creatingUser, setCreatingUser] = useState(false)
   const [userError, setUserError] = useState('')
   const [userSuccess, setUserSuccess] = useState('')
   const [resetPasswordDialog, setResetPasswordDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: '', userName: '' })
   const [newPassword, setNewPassword] = useState('')
   const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: '', userName: '' })
+
+  // Cargos state
+  const [cargosList, setCargosList] = useState<any[]>([])
+  const [newCargoName, setNewCargoName] = useState('')
+  const [newCargoDesc, setNewCargoDesc] = useState('')
+  const [creatingCargo, setCreatingCargo] = useState(false)
+  const [cargoError, setCargoError] = useState('')
+
+  const fetchCargos = async () => {
+    const result = await api.getCargos()
+    if (result.success && result.data) {
+      setCargosList(Array.isArray(result.data) ? result.data : [])
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) fetchCargos()
+  }, [isAdmin])
+
+  const handleCreateCargo = async () => {
+    setCargoError('')
+    if (!newCargoName.trim()) { setCargoError('El nombre del cargo es requerido'); return }
+    setCreatingCargo(true)
+    const result = await api.createCargo({ name: newCargoName.trim(), description: newCargoDesc.trim() || undefined })
+    if (result.success) {
+      setNewCargoName('')
+      setNewCargoDesc('')
+      fetchCargos()
+    } else {
+      setCargoError(result.error || 'Error al crear cargo')
+    }
+    setCreatingCargo(false)
+  }
+
+  const handleDeleteCargo = async (id: string) => {
+    const result = await api.deleteCargo(id)
+    if (result.success) {
+      fetchCargos()
+      if (newUserForm.cargoId === id) setNewUserForm(f => ({ ...f, cargoId: '' }))
+    } else {
+      setCargoError(result.error || 'Error al eliminar cargo')
+    }
+  }
 
   const fetchUsers = async () => {
     setLoadingUsers(true)
@@ -99,10 +189,10 @@ export function Settings() {
       return
     }
     setCreatingUser(true)
-    const result = await api.createUser({ ...newUserForm, role: 'vendedor' })
+    const result = await api.createUser({ ...newUserForm, role: newUserForm.role as any, cargoId: newUserForm.cargoId || null })
     if (result.success) {
       setUserSuccess('Usuario creado exitosamente')
-      setNewUserForm({ name: '', email: '', password: '' })
+      setNewUserForm({ name: '', email: '', password: '', role: 'vendedor', cargoId: '' })
       fetchUsers()
     } else {
       setUserError(result.error || 'Error al crear usuario')
@@ -164,14 +254,14 @@ export function Settings() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `stockpro-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `lopbuk-backup-${new Date().toISOString().split('T')[0]}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
 
   const handleResetData = () => {
-    localStorage.removeItem('stockpro-storage')
-    localStorage.removeItem('stockpro-auth')
+    localStorage.removeItem('lopbuk-storage')
+    localStorage.removeItem('lopbuk-auth')
     window.location.reload()
   }
 
@@ -439,19 +529,70 @@ export function Settings() {
                 </div>
               )}
 
+              {/* Cargos Management */}
+              <Card className="border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-primary" />
+                    Cargos
+                  </CardTitle>
+                  <CardDescription>
+                    Crea los cargos de tu empresa para asignarlos a los empleados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCargoName}
+                      onChange={(e) => setNewCargoName(e.target.value)}
+                      placeholder="Nombre del cargo (ej: Cajero, Bodeguero...)"
+                      className="bg-secondary border-none"
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateCargo()}
+                    />
+                    <Input
+                      value={newCargoDesc}
+                      onChange={(e) => setNewCargoDesc(e.target.value)}
+                      placeholder="Descripción (opcional)"
+                      className="bg-secondary border-none"
+                    />
+                    <Button onClick={handleCreateCargo} disabled={creatingCargo} className="gap-2 shrink-0">
+                      {creatingCargo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      Agregar
+                    </Button>
+                  </div>
+                  {cargoError && <p className="text-xs text-destructive">{cargoError}</p>}
+                  {cargosList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-3">No hay cargos creados. Agrega el primero.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {cargosList.map((c) => (
+                        <div key={c.id} className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm">
+                          <Briefcase className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-foreground font-medium">{c.name}</span>
+                          {c.description && <span className="text-muted-foreground">— {c.description}</span>}
+                          <button onClick={() => handleDeleteCargo(c.id)} className="ml-1 text-muted-foreground hover:text-destructive transition-colors">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Create User Form */}
               <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Plus className="h-5 w-5 text-primary" />
-                    Crear Usuario Vendedor
+                    Crear Empleado
                   </CardTitle>
                   <CardDescription>
-                    Crea un usuario que solo tendrá acceso al Punto de Venta
+                    Crea un empleado y asígnale un cargo
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
                       <Label htmlFor="newUserName">Nombre</Label>
                       <Input
@@ -484,14 +625,37 @@ export function Settings() {
                         className="bg-secondary border-none"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Cargo</Label>
+                      <Select
+                        value={newUserForm.cargoId}
+                        onValueChange={(v) => setNewUserForm({ ...newUserForm, cargoId: v })}
+                      >
+                        <SelectTrigger className="bg-secondary border-none">
+                          <SelectValue placeholder="Sin cargo asignado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cargosList.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">Crea cargos primero</div>
+                          ) : (
+                            cargosList.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 rounded-lg bg-secondary/50 p-3 text-sm text-muted-foreground">
                     <Shield className="h-4 w-4" />
-                    Este usuario tendrá rol <strong className="text-foreground">vendedor</strong> y solo podrá acceder al Punto de Venta.
+                    {newUserForm.cargoId
+                      ? <>Cargo: <strong className="text-foreground">{cargosList.find(c => c.id === newUserForm.cargoId)?.name}</strong>. Acceso al Punto de Venta, Inventario y Caja.</>
+                      : <>Sin cargo asignado — podrás asignarlo después desde el módulo de Empleados.</>
+                    }
                   </div>
                   <Button onClick={handleCreateUser} disabled={creatingUser} className="gap-2">
                     {creatingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    {creatingUser ? 'Creando...' : 'Crear Usuario'}
+                    {creatingUser ? 'Creando...' : 'Crear Empleado'}
                   </Button>
                 </CardContent>
               </Card>
@@ -560,6 +724,7 @@ export function Settings() {
             </div>
           </TabsContent>
         )}
+
       </Tabs>
 
       {/* Reset Password Dialog */}

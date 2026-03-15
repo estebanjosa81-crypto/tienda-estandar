@@ -62,6 +62,8 @@ export interface SaleFilters {
   startDate?: Date;
   endDate?: Date;
   search?: string;
+  sellerId?: string;
+  todayOnly?: boolean;
 }
 
 export interface CreateSaleItem {
@@ -75,6 +77,7 @@ export interface CreateSaleData {
   items: CreateSaleItem[];
   paymentMethod: PaymentMethod;
   amountPaid: number;
+  globalDiscount?: number;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -83,6 +86,7 @@ export interface CreateSaleData {
   sellerName: string;
   creditDays?: number;
   notes?: string;
+  applyTax?: boolean; // true = aplica IVA 19% (factura electrónica solicitada)
 }
 
 export class SalesService {
@@ -128,6 +132,12 @@ export class SalesService {
   }
 
   private async generateInvoiceNumber(connection: PoolConnection, tenantId: string): Promise<string> {
+    // Auto-create the sequence row if it doesn't exist for this tenant
+    await connection.execute(
+      'INSERT IGNORE INTO invoice_sequence (tenant_id, prefix, current_number) VALUES (?, ?, 0)',
+      [tenantId, 'FAC']
+    );
+
     const [rows] = await connection.execute<InvoiceRow[]>(
       'SELECT current_number, prefix FROM invoice_sequence WHERE tenant_id = ? FOR UPDATE',
       [tenantId]
@@ -178,6 +188,15 @@ export class SalesService {
       conditions.push('(invoice_number LIKE ? OR customer_name LIKE ?)');
       const searchTerm = `%${filters.search}%`;
       values.push(searchTerm, searchTerm);
+    }
+
+    if (filters?.sellerId) {
+      conditions.push('seller_id = ?');
+      values.push(filters.sellerId);
+    }
+
+    if (filters?.todayOnly) {
+      conditions.push('DATE(created_at) = CURDATE()');
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -314,22 +333,7 @@ export class SalesService {
         let extraScalableQty = 0;
 
         if (recipeRows.length > 0 && item.customAmount) {
-          // Obtener sale_price para validar monto minimo
-          const [checkPrice] = await connection.execute<RowDataPacket[]>(
-            'SELECT sale_price FROM products WHERE id = ?',
-            [item.productId]
-          );
-          const baseSalePrice = Number(checkPrice[0].sale_price);
-          const minAmount = Math.round(baseSalePrice * (1 + TAX_RATE));
-
-          if (item.customAmount < minAmount) {
-            throw new AppError(
-              `El monto personalizado ($${item.customAmount}) no puede ser menor al precio base ($${minAmount})`,
-              400
-            );
-          }
-
-          // Encontrar ingrediente escalable (el de mayor quantity con quantity > 1)
+          // Encontrar ingrediente escalable (el de mayor qty*precio, con quantity > 1)
           let maxCostValue = 0;
           for (const ing of recipeRows) {
             const qty = Number(ing.quantity);
@@ -344,9 +348,34 @@ export class SalesService {
 
           if (scalableIngredientId) {
             const scalableIng = recipeRows.find(r => r.ingredient_id === scalableIngredientId)!;
-            const customSinIVA = item.customAmount / (1 + TAX_RATE);
-            const extraAmount = customSinIVA - baseSalePrice;
-            extraScalableQty = extraAmount / Number(scalableIng.purchase_price);
+
+            // Fórmula directa (igual al sistema anterior):
+            // gramos_extracto = (monto_cliente - costos_fijos) / precio_por_gramo
+            // costos_fijos = suma de todos los ingredientes NO escalables
+            let nonScalableCost = 0;
+            for (const ing of recipeRows) {
+              if (ing.ingredient_id !== scalableIngredientId) {
+                nonScalableCost += Number(ing.quantity) * Number(ing.purchase_price);
+              }
+            }
+
+            // customAmount SIEMPRE es el precio base (sin IVA). El IVA se suma encima.
+            const effectiveAmount = item.customAmount;
+
+            // Total de ingrediente escalable según lo que paga el cliente
+            const totalScalableQty = (effectiveAmount - nonScalableCost) / Number(scalableIng.purchase_price);
+            // Extra = total calculado menos la cantidad base de la receta
+            extraScalableQty = totalScalableQty - Number(scalableIng.quantity);
+
+            // Validar monto mínimo: customAmount es siempre base, comparar contra costo base
+            const minAmount = Math.round(nonScalableCost + Number(scalableIng.purchase_price));
+
+            if (item.customAmount < minAmount) {
+              throw new AppError(
+                `El monto personalizado ($${item.customAmount}) no alcanza para cubrir los costos mínimos ($${minAmount})`,
+                400
+              );
+            }
           }
         }
 
@@ -385,10 +414,10 @@ export class SalesService {
           [item.productId]
         );
 
-        // Si hay customAmount para BOM, usar ese precio (sin IVA)
+        // customAmount SIEMPRE es el precio base. El IVA se calcula sobre el subtotal total.
         let unitPrice: number;
         if (item.customAmount && recipeRows.length > 0) {
-          unitPrice = Math.round((item.customAmount / (1 + TAX_RATE)) * 100) / 100;
+          unitPrice = item.customAmount;
         } else {
           unitPrice = Number(priceRows[0].sale_price);
         }
@@ -476,8 +505,10 @@ export class SalesService {
         }
       }
 
-      const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-      const total = Math.round((subtotal + tax) * 100) / 100;
+      const tax = data.applyTax ? Math.round(subtotal * TAX_RATE * 100) / 100 : 0;
+      const globalDisc = Math.round((data.globalDiscount || 0) * 100) / 100;
+      const total = Math.round((subtotal + tax - globalDisc) * 100) / 100;
+      totalDiscount += globalDisc;
 
       // Para fiado: amountPaid = 0, change = 0
       let amountPaid = data.amountPaid;
@@ -538,7 +569,7 @@ export class SalesService {
           cashSessionId,
           creditStatus,
           dueDate,
-          data.notes || null,
+          data.applyTax ? (data.notes ? `FACTURA_ELECTRONICA | ${data.notes}` : 'FACTURA_ELECTRONICA') : (data.notes || null),
         ]
       );
 
@@ -570,8 +601,10 @@ export class SalesService {
       await connection.beginTransaction();
 
       const [saleRows] = await connection.execute<SaleRow[]>(
-        'SELECT * FROM sales WHERE id = ? FOR UPDATE',
-        [id]
+        tenantId
+          ? 'SELECT * FROM sales WHERE id = ? AND tenant_id = ? FOR UPDATE'
+          : 'SELECT * FROM sales WHERE id = ? FOR UPDATE',
+        tenantId ? [id, tenantId] : [id]
       );
 
       if (saleRows.length === 0) {
@@ -646,6 +679,85 @@ export class SalesService {
     );
 
     return rows.map((row) => this.mapSale(row));
+  }
+
+  async getVendedoresPerformance(tenantId: string, from?: string, to?: string, sellerId?: string): Promise<RowDataPacket[]> {
+    const conditions: string[] = ['s.tenant_id = ?', "s.status = 'completada'"];
+    const params: (string | Date)[] = [tenantId];
+
+    if (from) {
+      conditions.push('s.created_at >= ?');
+      params.push(new Date(from + 'T00:00:00'));
+    }
+    if (to) {
+      conditions.push('s.created_at <= ?');
+      params.push(new Date(to + 'T23:59:59'));
+    }
+    if (sellerId) {
+      conditions.push('s.seller_id = ?');
+      params.push(sellerId);
+    }
+
+    const where = conditions.join(' AND ');
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         s.seller_id,
+         s.seller_name,
+         COUNT(s.id)                                                                   AS total_ventas,
+         COALESCE(SUM(s.total), 0)                                                     AS total_monto,
+         COALESCE(AVG(s.total), 0)                                                     AS promedio_venta,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'efectivo'      THEN s.total ELSE 0 END), 0) AS total_efectivo,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'tarjeta'       THEN s.total ELSE 0 END), 0) AS total_tarjeta,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'transferencia' THEN s.total ELSE 0 END), 0) AS total_transferencia,
+         COALESCE(SUM(CASE WHEN s.payment_method = 'fiado'         THEN s.total ELSE 0 END), 0) AS total_fiado,
+         COALESCE(SUM(agg.qty), 0)                                                     AS total_items
+       FROM sales s
+       LEFT JOIN (
+         SELECT sale_id, SUM(quantity) AS qty
+         FROM sale_items
+         GROUP BY sale_id
+       ) agg ON agg.sale_id = s.id
+       WHERE ${where}
+       GROUP BY s.seller_id, s.seller_name
+       ORDER BY total_monto DESC`,
+      params
+    );
+
+    return rows;
+  }
+
+  async getVendedorSales(tenantId: string, sellerId: string, from?: string, to?: string, page = 1, limit = 20): Promise<{ data: Sale[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const conditions: string[] = ['s.tenant_id = ?', 's.seller_id = ?', "s.status = 'completada'"];
+    const params: (string | Date | number)[] = [tenantId, sellerId];
+
+    if (from) {
+      conditions.push('s.created_at >= ?');
+      params.push(new Date(from + 'T00:00:00'));
+    }
+    if (to) {
+      conditions.push('s.created_at <= ?');
+      params.push(new Date(to + 'T23:59:59'));
+    }
+
+    const where = conditions.join(' AND ');
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await db.execute<CountRow[]>(
+      `SELECT COUNT(*) AS total FROM sales s WHERE ${where}`,
+      params
+    );
+    const total = countRows[0].total;
+
+    const [rows] = await db.execute<SaleRow[]>(
+      `SELECT s.* FROM sales s WHERE ${where} ORDER BY s.created_at DESC LIMIT ? OFFSET ?`,
+      [...params, String(limit), String(offset)]
+    );
+
+    return {
+      data: rows.map((r) => this.mapSale(r)),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 }
 

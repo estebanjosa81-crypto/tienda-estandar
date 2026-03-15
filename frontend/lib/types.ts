@@ -4,7 +4,7 @@ export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL'
 
 export type ProductType = 'general' | 'alimentos' | 'bebidas' | 'ropa' | 'electronica' | 'farmacia' | 'ferreteria' | 'libreria' | 'juguetes' | 'cosmetica' | 'perfumes' | 'deportes' | 'hogar' | 'mascotas' | 'otros'
 
-export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado'
+export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'addi' | 'sistecredito' | 'mixto'
 
 export type StockStatus = 'suficiente' | 'bajo' | 'agotado'
 
@@ -28,6 +28,7 @@ export interface Product {
   supplierId?: string
   entryDate: string
   imageUrl?: string
+  images?: string[]
   locationInStore?: string
   notes?: string
   tags?: string[]
@@ -93,8 +94,14 @@ export interface Product {
   packageDimensions?: string
   packageContents?: string
   safetyWarnings?: string
+  // Sede
+  sedeId?: string
   // BOM / Producto Compuesto
   isComposite?: boolean
+  bomCost?: number
+  // Storefront delivery
+  availableForDelivery?: boolean
+  deliveryType?: 'domicilio' | 'envio' | 'ambos' | null
   // Ofertas
   isOnOffer?: boolean
   offerPrice?: number | null
@@ -134,6 +141,13 @@ export interface Sale {
   creditStatus?: CreditStatus
   dueDate?: string
   notes?: string
+}
+
+export interface Sede {
+  id: string
+  name: string
+  address?: string
+  created_at?: string
 }
 
 export interface SaleItem {
@@ -324,8 +338,131 @@ export interface CashSessionTotals {
 
 export const TAX_RATE = 0.19 // 19% IVA Colombia
 
+// Purchase Invoice Types
+export type PurchasePaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'credito' | 'nequi' | 'daviplata' | 'credito_proveedor' | 'mixto'
+export type PurchasePaymentStatus = 'pagado' | 'pendiente' | 'parcial'
+export type PurchaseDocumentType = 'factura' | 'remision' | 'orden_compra' | 'nota_credito'
+
+export interface PurchaseInvoiceItem {
+  id: string
+  invoiceId: string
+  productId: string
+  productName: string
+  productSku: string
+  quantity: number
+  unitCost: number
+  subtotal: number
+}
+
+export interface PurchaseInvoice {
+  id: string
+  invoiceNumber: string
+  supplierId?: string | null
+  supplierName: string
+  purchaseDate: string
+  documentType: PurchaseDocumentType
+  subtotal: number
+  discount: number
+  tax: number
+  total: number
+  paymentMethod: PurchasePaymentMethod
+  paymentStatus: PurchasePaymentStatus
+  dueDate?: string | null
+  fileUrl?: string | null
+  notes?: string | null
+  createdBy?: string | null
+  createdAt: string
+  updatedAt: string
+  items: PurchaseInvoiceItem[]
+}
+
+export interface Supplier {
+  id: string
+  name: string
+  contactName?: string | null
+  phone?: string | null
+  email?: string | null
+  city?: string | null
+  address?: string | null
+  taxId?: string | null
+  paymentTerms?: string | null
+  notes?: string | null
+}
+
+// ─── Services Types ────────────────────────────────────────────────
+export type ServiceType = 'cita' | 'asesoria' | 'contacto'
+export type ServicePriceType = 'fijo' | 'desde' | 'gratis' | 'cotizacion'
+export type BookingStatus = 'pendiente' | 'confirmada' | 'cancelada' | 'completada' | 'no_asistio'
+export type BookingPaymentStatus = 'sin_pago' | 'pendiente' | 'pagado'
+
+export interface Service {
+  id: string
+  tenantId: string
+  name: string
+  description?: string | null
+  category?: string | null
+  serviceType: ServiceType
+  price: number
+  priceType: ServicePriceType
+  durationMinutes?: number | null
+  imageUrl?: string | null
+  requiresPayment: boolean
+  maxAdvanceDays: number
+  cancellationHours: number
+  isActive: boolean
+  isPublished: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ServiceAvailability {
+  id: string
+  serviceId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  slotDurationMinutes: number
+  maxSimultaneous: number
+  isActive: boolean
+}
+
+export interface ServiceBlockedPeriod {
+  id: string
+  serviceId?: string | null
+  blockedDate: string
+  startTime?: string | null
+  endTime?: string | null
+  reason?: string | null
+  createdAt: string
+}
+
+export interface ServiceBooking {
+  id: string
+  tenantId: string
+  serviceId: string
+  serviceName: string
+  bookingType: ServiceType
+  clientName: string
+  clientPhone: string
+  clientEmail?: string | null
+  clientNotes?: string | null
+  bookingDate?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  preferredDateRange?: string | null
+  projectDescription?: string | null
+  budgetRange?: string | null
+  status: BookingStatus
+  paymentStatus: BookingPaymentStatus
+  amountPaid: number
+  merchantNotes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // Auth Types
-export type UserRole = 'superadmin' | 'comerciante' | 'vendedor'
+export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor'
 
 export interface User {
   id: string
@@ -334,6 +471,17 @@ export interface User {
   role: UserRole
   tenantId?: string | null
   isActive?: boolean
+  avatar?: string
+  // Delivery profile fields
+  phone?: string
+  cedula?: string
+  department?: string
+  municipality?: string
+  address?: string
+  neighborhood?: string
+  deliveryLatitude?: number
+  deliveryLongitude?: number
+  profileCompleted?: boolean
   createdAt: string
 }
 
@@ -362,4 +510,38 @@ export interface Tenant {
   totalSales?: number
   createdAt: string
   updatedAt: string
+}
+
+// ─── Printers ───────────────────────────────────────────────────────────────────
+
+export type PrinterConnectionType = 'lan' | 'usb' | 'bluetooth'
+export type PrinterPaperWidth = 58 | 80
+export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura'
+
+export interface Printer {
+  id: string
+  tenantId: string
+  name: string
+  connectionType: PrinterConnectionType
+  ip: string | null
+  port: number
+  paperWidth: PrinterPaperWidth
+  isActive: boolean
+  assignedModule: PrinterModule | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PrintTicketData {
+  storeName: string
+  invoiceNumber: string
+  items: Array<{ name: string; quantity: number; price: number }>
+  subtotal: number
+  tax: number
+  total: number
+  paymentMethod: string
+  amountPaid: number
+  change: number
+  notes?: string
+  footerText?: string
 }

@@ -5,11 +5,17 @@ export interface ProductoCarrito {
   tempId?: string;
   nombre: string;
   precio: number;
+  precioOriginal?: number;
+  descuentoPorcentaje?: number;
   cantidad: number;
   imagen: string;
   tallaSeleccionada?: string;
   colorSeleccionado?: string;
   perfumeSeleccionado?: string;
+  tenantId?: string;
+  storeName?: string;
+  availableForDelivery?: boolean;
+  deliveryType?: 'domicilio' | 'envio' | 'ambos' | null;
 }
 
 export interface PedidoForm {

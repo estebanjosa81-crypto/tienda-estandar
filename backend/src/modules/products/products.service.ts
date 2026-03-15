@@ -23,6 +23,7 @@ interface ProductRow extends RowDataPacket {
   supplier_id: string | null;
   entry_date: Date;
   image_url: string | null;
+  image_urls: string | null;
   location_in_store: string | null;
   notes: string | null;
   tags: string | null;
@@ -88,6 +89,8 @@ interface ProductRow extends RowDataPacket {
   package_dimensions: string | null;
   package_contents: string | null;
   safety_warnings: string | null;
+  // Sede
+  sede_id: string | null;
   // Timestamps
   created_at: Date;
   updated_at: Date;
@@ -104,6 +107,7 @@ export interface ProductFilters {
   search?: string;
   minPrice?: number;
   maxPrice?: number;
+  sedeId?: string;
 }
 
 // Mapping from camelCase to snake_case for all product fields
@@ -124,6 +128,7 @@ const fieldMap: Record<string, string> = {
   supplierId: 'supplier_id',
   entryDate: 'entry_date',
   imageUrl: 'image_url',
+  images: 'image_urls',
   locationInStore: 'location_in_store',
   notes: 'notes',
   tags: 'tags',
@@ -182,6 +187,7 @@ const fieldMap: Record<string, string> = {
   packageDimensions: 'package_dimensions',
   packageContents: 'package_contents',
   safetyWarnings: 'safety_warnings',
+  sedeId: 'sede_id',
 };
 
 interface RecipeRow extends RowDataPacket {
@@ -189,6 +195,7 @@ interface RecipeRow extends RowDataPacket {
   ingredient_id: string;
   quantity: number;
   ingredient_stock: number;
+  ingredient_purchase_price: number;
 }
 
 export class ProductsService {
@@ -196,7 +203,7 @@ export class ProductsService {
     let recipes: RecipeRow[];
     try {
       const [rows] = await db.execute<RecipeRow[]>(
-        `SELECT pr.product_id, pr.ingredient_id, pr.quantity, p.stock as ingredient_stock
+        `SELECT pr.product_id, pr.ingredient_id, pr.quantity, p.stock as ingredient_stock, p.purchase_price as ingredient_purchase_price
          FROM product_recipes pr
          JOIN products p ON p.id = pr.ingredient_id
          WHERE pr.tenant_id = ?`,
@@ -210,12 +217,13 @@ export class ProductsService {
 
     if (recipes.length === 0) return products;
 
-    const recipeMap = new Map<string, Array<{ ingredientStock: number; quantity: number }>>();
+    const recipeMap = new Map<string, Array<{ ingredientStock: number; quantity: number; ingredientPurchasePrice: number }>>();
     for (const r of recipes) {
       if (!recipeMap.has(r.product_id)) recipeMap.set(r.product_id, []);
       recipeMap.get(r.product_id)!.push({
         ingredientStock: r.ingredient_stock,
         quantity: Number(r.quantity),
+        ingredientPurchasePrice: Number(r.ingredient_purchase_price),
       });
     }
 
@@ -225,7 +233,8 @@ export class ProductsService {
         const availableStock = Math.floor(
           Math.min(...recipe.map(i => i.ingredientStock / i.quantity))
         );
-        return { ...p, stock: availableStock, isComposite: true };
+        const bomCost = recipe.reduce((sum, i) => sum + i.ingredientPurchasePrice * i.quantity, 0);
+        return { ...p, stock: availableStock, isComposite: true, bomCost };
       }
       return p;
     });
@@ -250,6 +259,7 @@ export class ProductsService {
       supplierId: row.supplier_id || undefined,
       entryDate: row.entry_date,
       imageUrl: row.image_url || undefined,
+      images: row.image_urls ? (typeof row.image_urls === 'string' ? JSON.parse(row.image_urls) : row.image_urls) : undefined,
       locationInStore: row.location_in_store || undefined,
       notes: row.notes || undefined,
       tags: row.tags ? (typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags) : undefined,
@@ -315,6 +325,7 @@ export class ProductsService {
       packageDimensions: row.package_dimensions || undefined,
       packageContents: row.package_contents || undefined,
       safetyWarnings: row.safety_warnings || undefined,
+      sedeId: row.sede_id || undefined,
       // Timestamps
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -356,6 +367,11 @@ export class ProductsService {
     if (filters?.maxPrice !== undefined) {
       conditions.push('sale_price <= ?');
       values.push(filters.maxPrice);
+    }
+
+    if (filters?.sedeId) {
+      conditions.push('sede_id = ?');
+      values.push(filters.sedeId);
     }
 
     if (filters?.stockStatus) {
@@ -488,7 +504,7 @@ export class ProductsService {
       if (!dbCol) continue;
       columns.push(dbCol);
       placeholders.push('?');
-      if (camelKey === 'tags' && Array.isArray(value)) {
+      if ((camelKey === 'tags' || camelKey === 'images') && Array.isArray(value)) {
         insertValues.push(JSON.stringify(value));
       } else if (camelKey === 'expiryDate' || camelKey === 'entryDate') {
         // Ensure date-only format for DATE columns
@@ -548,7 +564,7 @@ export class ProductsService {
     for (const [key, value] of Object.entries(data)) {
       if (value === undefined || !fieldMap[key]) continue;
       updates.push(`${fieldMap[key]} = ?`);
-      if (key === 'tags' && Array.isArray(value)) {
+      if ((key === 'tags' || key === 'images') && Array.isArray(value)) {
         values.push(JSON.stringify(value));
       } else if (key === 'expiryDate' || key === 'entryDate') {
         values.push(formatToDate(value));
@@ -729,6 +745,84 @@ export class ProductsService {
     );
 
     return rows.map(this.mapProduct);
+  }
+
+  async exportCsv(tenantId: string, filters?: ProductFilters): Promise<string> {
+    const conditions: string[] = ['tenant_id = ?'];
+    const values: (string | number)[] = [tenantId];
+
+    if (filters?.category) {
+      conditions.push('category = ?');
+      values.push(filters.category);
+    }
+    if (filters?.productType) {
+      conditions.push('product_type = ?');
+      values.push(filters.productType);
+    }
+    if (filters?.search) {
+      conditions.push('(name LIKE ? OR sku LIKE ? OR brand LIKE ? OR barcode LIKE ?)');
+      const s = `%${filters.search}%`;
+      values.push(s, s, s, s);
+    }
+    if (filters?.stockStatus) {
+      switch (filters.stockStatus) {
+        case 'agotado': conditions.push('stock = 0'); break;
+        case 'bajo':    conditions.push('stock > 0 AND stock <= reorder_point'); break;
+        case 'suficiente': conditions.push('stock > reorder_point'); break;
+      }
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const [rows] = await db.execute<ProductRow[]>(
+      `SELECT * FROM products ${whereClause} ORDER BY name ASC`,
+      values
+    );
+
+    const products = rows.map(this.mapProduct);
+    const enriched = await this.enrichWithBOMStock(products, tenantId);
+
+    const escape = (v: unknown): string => {
+      if (v == null) return '';
+      const s = String(v).replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+    };
+
+    const headers = [
+      'ID', 'Nombre', 'SKU', 'Código de barras', 'Tipo', 'Categoría', 'Marca', 'Modelo',
+      'Descripción', 'Precio compra', 'Precio venta', 'Stock', 'Punto reorden',
+      'Estado stock', 'Proveedor', 'Fecha entrada', 'Fecha vencimiento',
+      'Ubicación en tienda', 'Talla', 'Color', 'Material', 'Género', 'Temporada',
+      'Número serie', 'Garantía (meses)', 'Ingrediente activo', 'Concentración',
+      'Requiere receta', 'Laboratorio', 'Dimensiones', 'Peso', 'ISBN',
+      'Autor', 'Editorial', 'Páginas', 'Año publicación',
+      'Publicado en tienda', 'Disponible domicilio', 'En oferta', 'Precio oferta',
+      'Notas', 'Sede ID', 'Creado',
+    ];
+
+    const toDate = (v: unknown) => v ? new Date(v as string).toISOString().split('T')[0] : '';
+
+    const csvRows = enriched.map(p => [
+      p.id, p.name, p.sku, p.barcode ?? '',
+      p.productType, p.category, p.brand ?? '', p.model ?? '',
+      p.description ?? '', p.purchasePrice, p.salePrice,
+      p.stock, p.reorderPoint, p.stockStatus ?? '',
+      p.supplier ?? '', toDate(p.entryDate), toDate(p.expiryDate),
+      p.locationInStore ?? '', p.size ?? '', p.color ?? '',
+      p.material ?? '', p.gender ?? '', p.season ?? '',
+      p.serialNumber ?? '', p.warrantyMonths ?? '',
+      p.activeIngredient ?? '', p.concentration ?? '',
+      p.requiresPrescription != null ? (p.requiresPrescription ? 'Sí' : 'No') : '',
+      p.laboratory ?? '', p.dimensions ?? '', p.weight ?? '',
+      p.isbn ?? '', p.author ?? '', p.publisher ?? '',
+      p.pages ?? '', p.publicationYear ?? '',
+      (p as any).publishedInStore ? 'Sí' : 'No',
+      (p as any).availableForDelivery ? 'Sí' : 'No',
+      (p as any).isOnOffer ? 'Sí' : 'No',
+      (p as any).offerPrice ?? '',
+      p.notes ?? '', p.sedeId ?? '', toDate(p.createdAt),
+    ].map(escape).join(','));
+
+    return [headers.join(','), ...csvRows].join('\r\n');
   }
 }
 

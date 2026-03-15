@@ -4,7 +4,8 @@ import React from "react"
 
 import { useState, useEffect } from 'react'
 import { useStore, getStockStatus } from '@/lib/store'
-import { type Product, type Category, type ProductType } from '@/lib/types'
+import { api } from '@/lib/api'
+import { type Product, type Category, type ProductType, type Sede } from '@/lib/types'
 import { PRODUCT_TYPES, FIELD_DEFINITIONS, getFieldsForProductType } from '@/lib/product-config'
 import { formatCOP } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,6 +38,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import {
   Search,
   Plus,
@@ -48,6 +50,10 @@ import {
   ScanLine,
   Smartphone,
   Upload,
+  MapPin,
+  ChevronDown,
+  Settings2,
+  FileDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -55,24 +61,54 @@ import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 
 export function InventoryList() {
-  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters } = useStore()
+  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [activeSede, setActiveSede] = useState<string>('all')
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
+  const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const params: Record<string, string> = {}
+      if (search) params.search = search
+      if (categoryFilter !== 'all') params.category = categoryFilter
+      if (stockFilter !== 'all') params.stockStatus = stockFilter
+      if (typeFilter !== 'all') params.productType = typeFilter
+
+      const blob = await api.exportProductsCSV(params)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Inventario exportado correctamente')
+    } catch {
+      toast.error('Error al exportar el inventario')
+    } finally {
+      setIsExporting(false)
+    }
+  }
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' })
+  const [sedeForm, setSedeForm] = useState({ name: '', address: '' })
+  const [editingSede, setEditingSede] = useState<Sede | null>(null)
   const [highlightedProduct, setHighlightedProduct] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProducts()
     fetchCategories()
-  }, [fetchProducts, fetchCategories])
+    fetchSedes()
+  }, [fetchProducts, fetchCategories, fetchSedes])
 
   // Apply filters from notification navigation
   useEffect(() => {
@@ -114,6 +150,7 @@ export function InventoryList() {
 
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
     const matchesType = typeFilter === 'all' || product.productType === typeFilter
+    const matchesSede = activeSede === 'all' || product.sedeId === activeSede || !product.sedeId
 
     const status = getStockStatus(product)
     const matchesStock = stockFilter === 'all' ||
@@ -121,8 +158,10 @@ export function InventoryList() {
       (stockFilter === 'bajo' && status === 'bajo') ||
       (stockFilter === 'agotado' && status === 'agotado')
 
-    return matchesSearch && matchesCategory && matchesStock && matchesType
+    return matchesSearch && matchesCategory && matchesStock && matchesType && matchesSede
   })
+
+  const activeSedeObj = sedes.find(s => s.id === activeSede)
 
   const handleEdit = (product: Product) => {
     setSelectedProduct(product)
@@ -152,15 +191,52 @@ export function InventoryList() {
 
   return (
     <div className="space-y-6 lg:space-y-8">
+      {/* Sticky sede badge — only shows when there are 2+ sedes */}
+      {sedes.length >= 2 && (
+        <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-background/95 backdrop-blur border-b border-border flex items-center gap-3 flex-wrap">
+          <MapPin className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sede:</span>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setActiveSede('all')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeSede === 'all' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}
+            >
+              Todas
+            </button>
+            {sedes.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setActiveSede(s.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeSede === s.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => { setEditingSede(null); setSedeForm({ name: '', address: '' }); setIsSedeDialogOpen(true) }}
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Settings2 className="h-3 w-3" />
+            Gestionar sedes
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-foreground">Productos</h2>
           <p className="text-sm lg:text-base text-muted-foreground">
             {filteredProducts.length} de {products.length} productos
+            {activeSedeObj && <span className="ml-2 text-primary">— Sede: {activeSedeObj.name}</span>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => { setEditingSede(null); setSedeForm({ name: '', address: '' }); setIsSedeDialogOpen(true) }} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+            <MapPin className="h-4 w-4 lg:h-5 lg:w-5" />
+            Sedes
+          </Button>
           <Button variant="outline" onClick={() => setIsCategoryDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Tags className="h-4 w-4 lg:h-5 lg:w-5" />
             Crear Categoria
@@ -168,6 +244,10 @@ export function InventoryList() {
           <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Upload className="h-4 w-4 lg:h-5 lg:w-5" />
             Importar CSV
+          </Button>
+          <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+            <FileDown className="h-4 w-4 lg:h-5 lg:w-5" />
+            {isExporting ? 'Exportando...' : 'Exportar CSV'}
           </Button>
           <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -243,6 +323,7 @@ export function InventoryList() {
                 <TableHead className="text-muted-foreground text-sm lg:text-base">SKU</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Tipo</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Categoria</TableHead>
+                {sedes.length >= 2 && <TableHead className="text-muted-foreground text-sm lg:text-base">Sede</TableHead>}
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-right">Precio</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-center">Stock</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-right">Acciones</TableHead>
@@ -251,7 +332,7 @@ export function InventoryList() {
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={sedes.length >= 2 ? 8 : 7} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-8 w-8 lg:h-10 lg:w-10 text-muted-foreground" />
                       <p className="text-sm lg:text-base text-muted-foreground">No se encontraron productos</p>
@@ -297,6 +378,18 @@ export function InventoryList() {
                           {getCategoryName(product.category)}
                         </Badge>
                       </TableCell>
+                      {sedes.length >= 2 && (
+                        <TableCell>
+                          {product.sedeId ? (
+                            <Badge variant="outline" className="text-xs border-primary/40 text-primary/80">
+                              <MapPin className="h-2.5 w-2.5 mr-1" />
+                              {sedes.find(s => s.id === product.sedeId)?.name || '—'}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Todas</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <div>
                           <p className="font-medium text-sm lg:text-base text-foreground">
@@ -366,6 +459,8 @@ export function InventoryList() {
         }}
         title="Agregar Producto"
         description="Complete los datos del nuevo producto"
+        sedes={sedes}
+        defaultSedeId={activeSede !== 'all' ? activeSede : undefined}
       />
 
       {/* Edit Product Dialog */}
@@ -386,6 +481,7 @@ export function InventoryList() {
           title="Editar Producto"
           description="Modifique los datos del producto"
           initialData={selectedProduct}
+          sedes={sedes}
         />
       )}
 
@@ -460,6 +556,86 @@ export function InventoryList() {
         </DialogContent>
       </Dialog>
 
+      {/* Sede Management Dialog */}
+      <Dialog open={isSedeDialogOpen} onOpenChange={setIsSedeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gestionar Sedes</DialogTitle>
+            <DialogDescription>Agrega o edita las sucursales de tu negocio</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Existing sedes list */}
+            {sedes.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground tracking-wider">Sedes existentes</Label>
+                {sedes.map(s => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border bg-secondary/30">
+                    <div>
+                      <p className="font-medium text-sm">{s.name}</p>
+                      {s.address && <p className="text-xs text-muted-foreground">{s.address}</p>}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                        setEditingSede(s)
+                        setSedeForm({ name: s.name, address: s.address || '' })
+                      }}>
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={async () => {
+                        await deleteSede(s.id)
+                        if (activeSede === s.id) setActiveSede('all')
+                        toast.success('Sede eliminada')
+                      }}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Add / Edit form */}
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              if (!sedeForm.name.trim()) return
+              if (editingSede) {
+                const result = await updateSede(editingSede.id, { name: sedeForm.name.trim(), address: sedeForm.address || undefined })
+                if (result.success) { setEditingSede(null); setSedeForm({ name: '', address: '' }); toast.success('Sede actualizada') }
+                else toast.error(result.error || 'Error al actualizar')
+              } else {
+                const result = await addSede({ name: sedeForm.name.trim(), address: sedeForm.address || undefined })
+                if (result.success) { setSedeForm({ name: '', address: '' }); toast.success('Sede creada') }
+                else toast.error(result.error || 'Error al crear')
+              }
+            }} className="space-y-3 border-t border-border pt-4">
+              <Label className="text-xs uppercase text-muted-foreground tracking-wider">
+                {editingSede ? `Editando: ${editingSede.name}` : 'Nueva sede'}
+              </Label>
+              <Input
+                placeholder="Nombre de la sede (ej: Sede Centro)"
+                value={sedeForm.name}
+                onChange={e => setSedeForm(p => ({ ...p, name: e.target.value }))}
+                required
+              />
+              <Input
+                placeholder="Dirección (opcional)"
+                value={sedeForm.address}
+                onChange={e => setSedeForm(p => ({ ...p, address: e.target.value }))}
+              />
+              <div className="flex gap-2">
+                {editingSede && (
+                  <Button type="button" variant="outline" onClick={() => { setEditingSede(null); setSedeForm({ name: '', address: '' }) }} className="flex-1">
+                    Cancelar
+                  </Button>
+                )}
+                <Button type="submit" className="flex-1">
+                  {editingSede ? 'Guardar cambios' : 'Agregar sede'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk Upload Dialog */}
       <BulkUploadDialog
         open={isBulkUploadOpen}
@@ -476,6 +652,8 @@ interface ProductFormDialogProps {
   title: string
   description: string
   initialData?: Product
+  sedes?: Sede[]
+  defaultSedeId?: string
 }
 
 function ProductFormDialog({
@@ -484,21 +662,23 @@ function ProductFormDialog({
   onSubmit,
   title,
   description,
-  initialData
+  initialData,
+  sedes = [],
+  defaultSedeId,
 }: ProductFormDialogProps) {
   const { categories } = useStore()
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
-  const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories))
+  const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories, defaultSedeId))
 
   // Reset form and scanner state when dialog opens/closes or initialData changes
   useEffect(() => {
     if (open) {
-      setFormData(getInitialFormData(initialData, categories))
+      setFormData(getInitialFormData(initialData, categories, defaultSedeId))
       setShowScanner(false)
       setShowRemoteScanner(false)
     }
-  }, [open, initialData, categories])
+  }, [open, initialData, categories, defaultSedeId])
 
   const productType = (formData.productType || 'general') as ProductType
   const typeFields = getFieldsForProductType(productType)
@@ -717,28 +897,69 @@ function ProductFormDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="imageUrl">URL de Imagen del Producto</Label>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={formData.imageUrl || ''}
-                onChange={(e) => updateField('imageUrl', e.target.value)}
-                placeholder="https://ejemplo.com/imagen-producto.jpg"
-              />
-              {formData.imageUrl && (
-                <div className="mt-2 flex items-center gap-3">
-                  <img
-                    src={formData.imageUrl}
-                    alt="Vista previa"
-                    className="h-16 w-16 object-cover rounded-lg border"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
-                  <span className="text-xs text-muted-foreground">Vista previa</span>
-                </div>
-              )}
+            {/* Sede selector — only visible when there are sedes configured */}
+            {sedes.length >= 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="sedeId">Sede / Sucursal</Label>
+                <Select
+                  value={formData.sedeId || 'all'}
+                  onValueChange={(val) => updateField('sedeId', val === 'all' ? '' : val)}
+                >
+                  <SelectTrigger>
+                    <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Todas las sedes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las sedes</SelectItem>
+                    {sedes.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Dejar en &quot;Todas&quot; para que aparezca en todas las sedes</p>
+              </div>
+            )}
+
+            {/* ── Galería de imágenes (hasta 4) ───────────────── */}
+            <div className="space-y-3">
+              <Label>Imágenes del Producto (máx. 4)</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                La primera imagen es la principal que se muestra en listas y tienda.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((idx) => {
+                  // Slot 0 = imageUrl (principal), slots 1-3 = images[1..3]
+                  const imagesArr: string[] = Array.isArray(formData.images) ? formData.images : []
+                  const slotValue = idx === 0
+                    ? (formData.imageUrl || imagesArr[0] || '')
+                    : (imagesArr[idx] || '')
+
+                  const handleSlotChange = (url: string) => {
+                    const next = [...Array(4)].map((_, i) => {
+                      if (i === 0) return idx === 0 ? url : (formData.imageUrl || imagesArr[0] || '')
+                      return i === idx ? url : (imagesArr[i] || '')
+                    })
+                    // Trim trailing empty slots
+                    const trimmed = next.map(u => u.trim())
+                    updateField('images', trimmed)
+                    if (idx === 0) updateField('imageUrl', url)
+                  }
+
+                  return (
+                    <div key={idx} className="rounded-lg border border-border p-2 bg-secondary/20">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        {idx === 0 ? 'Imagen principal ★' : `Imagen ${idx + 1}`}
+                      </p>
+                      <CloudinaryUpload
+                        value={slotValue}
+                        onChange={handleSlotChange}
+                        previewClassName="h-20 w-full object-cover rounded border"
+                        accept="image/*,image/gif"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Dynamic type-specific fields */}
@@ -887,7 +1108,7 @@ function DynamicField({ field, value, onChange }: {
   )
 }
 
-function getInitialFormData(initialData: Product | undefined, categories: Array<{ id: string }>) {
+function getInitialFormData(initialData: Product | undefined, categories: Array<{ id: string }>, defaultSedeId?: string) {
   if (initialData) {
     // Return all non-undefined properties from initialData
     const data: Record<string, any> = {}
@@ -912,6 +1133,8 @@ function getInitialFormData(initialData: Product | undefined, categories: Array<
     reorderPoint: 5,
     supplier: '',
     imageUrl: '',
+    images: [] as string[],
     entryDate: new Date().toISOString().split('T')[0],
+    sedeId: defaultSedeId || '',
   }
 }
