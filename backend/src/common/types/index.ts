@@ -47,6 +47,7 @@ export interface User {
 export interface Product {
   id: string;
   name: string;
+  articulo?: string;
   category: Category;
   productType: ProductType;
   brand?: string;

@@ -272,9 +272,13 @@ export class DashboardService {
     phone: string;
     taxId: string;
     email: string;
+    invoiceLogo: string;
+    invoiceGreeting: string;
+    invoicePolicy: string;
+    invoiceCopies: 1 | 2;
   } | null> {
     const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT name, address, phone, tax_id, email FROM store_info WHERE tenant_id = ? LIMIT 1',
+      'SELECT name, address, phone, tax_id, email, invoice_logo, invoice_greeting, invoice_policy, invoice_copies FROM store_info WHERE tenant_id = ? LIMIT 1',
       [tenantId]
     );
 
@@ -283,11 +287,15 @@ export class DashboardService {
     }
 
     return {
-      name: rows[0].name,
+      name: rows[0].name || '',
       address: rows[0].address || '',
       phone: rows[0].phone || '',
       taxId: rows[0].tax_id || '',
       email: rows[0].email || '',
+      invoiceLogo: rows[0].invoice_logo || '',
+      invoiceGreeting: rows[0].invoice_greeting || '¡Gracias por su compra!',
+      invoicePolicy: rows[0].invoice_policy || '',
+      invoiceCopies: (Number(rows[0].invoice_copies) === 2 ? 2 : 1) as 1 | 2,
     };
   }
 
@@ -297,9 +305,13 @@ export class DashboardService {
     phone?: string;
     taxId?: string;
     email?: string;
+    invoiceLogo?: string;
+    invoiceGreeting?: string;
+    invoicePolicy?: string;
+    invoiceCopies?: 1 | 2;
   }): Promise<void> {
     const updates: string[] = [];
-    const values: (string | undefined)[] = [];
+    const values: unknown[] = [];
 
     const fieldMap: Record<string, string> = {
       name: 'name',
@@ -307,6 +319,10 @@ export class DashboardService {
       phone: 'phone',
       taxId: 'tax_id',
       email: 'email',
+      invoiceLogo: 'invoice_logo',
+      invoiceGreeting: 'invoice_greeting',
+      invoicePolicy: 'invoice_policy',
+      invoiceCopies: 'invoice_copies',
     };
 
     for (const [key, value] of Object.entries(data)) {

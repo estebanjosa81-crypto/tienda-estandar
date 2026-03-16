@@ -266,15 +266,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const carouselProductsRef = useRef<HTMLDivElement>(null)
 
   // ====== FAVORITES STATE ======
-  const [favorites, setFavorites] = useState<Set<number>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('storeFavorites')
-        return saved ? new Set(JSON.parse(saved)) : new Set()
-      } catch { return new Set() }
-    }
-    return new Set()
-  })
+  const [favorites, setFavorites] = useState<Set<number>>(new Set())
 
   // ====== LOCATION STATE ======
   const [clientMunicipality, setClientMunicipality] = useState<string | null>(null)
@@ -363,19 +355,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   const toggleFavorite = (productId: number) => {
+    if (!authUser?.id) return
     setFavorites(prev => {
       const next = new Set(prev)
       if (next.has(productId)) next.delete(productId)
       else next.add(productId)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('storeFavorites', JSON.stringify([...next]))
-      }
+      localStorage.setItem(`storeFavorites_${authUser.id}`, JSON.stringify([...next]))
       return next
     })
   }
 
   // ====== AUTH (unified) ======
   const { user: authUser, isAuthenticated, logout, updateProfile, login, googleLogin } = useAuthStore()
+
+  // Cargar favoritos del cliente autenticado; limpiar si no hay sesión
+  useEffect(() => {
+    if (authUser?.id) {
+      try {
+        const saved = localStorage.getItem(`storeFavorites_${authUser.id}`)
+        setFavorites(saved ? new Set(JSON.parse(saved)) : new Set())
+      } catch { setFavorites(new Set()) }
+    } else {
+      setFavorites(new Set())
+    }
+  }, [authUser?.id])
+
   const [clientOrders, setClientOrders] = useState<any[]>([])
   const [clientOrdersLoading, setClientOrdersLoading] = useState(false)
 

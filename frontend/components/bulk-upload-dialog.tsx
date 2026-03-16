@@ -42,7 +42,7 @@ const VALID_PRODUCT_TYPES = [
 
 const CSV_TEMPLATE_HEADERS = [
   // Requeridos
-  'name', 'category', 'sku', 'purchasePrice', 'salePrice',
+  'name', 'articulo', 'category', 'sku', 'purchasePrice', 'salePrice',
   'stock', 'reorderPoint', 'entryDate',
   // Opcionales comunes
   'productType', 'brand', 'model', 'description', 'barcode', 'supplier',

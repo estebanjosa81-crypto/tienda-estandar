@@ -529,6 +529,23 @@ class ApiService {
     return this.request<any>('/dashboard/metrics')
   }
 
+  async getStoreInfo() {
+    return this.request<{
+      name: string; address: string; phone: string; taxId: string; email: string;
+      invoiceLogo: string; invoiceGreeting: string; invoicePolicy: string; invoiceCopies: 1 | 2;
+    }>('/dashboard/store-info')
+  }
+
+  async updateStoreInfo(data: {
+    name?: string; address?: string; phone?: string; taxId?: string; email?: string;
+    invoiceLogo?: string; invoiceGreeting?: string; invoicePolicy?: string; invoiceCopies?: 1 | 2;
+  }) {
+    return this.request<{ message: string }>('/dashboard/store-info', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   async getSalesTrend(days?: number) {
     const query = days !== undefined ? `?days=${days}` : ''
     return this.request<Array<{ date: string; total: number; count: number }>>(`/dashboard/sales-trend${query}`)
