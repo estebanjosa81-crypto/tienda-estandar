@@ -701,6 +701,9 @@ export function PointOfSale() {
                             {product.brand && (
                               <p className="text-[10px] text-muted-foreground truncate">{product.brand}</p>
                             )}
+                            {product.articulo && (
+                              <p className="text-[10px] text-muted-foreground/70 truncate italic">{product.articulo}</p>
+                            )}
                           </div>
                           {inCart && (
                             <Badge className="bg-primary text-primary-foreground flex-shrink-0 h-6 text-sm">
@@ -1624,7 +1627,12 @@ export function PointOfSale() {
                   <tbody>
                     {completedSale.items.map((item, i) => (
                       <tr key={i} className="border-t border-border">
-                        <td className="p-2 text-foreground">{item.productName}</td>
+                        <td className="p-2 text-foreground">
+                          <span>{item.productName}</span>
+                          {item.productId && (
+                            <span className="block text-[10px] text-muted-foreground">ID: {item.productId}</span>
+                          )}
+                        </td>
                         <td className="p-2 text-muted-foreground">{item.sku || item.productSku || '-'}</td>
                         <td className="p-2 text-center text-foreground">{item.quantity}</td>
                         <td className="p-2 text-right text-foreground">{formatCOP(item.unitPrice)}</td>
