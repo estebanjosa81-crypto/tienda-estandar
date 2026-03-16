@@ -62,9 +62,10 @@ import { RemoteScanner } from '@/components/remote-scanner'
 import { SyncStatusBar } from '@/components/sync-status-bar'
 
 export function PointOfSale() {
-  const { products, fetchProducts, cart, addToCart, removeFromCart, updateCartQuantity, applyItemDiscount, setCustomAmount, clearCart, addSale, storeInfo, selectedCustomer, setSelectedCustomer, categories, fetchCategories } = useStore()
+  const { products, fetchProducts, cart, addToCart, removeFromCart, updateCartQuantity, applyItemDiscount, setCustomAmount, clearCart, addSale, storeInfo, selectedCustomer, setSelectedCustomer, categories, fetchCategories, sedes, fetchSedes } = useStore()
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedSede, setSelectedSede] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
@@ -73,7 +74,8 @@ export function PointOfSale() {
   useEffect(() => {
     fetchProducts()
     fetchCategories()
-  }, [fetchProducts, fetchCategories])
+    fetchSedes()
+  }, [fetchProducts, fetchCategories, fetchSedes])
 
   const getCategoryName = (categoryId: string) => {
     const cat = categories.find(c => c.id === categoryId)
@@ -188,9 +190,10 @@ export function PointOfSale() {
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !selectedCategory || p.category === selectedCategory
+    const matchesSede = !selectedSede || p.sedeId === selectedSede
     // Composite products (BOM/formulas) always show even with stock=0 so the seller can see them
-    if (p.isComposite) return matchesSearch && matchesCategory
-    return matchesSearch && matchesCategory && p.stock > 0
+    if (p.isComposite) return matchesSearch && matchesCategory && matchesSede
+    return matchesSearch && matchesCategory && matchesSede && p.stock > 0
   })
   
   const handleAddToCart = (productId: string) => {
@@ -600,6 +603,45 @@ export function PointOfSale() {
             <span className="hidden sm:inline">Escanear</span>
           </Button>
         </div>
+
+        {/* Sede Filter */}
+        {sedes.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardContent className="p-3 sm:p-4 lg:p-5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Building className="h-4 w-4" />
+                  Sede:
+                </span>
+                <Button
+                  variant={selectedSede === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedSede(null)}
+                  className="rounded-full h-8"
+                >
+                  Todas
+                </Button>
+                {sedes.map((sede) => {
+                  const count = products.filter(p => p.sedeId === sede.id && p.category !== 'insumos' && p.stock > 0).length
+                  return (
+                    <Button
+                      key={sede.id}
+                      variant={selectedSede === sede.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedSede(sede.id)}
+                      className="rounded-full h-8"
+                    >
+                      {sede.name}
+                      <Badge variant="secondary" className="ml-1.5 h-5 px-1 flex items-center justify-center text-xs">
+                        {count}
+                      </Badge>
+                    </Button>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Categories Filter */}
         <Card className="border-border bg-card">
