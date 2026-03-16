@@ -140,6 +140,10 @@ export function InventoryList() {
     return cat ? cat.name : categoryId
   }
 
+  // Derive used types and categories from products
+  const usedTypes = new Set(products.map(p => p.productType).filter(Boolean))
+  const usedCategories = new Set(products.map(p => p.category).filter(Boolean))
+
   // Filter products
   const filteredProducts = products.filter(product => {
     const matchesSearch =
@@ -277,7 +281,7 @@ export function InventoryList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los tipos</SelectItem>
-                  {Object.values(PRODUCT_TYPES).map((t) => (
+                  {Object.values(PRODUCT_TYPES).filter(t => usedTypes.has(t.id)).map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.icon} {t.name}
                     </SelectItem>
@@ -291,7 +295,7 @@ export function InventoryList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {categories.map((cat) => (
+                  {categories.filter(cat => usedCategories.has(cat.id)).map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
                     </SelectItem>
