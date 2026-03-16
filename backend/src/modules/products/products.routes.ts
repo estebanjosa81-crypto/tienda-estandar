@@ -16,7 +16,7 @@ router.get(
   '/',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Pagina invalida'),
-    query('limit').optional().isInt({ min: 1, max: 2000 }).withMessage('Limite invalido'),
+    query('limit').optional().isInt({ min: 1, max: 10000 }).withMessage('Limite invalido'),
     query('category')
       .optional()
       .notEmpty()
