@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useStore } from '@/lib/store'
+import { api } from '@/lib/api'
 import type { Sale } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,6 +26,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -68,6 +70,16 @@ export function Invoicing() {
   }, [invoicesDateFilter, clearInvoicesFilter])
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [editInfo, setEditInfo] = useState(storeInfo)
+
+  // Cargar storeInfo desde la BD al montar
+  useEffect(() => {
+    api.getStoreInfo().then((res) => {
+      if (res.success && res.data) {
+        updateStoreInfo(res.data)
+        setEditInfo((prev) => ({ ...prev, ...res.data }))
+      }
+    })
+  }, [])
 
   const filteredSales = sales.filter((sale) => {
     const matchesSearch =
@@ -145,6 +157,7 @@ export function Invoicing() {
         </head>
         <body>
           <div class="header">
+            ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:70px;max-width:200px;object-fit:contain;margin-bottom:8px;" />` : ''}
             <h1>${storeInfo.name}</h1>
             <p class="nit">NIT: ${storeInfo.taxId}</p>
             <p>${storeInfo.address}</p>
@@ -443,6 +456,10 @@ export function Invoicing() {
             <div className="space-y-4">
               {/* Store Header */}
               <div className="text-center border-b border-border pb-4">
+                {storeInfo.invoiceLogo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={storeInfo.invoiceLogo} alt="Logo" className="h-16 max-w-[180px] object-contain mx-auto mb-2" />
+                )}
                 <h2 className="text-xl font-bold text-foreground">{storeInfo.name}</h2>
                 <p className="text-sm text-muted-foreground font-medium">NIT: {storeInfo.taxId}</p>
                 <p className="text-sm text-muted-foreground">{storeInfo.address}</p>
@@ -612,6 +629,15 @@ export function Invoicing() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
+              <Label>Logo de la Factura</Label>
+              <CloudinaryUpload
+                value={editInfo.invoiceLogo || ''}
+                onChange={(url) => setEditInfo({ ...editInfo, invoiceLogo: url })}
+                previewClassName="h-16 max-w-[180px] object-contain rounded border"
+              />
+              <p className="text-xs text-muted-foreground">Aparece encima del nombre del negocio en la factura impresa.</p>
+            </div>
+            <div className="space-y-2">
               <Label>Nombre del Negocio</Label>
               <Input
                 value={editInfo.name}
@@ -670,6 +696,25 @@ export function Invoicing() {
                 />
                 <p className="text-xs text-muted-foreground">Usa saltos de línea para separar párrafos.</p>
               </div>
+              <div className="space-y-2 mt-3">
+                <Label>Copias al imprimir factura</Label>
+                <div className="flex gap-2">
+                  {([1, 2] as (1 | 2)[]).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setEditInfo({ ...editInfo, invoiceCopies: n })}
+                      className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${
+                        (editInfo.invoiceCopies ?? 1) === n
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-muted text-muted-foreground hover:border-muted-foreground'
+                      }`}
+                    >
+                      {n} {n === 1 ? 'copia' : 'copias'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -677,8 +722,9 @@ export function Invoicing() {
             <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => {
+            <Button onClick={async () => {
               updateStoreInfo(editInfo)
+              await api.updateStoreInfo(editInfo)
               setIsSettingsOpen(false)
             }}>
               <Save className="w-4 h-4 mr-2" />

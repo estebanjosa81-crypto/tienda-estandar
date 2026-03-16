@@ -13,6 +13,7 @@ export type CreditStatus = 'pendiente' | 'parcial' | 'pagado'
 export interface Product {
   id: string
   name: string
+  articulo?: string
   category: Category
   productType: ProductType
   brand?: string
@@ -225,8 +226,10 @@ export interface StoreInfo {
   phone: string
   taxId: string
   email: string
+  invoiceLogo: string
   invoiceGreeting: string
   invoicePolicy: string
+  invoiceCopies: 1 | 2
 }
 
 export interface StockMovement {

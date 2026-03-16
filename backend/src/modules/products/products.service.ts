@@ -8,6 +8,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 interface ProductRow extends RowDataPacket {
   id: string;
   name: string;
+  articulo: string | null;
   category: Category;
   product_type: ProductType;
   brand: string | null;
@@ -113,6 +114,7 @@ export interface ProductFilters {
 // Mapping from camelCase to snake_case for all product fields
 const fieldMap: Record<string, string> = {
   name: 'name',
+  articulo: 'articulo',
   category: 'category',
   productType: 'product_type',
   brand: 'brand',
@@ -244,6 +246,7 @@ export class ProductsService {
     return {
       id: row.id,
       name: row.name,
+      articulo: row.articulo || undefined,
       category: row.category,
       productType: row.product_type || 'general',
       brand: row.brand || undefined,
@@ -354,9 +357,9 @@ export class ProductsService {
     }
 
     if (filters?.search) {
-      conditions.push('(name LIKE ? OR sku LIKE ? OR brand LIKE ? OR barcode LIKE ?)');
+      conditions.push('(name LIKE ? OR articulo LIKE ? OR sku LIKE ? OR brand LIKE ? OR barcode LIKE ?)');
       const searchTerm = `%${filters.search}%`;
-      values.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      values.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (filters?.minPrice !== undefined) {
@@ -788,7 +791,7 @@ export class ProductsService {
     };
 
     const headers = [
-      'ID', 'Nombre', 'SKU', 'Código de barras', 'Tipo', 'Categoría', 'Marca', 'Modelo',
+      'ID', 'Nombre (tienda)', 'Artículo (inventario)', 'SKU', 'Código de barras', 'Tipo', 'Categoría', 'Marca', 'Modelo',
       'Descripción', 'Precio compra', 'Precio venta', 'Stock', 'Punto reorden',
       'Estado stock', 'Proveedor', 'Fecha entrada', 'Fecha vencimiento',
       'Ubicación en tienda', 'Talla', 'Color', 'Material', 'Género', 'Temporada',
@@ -802,7 +805,7 @@ export class ProductsService {
     const toDate = (v: unknown) => v ? new Date(v as string).toISOString().split('T')[0] : '';
 
     const csvRows = enriched.map(p => [
-      p.id, p.name, p.sku, p.barcode ?? '',
+      p.id, p.name, p.articulo ?? '', p.sku, p.barcode ?? '',
       p.productType, p.category, p.brand ?? '', p.model ?? '',
       p.description ?? '', p.purchasePrice, p.salePrice,
       p.stock, p.reorderPoint, p.stockStatus ?? '',

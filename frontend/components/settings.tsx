@@ -229,8 +229,9 @@ export function Settings() {
     setTimeout(() => { setUserSuccess(''); setUserError('') }, 3000)
   }
 
-  const handleSaveStore = () => {
+  const handleSaveStore = async () => {
     updateStoreInfo(storeForm)
+    await api.updateStoreInfo(storeForm)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

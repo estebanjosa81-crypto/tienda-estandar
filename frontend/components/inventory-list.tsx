@@ -144,6 +144,7 @@ export function InventoryList() {
   const filteredProducts = products.filter(product => {
     const matchesSearch =
       product.name.toLowerCase().includes(search.toLowerCase()) ||
+      (product.articulo && product.articulo.toLowerCase().includes(search.toLowerCase())) ||
       product.sku.toLowerCase().includes(search.toLowerCase()) ||
       (product.brand && product.brand.toLowerCase().includes(search.toLowerCase())) ||
       (product.barcode && product.barcode.toLowerCase().includes(search.toLowerCase()))
@@ -358,6 +359,9 @@ export function InventoryList() {
                           </div>
                           <div>
                             <p className="font-medium text-sm lg:text-base text-foreground">{product.name}</p>
+                            {product.articulo && (
+                              <p className="text-xs text-muted-foreground/70 italic">Inv: {product.articulo}</p>
+                            )}
                             <p className="text-xs lg:text-sm text-muted-foreground">
                               {product.brand || ''}{product.brand && product.color ? ' | ' : ''}{product.color || ''}
                               {product.size ? ` | ${product.size}` : ''}
@@ -731,18 +735,28 @@ function ProductFormDialog({
             </div>
 
             {/* Common fields - always visible */}
+            <div className="space-y-2">
+              <Label htmlFor="name">Nombre en tienda *</Label>
+              <Input
+                id="name"
+                value={formData.name || ''}
+                onChange={(e) => updateField('name', e.target.value)}
+                placeholder="Nombre visible para clientes"
+                required
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nombre del producto *</Label>
+                <Label htmlFor="articulo">Artículo (inventario)</Label>
                 <Input
-                  id="name"
-                  value={formData.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  required
+                  id="articulo"
+                  value={formData.articulo || ''}
+                  onChange={(e) => updateField('articulo', e.target.value)}
+                  placeholder="Nombre interno de inventario"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Categoria *</Label>
+                <Label htmlFor="category">Categoría *</Label>
                 <Select
                   value={formData.category || ''}
                   onValueChange={(value) => updateField('category', value)}

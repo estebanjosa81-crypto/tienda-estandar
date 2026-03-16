@@ -398,7 +398,7 @@ export function Recipes() {
                 <SelectContent>
                   {availableFinishedProducts.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
+                      {p.articulo || p.name} ({p.sku})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -440,7 +440,7 @@ export function Recipes() {
                         <SelectContent>
                           {allIngredientOptions.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
-                              {p.name} ({p.sku}) - {formatCOP(p.purchasePrice)}
+                              {p.articulo || p.name} ({p.sku}) - {formatCOP(p.purchasePrice)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -499,7 +499,7 @@ export function Recipes() {
                       return (
                         <div key={idx} className="flex justify-between">
                           <span>
-                            {product.name} x {item.quantity}
+                            {product.articulo || product.name} x {item.quantity}
                           </span>
                           <span>{formatCOP(cost)}</span>
                         </div>
