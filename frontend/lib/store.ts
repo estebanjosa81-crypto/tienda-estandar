@@ -156,7 +156,7 @@ export const useStore = create<AppState>()(
       // Products Actions
       fetchProducts: async () => {
         set({ isLoadingProducts: true })
-        const result = await api.getProducts({ limit: 1000 })
+        const result = await api.getProducts({ limit: 5000 })
         if (result.success && result.data) {
           const products = Array.isArray(result.data) ? result.data : []
           set({ products, isLoadingProducts: false })

@@ -228,7 +228,7 @@ for r in rows:
     assigned_ids.add(final_id)
     r["id"] = final_id
     r["sku"] = final_sku
-    r["name"] = clean_name(r["articulo"])
+    r["name"] = r["articulo"]
     r["category_id"] = get_category(r["articulo"], r["categoria"])
     r["sede_id"] = sede_id
     r["stock"] = int(r["existencias"]) if r["existencias"] else 0
