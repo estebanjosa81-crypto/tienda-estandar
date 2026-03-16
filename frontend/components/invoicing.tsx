@@ -616,7 +616,7 @@ export function Invoicing() {
 
       {/* Invoice Settings Dialog */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
+        <DialogContent className="bg-card border-border w-full max-w-lg mx-4 sm:mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
@@ -627,7 +627,7 @@ export function Invoicing() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto max-h-[65vh] pr-1">
             <div className="space-y-2">
               <Label>Logo de la Factura</Label>
               <CloudinaryUpload
@@ -658,7 +658,7 @@ export function Invoicing() {
                 onChange={(e) => setEditInfo({ ...editInfo, address: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Teléfono</Label>
                 <Input
@@ -718,11 +718,11 @@ export function Invoicing() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsSettingsOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={async () => {
+            <Button className="w-full sm:w-auto" onClick={async () => {
               updateStoreInfo(editInfo)
               await api.updateStoreInfo(editInfo)
               setIsSettingsOpen(false)
