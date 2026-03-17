@@ -1,6 +1,24 @@
 USE stockpro_db;
 
 -- ============================================================
+-- LIMPIEZA PREVIA (idempotente — elimina datos del tenant)
+-- ============================================================
+SET @tid = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd' COLLATE utf8mb4_unicode_ci;
+
+DELETE FROM product_recipes        WHERE tenant_id = @tid;
+DELETE FROM sale_items             WHERE tenant_id = @tid;
+DELETE FROM purchase_invoice_items WHERE tenant_id = @tid;
+DELETE FROM products               WHERE tenant_id = @tid;
+DELETE FROM categories             WHERE tenant_id = @tid;
+
+-- Asegurar que el ENUM de product_type incluye todos los valores necesarios
+ALTER TABLE products MODIFY COLUMN product_type ENUM(
+    'general', 'alimentos', 'bebidas', 'ropa', 'electronica',
+    'farmacia', 'ferreteria', 'libreria', 'juguetes', 'cosmetica',
+    'perfumes', 'deportes', 'hogar', 'mascotas', 'otros', 'insumos'
+) NOT NULL DEFAULT 'general';
+
+-- ============================================================
 -- SEDES
 -- ============================================================
 INSERT INTO sedes (id, tenant_id, name, address) VALUES
@@ -33,11 +51,11 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES
 ('prod-pm-2001', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'BOLSA ECOLÓGICA GRANDE', 'BOLSA ECOLÓGICA GRANDE', 'INSUMOS', 'cosmetica', 'PM-2001', 1064, 0, '2026-03-16', 1000, 1000, NULL, 'Código: 2001', 'sede-pm-1'),
 ('prod-pm-2000', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'BOLSA ECOLÓGICA PEQUEÑA', 'BOLSA ECOLÓGICA PEQUEÑA', 'INSUMOS', 'cosmetica', 'PM-2000', 936, 0, '2026-03-16', 1000, 1000, NULL, 'Código: 2000', 'sede-pm-1'),
-('prod-pm-2006', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'CAJA 100 ML', 'CAJA 100 ML', 'INSUMOS', 'cosmetica', 'PM-2006', 344, 0, '2026-03-16', 0, 0, NULL, 'Código: 2006', 'sede-pm-1'),
-('prod-pm-2005', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'CAJA 30-50 ML', 'CAJA 30-50 ML', 'INSUMOS', 'cosmetica', 'PM-2005', 341, 0, '2026-03-16', 0, 0, NULL, 'Código: 2005', 'sede-pm-1'),
-('prod-pm-2004', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE LACOSTE 100ML', 'ENVASE LACOSTE 100ML', 'INSUMOS', 'cosmetica', 'PM-2004', 936, 0, '2026-03-16', 1900, 1900, NULL, 'Código: 2004', 'sede-pm-1'),
-('prod-pm-2002', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 30ML', 'ENVASE-LACOSTE 30ML', 'INSUMOS', 'cosmetica', 'PM-2002', 776, 0, '2026-03-16', 4, 4, NULL, 'Código: 2002', 'sede-pm-1'),
-('prod-pm-2007', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 50 ML', 'ENVASE-LACOSTE 50 ML', 'INSUMOS', 'cosmetica', 'PM-2007', 992, 0, '2026-03-16', 600, 600, NULL, 'Código: 2007', 'sede-pm-1');
+('prod-pm-2006', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'CAJA 100 ML', 'CAJA 100 ML', 'INSUMOS', 'cosmetica', 'PM-2006', 344, 0, '2026-03-16', 1550, 1600, NULL, 'Código: 2006', 'sede-pm-1'),
+('prod-pm-2005', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'CAJA 30-50 ML', 'CAJA 30-50 ML', 'INSUMOS', 'cosmetica', 'PM-2005', 341, 0, '2026-03-16', 1710, 1800, NULL, 'Código: 2005', 'sede-pm-1'),
+('prod-pm-2004', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE LACOSTE 100ML', 'ENVASE LACOSTE 100ML', 'INSUMOS', 'cosmetica', 'PM-2004', 936, 0, '2026-03-16', 2847, 2900, NULL, 'Código: 2004', 'sede-pm-1'),
+('prod-pm-2002', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 30ML', 'ENVASE-LACOSTE 30ML', 'INSUMOS', 'cosmetica', 'PM-2002', 776, 0, '2026-03-16', 2738, 2800, NULL, 'Código: 2002', 'sede-pm-1'),
+('prod-pm-2007', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 50 ML', 'ENVASE-LACOSTE 50 ML', 'INSUMOS', 'cosmetica', 'PM-2007', 992, 0, '2026-03-16', 2808, 2900, NULL, 'Código: 2007', 'sede-pm-1');
 
 -- SEDE 1 — CORPORAL (169 filas)
 INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES
