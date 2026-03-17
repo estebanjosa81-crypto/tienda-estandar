@@ -1,0 +1,2 @@
+ALTER TABLE product_recipes
+  ADD COLUMN IF NOT EXISTS include_in_cost TINYINT(1) NOT NULL DEFAULT 1;

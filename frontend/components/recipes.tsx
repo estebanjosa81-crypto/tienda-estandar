@@ -50,6 +50,7 @@ import {
   FlaskConical,
   Package,
   X,
+  DollarSign,
 } from 'lucide-react'
 
 interface RecipeIngredient {
@@ -60,6 +61,7 @@ interface RecipeIngredient {
   quantity: number
   unitCost: number
   totalCost: number
+  includeInCost: boolean
 }
 
 interface RecipeGroup {
@@ -73,6 +75,7 @@ interface RecipeGroup {
 interface IngredientFormItem {
   ingredientId: string
   quantity: string
+  includeInCost: boolean
 }
 
 export function Recipes() {
@@ -89,7 +92,7 @@ export function Recipes() {
   // Form state
   const [selectedProductId, setSelectedProductId] = useState('')
   const [ingredientsList, setIngredientsList] = useState<IngredientFormItem[]>([
-    { ingredientId: '', quantity: '' },
+    { ingredientId: '', quantity: '', includeInCost: true },
   ])
 
   const loadData = async () => {
@@ -139,7 +142,7 @@ export function Recipes() {
   const openCreate = () => {
     setEditingRecipe(null)
     setSelectedProductId('')
-    setIngredientsList([{ ingredientId: '', quantity: '' }])
+    setIngredientsList([{ ingredientId: '', quantity: '', includeInCost: true }])
     setIsFormOpen(true)
   }
 
@@ -150,6 +153,7 @@ export function Recipes() {
       recipe.ingredients.map((ing) => ({
         ingredientId: ing.ingredientId,
         quantity: String(ing.quantity),
+        includeInCost: ing.includeInCost !== false,
       }))
     )
     setIsFormOpen(true)
@@ -161,7 +165,7 @@ export function Recipes() {
   }
 
   const addIngredientRow = () => {
-    setIngredientsList([...ingredientsList, { ingredientId: '', quantity: '' }])
+    setIngredientsList([...ingredientsList, { ingredientId: '', quantity: '', includeInCost: true }])
   }
 
   const removeIngredientRow = (index: number) => {
@@ -172,7 +176,7 @@ export function Recipes() {
   const updateIngredient = (
     index: number,
     field: keyof IngredientFormItem,
-    value: string
+    value: string | boolean
   ) => {
     const updated = [...ingredientsList]
     updated[index] = { ...updated[index], [field]: value }
@@ -183,7 +187,7 @@ export function Recipes() {
   const calculatedCost = useMemo(() => {
     let total = 0
     for (const item of ingredientsList) {
-      if (!item.ingredientId || !item.quantity) continue
+      if (!item.ingredientId || !item.quantity || !item.includeInCost) continue
       const product = products.find((p) => p.id === item.ingredientId)
       if (product) {
         total += product.purchasePrice * parseFloat(item.quantity || '0')
@@ -208,6 +212,7 @@ export function Recipes() {
         validIngredients.map((i) => ({
           ingredientId: i.ingredientId,
           quantity: parseFloat(i.quantity),
+          includeInCost: i.includeInCost,
         }))
       )
 
@@ -453,6 +458,16 @@ export function Recipes() {
                       type="button"
                       variant="ghost"
                       size="icon"
+                      title={item.includeInCost ? 'Suma al costo (click para excluir)' : 'No suma al costo (click para incluir)'}
+                      onClick={() => updateIngredient(index, 'includeInCost', !item.includeInCost)}
+                      className={item.includeInCost ? 'text-primary' : 'text-muted-foreground'}
+                    >
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => removeIngredientRow(index)}
                       disabled={ingredientsList.length <= 1}
                       className="text-muted-foreground hover:text-destructive"
@@ -485,14 +500,18 @@ export function Recipes() {
                         (p) => p.id === item.ingredientId
                       )
                       if (!product) return null
-                      const cost =
-                        product.purchasePrice * parseFloat(item.quantity || '0')
+                      const cost = item.includeInCost
+                        ? product.purchasePrice * parseFloat(item.quantity || '0')
+                        : 0
                       return (
                         <div key={idx} className="flex justify-between">
-                          <span>
+                          <span className={!item.includeInCost ? 'opacity-50' : ''}>
                             {product.articulo || product.name} x {item.quantity}
+                            {!item.includeInCost && ' (solo inventario)'}
                           </span>
-                          <span>{formatCOP(cost)}</span>
+                          <span className={!item.includeInCost ? 'opacity-50' : ''}>
+                            {item.includeInCost ? formatCOP(cost) : '$0'}
+                          </span>
                         </div>
                       )
                     })}

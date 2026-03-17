@@ -1069,7 +1069,7 @@ class ApiService {
     return this.request<any>(`/recipes/${productId}`)
   }
 
-  async saveRecipe(productId: string, ingredients: Array<{ ingredientId: string; quantity: number }>) {
+  async saveRecipe(productId: string, ingredients: Array<{ ingredientId: string; quantity: number; includeInCost?: boolean }>) {
     return this.request<any>('/recipes', {
       method: 'POST',
       body: JSON.stringify({ productId, ingredients }),
