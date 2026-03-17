@@ -293,6 +293,30 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [])
 
+  // Handle MercadoPago return URL (?mp=success|failure|pending&order=<id>)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const mp = params.get('mp')
+    const orderId = params.get('order')
+    if (!mp) return
+
+    // Clean the URL so a refresh doesn't retrigger
+    const cleanUrl = window.location.pathname
+    window.history.replaceState({}, '', cleanUrl)
+
+    if (mp === 'success') {
+      setMpReturnMsg({ type: 'success', text: '¡Pago exitoso! Tu pedido fue confirmado. Pronto recibirás novedades.' })
+    } else if (mp === 'failure') {
+      setMpReturnMsg({ type: 'failure', text: 'El pago no fue completado. Tu pedido fue cancelado.' })
+      // Cancel the pending order so it doesn't appear in merchant dashboard
+      if (orderId) {
+        fetch(`${API_URL}/orders/cancel-gateway/${orderId}`, { method: 'PUT' }).catch(() => {/* ignore */})
+      }
+    } else if (mp === 'pending') {
+      setMpReturnMsg({ type: 'pending', text: 'Tu pago está pendiente de aprobación. Te notificaremos cuando se confirme.' })
+    }
+  }, [])
+
   const saveClientLocation = () => {
     if (locationMun) {
       localStorage.setItem('clientMunicipality', locationMun)
@@ -483,6 +507,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [enviandoEmail, setEnviandoEmail] = useState(false)
   const [mostrarModalExito, setMostrarModalExito] = useState(false)
   const [pedidoConfirmado, setPedidoConfirmado] = useState<PedidoConfirmado | null>(null)
+  const [mpReturnMsg, setMpReturnMsg] = useState<{ type: 'success' | 'failure' | 'pending'; text: string } | null>(null)
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
 
@@ -1815,6 +1840,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
           </div>
           <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+        </div>
+      )}
+
+      {/* ========== MP RETURN BANNER ========== */}
+      {mpReturnMsg && (
+        <div className={`fixed top-0 left-0 right-0 z-[70] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium shadow-lg ${
+          mpReturnMsg.type === 'success' ? 'bg-green-600 text-white' :
+          mpReturnMsg.type === 'failure' ? 'bg-red-600 text-white' :
+          'bg-amber-500 text-black'
+        }`}>
+          <span>{mpReturnMsg.text}</span>
+          <button onClick={() => setMpReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
         </div>
       )}
 

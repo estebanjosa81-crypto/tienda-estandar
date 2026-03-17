@@ -246,6 +246,7 @@ router.post(
             failure: `${frontendUrl}/?mp=failure&order=${orderId}`,
             pending: `${frontendUrl}/?mp=pending&order=${orderId}`,
           },
+          auto_return: 'approved',
           statement_descriptor: 'PERFUM MUA',
           metadata: { orderId, orderNumber },
         },
@@ -863,6 +864,29 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
 });
 
 // =============================================
+// PUBLIC: Cancelar orden de pasarela abandonada
+// =============================================
+// Called by frontend when user returns with ?mp=failure or ?mp=pending without paying
+router.put('/cancel-gateway/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      res.status(400).json({ success: false, error: 'orderId requerido' });
+      return;
+    }
+    // Only cancel if the order is still pending (not yet paid/confirmed)
+    await pool.query(
+      "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND payment_method IN ('mercadopago', 'addi', 'sistecredito') AND status = 'pendiente'",
+      [orderId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Cancel gateway order error:', error);
+    res.status(500).json({ success: false, error: 'Error al cancelar orden' });
+  }
+});
+
+// =============================================
 // AUTHENTICATED: Endpoints para comerciantes
 // =============================================
 router.use(authenticate);
@@ -892,6 +916,9 @@ router.get(
       if (status) {
         whereClause += ' AND o.status = ?';
         params.push(status);
+      } else {
+        // Exclude MP/ADDI/Sistecredito orders that are still 'pendiente' (user abandoned checkout without paying)
+        whereClause += " AND NOT (o.payment_method IN ('mercadopago', 'addi', 'sistecredito') AND o.status = 'pendiente')";
       }
 
       if (search) {
@@ -960,7 +987,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const tenantId = (req as any).user.tenantId;
 
     const [stats] = await pool.query(
-      `SELECT 
+      `SELECT
         COUNT(*) as totalOrders,
         SUM(CASE WHEN status = 'pendiente' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'confirmado' THEN 1 ELSE 0 END) as confirmed,
@@ -970,7 +997,8 @@ router.get('/stats', async (req: Request, res: Response) => {
         SUM(CASE WHEN status = 'cancelado' THEN 1 ELSE 0 END) as cancelled,
         SUM(CASE WHEN status != 'cancelado' THEN total ELSE 0 END) as totalRevenue
        FROM storefront_orders
-       WHERE tenant_id = ?`,
+       WHERE tenant_id = ?
+         AND NOT (payment_method IN ('mercadopago', 'addi', 'sistecredito') AND status = 'pendiente')`,
       [tenantId]
     ) as any;
 
