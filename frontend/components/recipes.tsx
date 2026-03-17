@@ -123,17 +123,8 @@ export function Recipes() {
     [products]
   )
 
-  // Products that can be ingredients (insumos or any product)
-  const ingredientProducts = useMemo(
-    () => products.filter((p) => p.category === 'insumos' || p.salePrice === 0),
-    [products]
-  )
-
-  // All products as potential ingredients (fallback if no insumos category)
-  const allIngredientOptions = useMemo(
-    () => (ingredientProducts.length > 0 ? ingredientProducts : products),
-    [ingredientProducts, products]
-  )
+  // All products as potential ingredients
+  const allIngredientOptions = useMemo(() => products, [products])
 
   const filteredRecipes = useMemo(() => {
     if (!search) return recipes
