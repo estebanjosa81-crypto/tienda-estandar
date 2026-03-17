@@ -97,7 +97,7 @@ export function Recipes() {
     try {
       const [recipesRes, productsRes] = await Promise.all([
         api.getRecipes(),
-        api.getProducts({ limit: 100 }),
+        api.getProducts({ limit: 5000 }),
       ])
 
       if (recipesRes.success && recipesRes.data) {
