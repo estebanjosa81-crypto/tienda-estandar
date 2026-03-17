@@ -8,6 +8,7 @@ interface RecipeRow extends RowDataPacket {
   product_id: string;
   ingredient_id: string;
   quantity: number;
+  include_in_cost: number;
   product_name: string;
   product_sku: string;
   ingredient_name: string;
@@ -23,6 +24,7 @@ export interface RecipeIngredient {
   quantity: number;
   unitCost: number;
   totalCost: number;
+  includeInCost: boolean;
 }
 
 export interface RecipeGroup {
@@ -36,7 +38,7 @@ export interface RecipeGroup {
 class RecipesService {
   async findAll(tenantId: string): Promise<RecipeGroup[]> {
     const [rows] = await db.execute<RecipeRow[]>(
-      `SELECT pr.id, pr.product_id, pr.ingredient_id, pr.quantity,
+      `SELECT pr.id, pr.product_id, pr.ingredient_id, pr.quantity, pr.include_in_cost,
               p.name as product_name, p.sku as product_sku,
               i.name as ingredient_name, i.sku as ingredient_sku, i.purchase_price
        FROM product_recipes pr
@@ -61,6 +63,7 @@ class RecipesService {
       }
 
       const group = groupMap.get(row.product_id)!;
+      const includeInCost = row.include_in_cost !== 0; // NULL o 1 = incluir, solo 0 = excluir
       const unitCost = Number(row.purchase_price);
       const quantity = Number(row.quantity);
       const totalCost = unitCost * quantity;
@@ -73,9 +76,10 @@ class RecipesService {
         quantity,
         unitCost,
         totalCost,
+        includeInCost,
       });
 
-      group.totalCost += totalCost;
+      if (includeInCost) group.totalCost += totalCost;
     }
 
     return Array.from(groupMap.values());
@@ -83,7 +87,7 @@ class RecipesService {
 
   async findByProductId(productId: string, tenantId: string): Promise<RecipeGroup | null> {
     const [rows] = await db.execute<RecipeRow[]>(
-      `SELECT pr.id, pr.product_id, pr.ingredient_id, pr.quantity,
+      `SELECT pr.id, pr.product_id, pr.ingredient_id, pr.quantity, pr.include_in_cost,
               p.name as product_name, p.sku as product_sku,
               i.name as ingredient_name, i.sku as ingredient_sku, i.purchase_price
        FROM product_recipes pr
@@ -105,6 +109,7 @@ class RecipesService {
     };
 
     for (const row of rows) {
+      const includeInCost = row.include_in_cost !== 0; // NULL o 1 = incluir, solo 0 = excluir
       const unitCost = Number(row.purchase_price);
       const quantity = Number(row.quantity);
       const totalCost = unitCost * quantity;
@@ -117,9 +122,10 @@ class RecipesService {
         quantity,
         unitCost,
         totalCost,
+        includeInCost,
       });
 
-      group.totalCost += totalCost;
+      if (includeInCost) group.totalCost += totalCost;
     }
 
     return group;
@@ -128,7 +134,7 @@ class RecipesService {
   async createOrReplace(
     tenantId: string,
     productId: string,
-    ingredients: Array<{ ingredientId: string; quantity: number }>
+    ingredients: Array<{ ingredientId: string; quantity: number; includeInCost?: boolean }>
   ): Promise<RecipeGroup> {
     if (!ingredients || ingredients.length === 0) {
       throw new AppError('Se requiere al menos un ingrediente', 400);
@@ -166,9 +172,10 @@ class RecipesService {
 
       // Insert new ingredients
       for (const ing of ingredients) {
+        const includeInCost = ing.includeInCost !== false ? 1 : 0;
         await connection.execute(
-          'INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity) VALUES (?, ?, ?, ?, ?)',
-          [uuidv4(), tenantId, productId, ing.ingredientId, ing.quantity]
+          'INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES (?, ?, ?, ?, ?, ?)',
+          [uuidv4(), tenantId, productId, ing.ingredientId, ing.quantity, includeInCost]
         );
       }
 

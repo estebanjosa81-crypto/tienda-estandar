@@ -1191,7 +1191,8 @@ INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku
 ('prod-pm-835', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'YVES SAINT LAURENT-YVES SAINT LAURENT', 'REP-YVES SAINT LAURENT-YVES SAINT LAURENT-MAS', 'CABALLEROS', 'cosmetica', 'PM-835', 1, 0, '2026-03-16', 43000, 85000, NULL, 'Código: 835', 'sede-pm-2');
 
 -- SEDE 1 — INSUMOS (7 filas: bolsas, cajas, envases)
-INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES
+-- INSERT IGNORE: cajas y envases pueden ya existir si se ejecuto recetasperfummua.sql primero
+INSERT IGNORE INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES
 ('prod-pm-2001', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'BOLSA ECOLÓGICA GRANDE', 'BOLSA ECOLÓGICA GRANDE', 'INSUMOS', 'insumos', 'PM-2001', 1064, 0, '2026-03-16', 1000, 1000, NULL, 'Código: 2001', 'sede-pm-1'),
 ('prod-pm-2000', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'BOLSA ECOLÓGICA PEQUEÑA', 'BOLSA ECOLÓGICA PEQUEÑA', 'INSUMOS', 'insumos', 'PM-2000', 936, 0, '2026-03-16', 1000, 1000, NULL, 'Código: 2000', 'sede-pm-1'),
 ('prod-pm-2006', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'CAJA 100 ML', 'CAJA 100 ML', 'INSUMOS', 'insumos', 'PM-2006', 344, 0, '2026-03-16', 1600, 1600, NULL, 'Código: 2006', 'sede-pm-1'),
@@ -1199,6 +1200,13 @@ INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku
 ('prod-pm-2004', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE LACOSTE 100ML', 'ENVASE LACOSTE 100ML', 'INSUMOS', 'insumos', 'PM-2004', 936, 0, '2026-03-16', 2847, 2900, NULL, 'Código: 2004', 'sede-pm-1'),
 ('prod-pm-2002', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 30ML', 'ENVASE-LACOSTE 30ML', 'INSUMOS', 'insumos', 'PM-2002', 776, 0, '2026-03-16', 2738, 2800, NULL, 'Código: 2002', 'sede-pm-1'),
 ('prod-pm-2007', 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd', 'ENVASE-LACOSTE 50 ML', 'ENVASE-LACOSTE 50 ML', 'INSUMOS', 'insumos', 'PM-2007', 992, 0, '2026-03-16', 2808, 2900, NULL, 'Código: 2007', 'sede-pm-1');
+
+-- Actualizar stock y precios reales de cajas/envases (por si vinieron de recetasperfummua.sql con stock=0)
+UPDATE products SET stock = 344, purchase_price = 1600, sale_price = 1600 WHERE id = 'prod-pm-2006' AND tenant_id = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd';
+UPDATE products SET stock = 341, purchase_price = 1800, sale_price = 1800 WHERE id = 'prod-pm-2005' AND tenant_id = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd';
+UPDATE products SET stock = 936, purchase_price = 2847, sale_price = 2900 WHERE id = 'prod-pm-2004' AND tenant_id = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd';
+UPDATE products SET stock = 776, purchase_price = 2738, sale_price = 2800 WHERE id = 'prod-pm-2002' AND tenant_id = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd';
+UPDATE products SET stock = 992, purchase_price = 2808, sale_price = 2900 WHERE id = 'prod-pm-2007' AND tenant_id = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd';
 
 -- ============================================================
 -- ACTUALIZACION DE CATEGORIAS Y LINEAS (brand)
