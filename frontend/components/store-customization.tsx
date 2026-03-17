@@ -331,7 +331,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, hiddenInStore: newHidden } : c))
     try {
       await api.toggleCategoryVisibility(cat.id, newHidden)
-      showMsg('success', newHidden ? 'Categoría oculta en tienda' : 'Categoría visible en tienda')
+      showMsg('success', newHidden ? 'Categoría oculta del Hero 2' : 'Categoría visible en el Hero 2')
     } catch {
       setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, hiddenInStore: cat.hiddenInStore } : c))
       showMsg('error', 'Error al actualizar visibilidad')
@@ -699,7 +699,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
       {activeTab === 'categories' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Asigna una imagen de portada a tus categorías. Solo se mostrarán las primeras 4 con imagen en la sección Hero 2.
+            Elige qué categorías aparecen en el <strong>Hero 2</strong> (sección visual de categorías en tu tienda). Puedes activar o desactivar cada una con el ícono del ojo. Las categorías desactivadas siguen visibles en el <strong>catálogo</strong> con todos sus productos.
           </p>
           {categories.length === 0 ? (
             <Card>
@@ -726,16 +726,19 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     )}
                   </div>
                   <CardContent className="p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{cat.name}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium truncate">{cat.name}</p>
                       <button
                         onClick={() => handleToggleCategoryVisibility(cat)}
-                        title={cat.hiddenInStore ? 'Mostrar en tienda' : 'Ocultar en tienda'}
-                        className={`p-1 rounded transition-colors ${cat.hiddenInStore ? 'text-muted-foreground hover:text-foreground' : 'text-green-600 hover:text-red-500'}`}
+                        title={cat.hiddenInStore ? 'Mostrar en Hero 2' : 'Ocultar del Hero 2'}
+                        className={`p-1 rounded transition-colors shrink-0 ${cat.hiddenInStore ? 'text-muted-foreground hover:text-foreground' : 'text-green-600 hover:text-red-500'}`}
                       >
                         {cat.hiddenInStore ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    <p className={`text-[11px] ${cat.hiddenInStore ? 'text-muted-foreground' : 'text-green-600'}`}>
+                      {cat.hiddenInStore ? 'Oculta del Hero 2 · visible en catálogo' : 'Visible en Hero 2'}
+                    </p>
                     {editingCategoryId === cat.id ? (
                       <div className="space-y-2">
                         <CloudinaryUpload
