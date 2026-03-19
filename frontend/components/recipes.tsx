@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
 import type { Product } from '@/lib/types'
@@ -17,13 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -42,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Search,
   Plus,
@@ -51,7 +45,14 @@ import {
   Package,
   X,
   DollarSign,
+  ChevronDown,
+  Check,
+  Layers,
+  Sparkles,
+  AlertCircle,
 } from 'lucide-react'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RecipeIngredient {
   id: string
@@ -78,22 +79,413 @@ interface IngredientFormItem {
   includeInCost: boolean
 }
 
+interface SizeFormula {
+  productId: string
+  ingredients: IngredientFormItem[]
+}
+
+const EMPTY_INGREDIENT = (): IngredientFormItem => ({
+  ingredientId: '',
+  quantity: '',
+  includeInCost: true,
+})
+
+const EXTRACTO_SIZES = [
+  { key: '30ml', label: '30 ML', defaultQty: '13' },
+  { key: '50ml', label: '50 ML', defaultQty: '22' },
+  { key: '100ml', label: '100 ML', defaultQty: '43' },
+] as const
+
+// ─── SearchableCombobox ────────────────────────────────────────────────────────
+
+function SearchableCombobox({
+  options,
+  value,
+  onChange,
+  placeholder = 'Buscar...',
+  disabled = false,
+  showPrice = false,
+}: {
+  options: Product[]
+  value: string
+  onChange: (val: string) => void
+  placeholder?: string
+  disabled?: boolean
+  showPrice?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = useMemo(() => options.find((o) => o.id === value), [options, value])
+
+  useEffect(() => {
+    if (!open) setQuery('')
+  }, [open])
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return options.slice(0, 25)
+    const q = query.toLowerCase()
+    return options
+      .filter(
+        (o) =>
+          (o.articulo || o.name).toLowerCase().includes(q) ||
+          o.sku.toLowerCase().includes(q)
+      )
+      .slice(0, 25)
+  }, [options, query])
+
+  const handleOpen = () => {
+    if (disabled) return
+    setOpen(true)
+    setTimeout(() => inputRef.current?.focus(), 30)
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      {/* Trigger */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={handleOpen}
+        className={[
+          'flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm',
+          'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-accent/40',
+        ].join(' ')}
+      >
+        {selected ? (
+          <div className="flex flex-1 items-center gap-2 min-w-0">
+            <span className="truncate font-medium">{selected.articulo || selected.name}</span>
+            <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 h-4">
+              {selected.sku}
+            </Badge>
+          </div>
+        ) : (
+          <span className="flex-1 text-left text-muted-foreground">{placeholder}</span>
+        )}
+        {value && !disabled && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              onChange('')
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && onChange('')}
+            className="shrink-0 rounded-sm p-0.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+          >
+            <X className="h-3 w-3" />
+          </span>
+        )}
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Dropdown */}
+      {open && !disabled && (
+        <div className="absolute left-0 right-0 z-50 mt-1 rounded-md border bg-popover shadow-lg">
+          {/* Search input */}
+          <div className="flex items-center border-b px-2 py-1.5">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0 mr-1.5" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filtrar por nombre o SKU..."
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          {/* Options list */}
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                Sin resultados para &quot;{query}&quot;
+              </div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.id)
+                    setOpen(false)
+                  }}
+                  className={[
+                    'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left',
+                    value === o.id ? 'bg-accent/60' : '',
+                  ].join(' ')}
+                >
+                  <Check
+                    className={`h-3.5 w-3.5 shrink-0 text-primary ${value === o.id ? 'opacity-100' : 'opacity-0'}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate font-medium leading-tight">{o.articulo || o.name}</p>
+                    <p className="text-xs text-muted-foreground flex gap-2 mt-0.5">
+                      <span className="font-mono">{o.sku}</span>
+                      {showPrice && o.purchasePrice > 0 && (
+                        <span className="text-primary">{formatCOP(o.purchasePrice)}</span>
+                      )}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          {filtered.length === 25 && (
+            <p className="border-t px-3 py-1.5 text-xs text-muted-foreground text-center">
+              Escribe para filtrar más resultados
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── IngredientRow ─────────────────────────────────────────────────────────────
+
+function IngredientRow({
+  item,
+  index,
+  products,
+  canRemove,
+  onUpdate,
+  onRemove,
+}: {
+  item: IngredientFormItem
+  index: number
+  products: Product[]
+  canRemove: boolean
+  onUpdate: (index: number, field: keyof IngredientFormItem, value: string | boolean) => void
+  onRemove: (index: number) => void
+}) {
+  const prod = products.find((p) => p.id === item.ingredientId)
+  const lineCost =
+    prod && item.quantity && item.includeInCost
+      ? prod.purchasePrice * parseFloat(item.quantity)
+      : null
+
+  return (
+    <div className="rounded-lg border bg-card p-2.5 space-y-2">
+      <div className="flex items-start gap-2">
+        {/* Badge de número */}
+        <span className="shrink-0 mt-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+          {index + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <SearchableCombobox
+            options={products}
+            value={item.ingredientId}
+            onChange={(val) => onUpdate(index, 'ingredientId', val)}
+            placeholder="Buscar insumo o materia prima..."
+            showPrice
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemove(index)}
+          disabled={!canRemove}
+          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 pl-7">
+        {/* Cantidad */}
+        <div className="flex items-center gap-1.5 flex-1">
+          <Label className="text-xs text-muted-foreground whitespace-nowrap">Cantidad:</Label>
+          <Input
+            type="number"
+            step="0.001"
+            min="0.001"
+            placeholder="0.000"
+            value={item.quantity}
+            onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
+            className="h-8 w-28 text-sm text-center"
+          />
+        </div>
+
+        {/* Toggle costo */}
+        <button
+          type="button"
+          onClick={() => onUpdate(index, 'includeInCost', !item.includeInCost)}
+          title={item.includeInCost ? 'Incluido en costo — clic para excluir' : 'Excluido del costo — clic para incluir'}
+          className={[
+            'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border transition-colors',
+            item.includeInCost
+              ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+              : 'border-border bg-muted text-muted-foreground hover:bg-muted/80',
+          ].join(' ')}
+        >
+          <DollarSign className="h-3.5 w-3.5" />
+          {item.includeInCost ? 'En costo' : 'Solo inv.'}
+        </button>
+
+        {/* Costo de línea */}
+        {lineCost !== null && (
+          <span className="ml-auto text-xs font-semibold text-primary tabular-nums">
+            {formatCOP(lineCost)}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── FormulaSection ────────────────────────────────────────────────────────────
+
+function FormulaSection({
+  productId,
+  onProductChange,
+  ingredients,
+  onIngredientsChange,
+  products,
+  availableProducts,
+  productDisabled = false,
+}: {
+  productId: string
+  onProductChange: (id: string) => void
+  ingredients: IngredientFormItem[]
+  onIngredientsChange: (items: IngredientFormItem[]) => void
+  products: Product[]
+  availableProducts: Product[]
+  productDisabled?: boolean
+}) {
+  const totalCost = useMemo(() => {
+    let t = 0
+    for (const item of ingredients) {
+      if (!item.ingredientId || !item.quantity || !item.includeInCost) continue
+      const p = products.find((p) => p.id === item.ingredientId)
+      if (p) t += p.purchasePrice * parseFloat(item.quantity)
+    }
+    return t
+  }, [ingredients, products])
+
+  const addRow = () => onIngredientsChange([...ingredients, EMPTY_INGREDIENT()])
+  const removeRow = (i: number) => {
+    if (ingredients.length <= 1) return
+    onIngredientsChange(ingredients.filter((_, idx) => idx !== i))
+  }
+  const updateRow = (i: number, field: keyof IngredientFormItem, val: string | boolean) => {
+    const updated = [...ingredients]
+    updated[i] = { ...updated[i], [field]: val }
+    onIngredientsChange(updated)
+  }
+
+  const filledCount = ingredients.filter((i) => i.ingredientId && parseFloat(i.quantity) > 0).length
+
+  return (
+    <div className="space-y-4">
+      {/* Producto terminado */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Producto terminado *
+        </Label>
+        <SearchableCombobox
+          options={availableProducts}
+          value={productId}
+          onChange={onProductChange}
+          placeholder="Buscar producto terminado..."
+          disabled={productDisabled}
+        />
+      </div>
+
+      {/* Ingredientes */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Ingredientes
+            </Label>
+            {filledCount > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {filledCount}
+              </Badge>
+            )}
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-7 gap-1 text-xs">
+            <Plus className="h-3 w-3" />
+            Agregar
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {ingredients.map((item, idx) => (
+            <IngredientRow
+              key={idx}
+              item={item}
+              index={idx}
+              products={products}
+              canRemove={ingredients.length > 1}
+              onUpdate={updateRow}
+              onRemove={removeRow}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Costo total */}
+      <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Package className="h-4 w-4" />
+          Costo estimado por unidad
+        </div>
+        <span className="text-lg font-bold text-primary tabular-nums">{formatCOP(totalCost)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
 export function Recipes() {
   const [recipes, setRecipes] = useState<RecipeGroup[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
+
+  // Single recipe dialog
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [editingRecipe, setEditingRecipe] = useState<RecipeGroup | null>(null)
-  const [deletingRecipe, setDeletingRecipe] = useState<RecipeGroup | null>(null)
+  const [selectedProductId, setSelectedProductId] = useState('')
+  const [ingredientsList, setIngredientsList] = useState<IngredientFormItem[]>([EMPTY_INGREDIENT()])
   const [isSaving, setIsSaving] = useState(false)
 
-  // Form state
-  const [selectedProductId, setSelectedProductId] = useState('')
-  const [ingredientsList, setIngredientsList] = useState<IngredientFormItem[]>([
-    { ingredientId: '', quantity: '', includeInCost: true },
-  ])
+  // Extracto wizard dialog
+  const [isExtractoOpen, setIsExtractoOpen] = useState(false)
+  const [extractoId, setExtractoId] = useState('')
+  const [extractoFormulas, setExtractoFormulas] = useState<Record<string, SizeFormula>>(
+    Object.fromEntries(
+      EXTRACTO_SIZES.map((s) => [
+        s.key,
+        { productId: '', ingredients: [EMPTY_INGREDIENT()] },
+      ])
+    )
+  )
+  const [isSavingExtracto, setIsSavingExtracto] = useState(false)
+  const [activeTab, setActiveTab] = useState('30ml')
+
+  // Delete dialog
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deletingRecipe, setDeletingRecipe] = useState<RecipeGroup | null>(null)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -102,16 +494,13 @@ export function Recipes() {
         api.getRecipes(),
         api.getProducts({ limit: 5000 }),
       ])
-
-      if (recipesRes.success && recipesRes.data) {
-        setRecipes(recipesRes.data as any)
-      }
+      if (recipesRes.success && recipesRes.data) setRecipes(recipesRes.data as any)
       if (productsRes.success && productsRes.data) {
         const prods = (productsRes.data as any).products || productsRes.data
         setProducts(Array.isArray(prods) ? prods : [])
       }
-    } catch (error) {
-      console.error('Error loading recipes:', error)
+    } catch (e) {
+      console.error('Error loading recipes:', e)
     }
     setIsLoading(false)
   }
@@ -120,29 +509,26 @@ export function Recipes() {
     loadData()
   }, [])
 
-  // Products that can be finished goods (have sale price > 0)
-  const finishedProducts = useMemo(
-    () => products.filter((p) => p.salePrice > 0),
-    [products]
+  const finishedProducts = useMemo(() => products.filter((p) => p.salePrice > 0), [products])
+  const usedProductIds = useMemo(() => new Set(recipes.map((r) => r.productId)), [recipes])
+  const availableFinishedProducts = useMemo(
+    () => (editingRecipe ? finishedProducts : finishedProducts.filter((p) => !usedProductIds.has(p.id))),
+    [finishedProducts, usedProductIds, editingRecipe]
   )
-
-  // All products as potential ingredients
-  const allIngredientOptions = useMemo(() => products, [products])
 
   const filteredRecipes = useMemo(() => {
     if (!search) return recipes
     const q = search.toLowerCase()
     return recipes.filter(
-      (r) =>
-        r.productName.toLowerCase().includes(q) ||
-        r.productSku.toLowerCase().includes(q)
+      (r) => r.productName.toLowerCase().includes(q) || r.productSku.toLowerCase().includes(q)
     )
   }, [recipes, search])
 
+  // ── Single recipe handlers ──
   const openCreate = () => {
     setEditingRecipe(null)
     setSelectedProductId('')
-    setIngredientsList([{ ingredientId: '', quantity: '', includeInCost: true }])
+    setIngredientsList([EMPTY_INGREDIENT()])
     setIsFormOpen(true)
   }
 
@@ -159,79 +545,121 @@ export function Recipes() {
     setIsFormOpen(true)
   }
 
-  const openDelete = (recipe: RecipeGroup) => {
-    setDeletingRecipe(recipe)
-    setIsDeleteOpen(true)
-  }
-
-  const addIngredientRow = () => {
-    setIngredientsList([...ingredientsList, { ingredientId: '', quantity: '', includeInCost: true }])
-  }
-
-  const removeIngredientRow = (index: number) => {
-    if (ingredientsList.length <= 1) return
-    setIngredientsList(ingredientsList.filter((_, i) => i !== index))
-  }
-
-  const updateIngredient = (
-    index: number,
-    field: keyof IngredientFormItem,
-    value: string | boolean
-  ) => {
-    const updated = [...ingredientsList]
-    updated[index] = { ...updated[index], [field]: value }
-    setIngredientsList(updated)
-  }
-
-  // Calculate total cost in real time
-  const calculatedCost = useMemo(() => {
-    let total = 0
-    for (const item of ingredientsList) {
-      if (!item.ingredientId || !item.quantity || !item.includeInCost) continue
-      const product = products.find((p) => p.id === item.ingredientId)
-      if (product) {
-        total += product.purchasePrice * parseFloat(item.quantity || '0')
-      }
-    }
-    return total
-  }, [ingredientsList, products])
-
   const handleSave = async () => {
     if (!selectedProductId) return
-
-    const validIngredients = ingredientsList.filter(
-      (i) => i.ingredientId && parseFloat(i.quantity) > 0
-    )
-
-    if (validIngredients.length === 0) return
-
+    const valid = ingredientsList.filter((i) => i.ingredientId && parseFloat(i.quantity) > 0)
+    if (!valid.length) return
     setIsSaving(true)
     try {
       const result = await api.saveRecipe(
         selectedProductId,
-        validIngredients.map((i) => ({
+        valid.map((i) => ({
           ingredientId: i.ingredientId,
           quantity: parseFloat(i.quantity),
           includeInCost: i.includeInCost,
         }))
       )
-
       if (result.success) {
         setIsFormOpen(false)
         await loadData()
       } else {
         alert(result.error || 'Error al guardar la receta')
       }
-    } catch (error) {
-      console.error('Error saving recipe:', error)
+    } catch {
       alert('Error al guardar la receta')
     }
     setIsSaving(false)
   }
 
+  // ── Extracto wizard handlers ──
+  const openExtractoWizard = () => {
+    setExtractoId('')
+    setExtractoFormulas(
+      Object.fromEntries(
+        EXTRACTO_SIZES.map((s) => [s.key, { productId: '', ingredients: [EMPTY_INGREDIENT()] }])
+      )
+    )
+    setActiveTab('30ml')
+    setIsExtractoOpen(true)
+  }
+
+  // When user picks an extracto, pre-fill the ingredient rows with it
+  const handleExtractoSelect = (id: string) => {
+    setExtractoId(id)
+    setExtractoFormulas(
+      Object.fromEntries(
+        EXTRACTO_SIZES.map((s) => [
+          s.key,
+          {
+            productId: extractoFormulas[s.key].productId,
+            ingredients: [
+              { ingredientId: id, quantity: s.defaultQty, includeInCost: true },
+              EMPTY_INGREDIENT(),
+              EMPTY_INGREDIENT(),
+            ],
+          },
+        ])
+      )
+    )
+  }
+
+  const updateExtractoFormula = (sizeKey: string, formula: SizeFormula) => {
+    setExtractoFormulas((prev) => ({ ...prev, [sizeKey]: formula }))
+  }
+
+  const extractoTabStatus = (sizeKey: string) => {
+    const f = extractoFormulas[sizeKey]
+    const hasProduct = !!f.productId
+    const hasIngredients = f.ingredients.some((i) => i.ingredientId && parseFloat(i.quantity) > 0)
+    if (hasProduct && hasIngredients) return 'complete'
+    if (hasProduct || hasIngredients) return 'partial'
+    return 'empty'
+  }
+
+  const handleSaveAllExtracto = async () => {
+    const toSave = EXTRACTO_SIZES.map((s) => {
+      const f = extractoFormulas[s.key]
+      const valid = f.ingredients.filter((i) => i.ingredientId && parseFloat(i.quantity) > 0)
+      return { productId: f.productId, valid }
+    }).filter((s) => s.productId && s.valid.length > 0)
+
+    if (!toSave.length) return
+    setIsSavingExtracto(true)
+    try {
+      const results = await Promise.all(
+        toSave.map((s) =>
+          api.saveRecipe(
+            s.productId,
+            s.valid.map((i) => ({
+              ingredientId: i.ingredientId,
+              quantity: parseFloat(i.quantity),
+              includeInCost: i.includeInCost,
+            }))
+          )
+        )
+      )
+      const errors = results.filter((r) => !r.success)
+      if (errors.length) {
+        alert(`Se guardaron ${results.length - errors.length} de ${results.length} recetas. Algunos errores ocurrieron.`)
+      }
+      setIsExtractoOpen(false)
+      await loadData()
+    } catch {
+      alert('Error al guardar las fórmulas')
+    }
+    setIsSavingExtracto(false)
+  }
+
+  const extractoReadyCount = EXTRACTO_SIZES.filter((s) => extractoTabStatus(s.key) === 'complete').length
+
+  // ── Delete handlers ──
+  const openDelete = (recipe: RecipeGroup) => {
+    setDeletingRecipe(recipe)
+    setIsDeleteOpen(true)
+  }
+
   const handleDelete = async () => {
     if (!deletingRecipe) return
-
     try {
       const result = await api.deleteRecipe(deletingRecipe.productId)
       if (result.success) {
@@ -241,43 +669,41 @@ export function Recipes() {
       } else {
         alert(result.error || 'Error al eliminar la receta')
       }
-    } catch (error) {
-      console.error('Error deleting recipe:', error)
+    } catch {
+      alert('Error al eliminar')
     }
   }
 
-  // Products that already have a recipe (can't create duplicate)
-  const usedProductIds = useMemo(
-    () => new Set(recipes.map((r) => r.productId)),
-    [recipes]
-  )
-
-  const availableFinishedProducts = useMemo(
-    () =>
-      editingRecipe
-        ? finishedProducts
-        : finishedProducts.filter((p) => !usedProductIds.has(p.id)),
-    [finishedProducts, usedProductIds, editingRecipe]
-  )
-
+  // ── Render ──
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <FlaskConical className="h-6 w-6 text-primary" />
               <CardTitle className="text-2xl">Recetas BOM</CardTitle>
-              <Badge variant="secondary" className="ml-2">
+              <Badge variant="secondary" className="ml-1">
                 {recipes.length}
               </Badge>
             </div>
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nueva Receta
-            </Button>
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={openExtractoWizard}
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+              >
+                <Layers className="h-4 w-4" />
+                Fórmulas por Extracto
+              </Button>
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Nueva Receta
+              </Button>
+            </div>
           </div>
-          <div className="relative mt-4 max-w-md">
+          <div className="relative mt-2 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre o SKU..."
@@ -287,71 +713,82 @@ export function Recipes() {
             />
           </div>
         </CardHeader>
+
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : filteredRecipes.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FlaskConical className="mx-auto h-12 w-12 mb-4 opacity-30" />
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+              <FlaskConical className="h-12 w-12 opacity-20" />
               <p className="text-lg font-medium">No hay recetas</p>
-              <p className="text-sm">
-                Crea una receta para definir los ingredientes de un producto
-                compuesto
+              <p className="text-sm text-center max-w-xs">
+                Crea una receta para definir los ingredientes de un producto compuesto
               </p>
+              <div className="flex gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={openExtractoWizard} className="gap-1.5">
+                  <Layers className="h-3.5 w-3.5" />
+                  Por extracto
+                </Button>
+                <Button size="sm" onClick={openCreate} className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  Individual
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>SKU</TableHead>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-[35%]">Producto</TableHead>
+                    <TableHead className="w-[12%]">SKU</TableHead>
                     <TableHead>Ingredientes</TableHead>
-                    <TableHead className="text-right">Costo Total</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead className="text-right w-[14%]">Costo</TableHead>
+                    <TableHead className="text-right w-[10%]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRecipes.map((recipe) => (
-                    <TableRow key={recipe.productId}>
-                      <TableCell className="font-medium">
-                        {recipe.productName}
+                    <TableRow key={recipe.productId} className="hover:bg-muted/30">
+                      <TableCell>
+                        <span className="font-medium line-clamp-2 leading-snug">
+                          {recipe.productName}
+                        </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{recipe.productSku}</Badge>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {recipe.productSku}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {recipe.ingredients.map((ing) => (
                             <Badge
                               key={ing.id}
-                              variant="secondary"
-                              className="text-xs"
+                              variant={ing.includeInCost ? 'secondary' : 'outline'}
+                              className="text-xs gap-1"
                             >
-                              {ing.ingredientName} x{ing.quantity}
+                              <span className="max-w-[120px] truncate">{ing.ingredientName}</span>
+                              <span className="opacity-70">×{ing.quantity}</span>
                             </Badge>
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-semibold text-primary tabular-nums">
                         {formatCOP(recipe.totalCost)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(recipe)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(recipe)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => openDelete(recipe)}
-                            className="text-destructive hover:text-destructive"
+                            className="text-destructive/70 hover:text-destructive"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -366,158 +803,29 @@ export function Recipes() {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Dialog */}
+      {/* ── Single Recipe Dialog ── */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-primary" />
               {editingRecipe ? 'Editar Receta' : 'Nueva Receta'}
             </DialogTitle>
             <DialogDescription>
-              Define los ingredientes y cantidades necesarias para producir una
-              unidad del producto terminado.
+              Define los ingredientes y cantidades para producir una unidad del producto terminado.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Product Selection */}
-            <div className="space-y-2">
-              <Label>Producto Terminado *</Label>
-              <Select
-                value={selectedProductId}
-                onValueChange={setSelectedProductId}
-                disabled={!!editingRecipe}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un producto..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableFinishedProducts.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.articulo || p.name} ({p.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Ingredients List */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Ingredientes *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addIngredientRow}
-                  className="gap-1"
-                >
-                  <Plus className="h-3 w-3" />
-                  Agregar
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                {ingredientsList.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-lg border p-3"
-                  >
-                    <div className="flex-1">
-                      <Select
-                        value={item.ingredientId}
-                        onValueChange={(val) =>
-                          updateIngredient(index, 'ingredientId', val)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona insumo..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allIngredientOptions.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.articulo || p.name} ({p.sku}) - {formatCOP(p.purchasePrice)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="w-28">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0.001"
-                        placeholder="Cantidad"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateIngredient(index, 'quantity', e.target.value)
-                        }
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      title={item.includeInCost ? 'Suma al costo (click para excluir)' : 'No suma al costo (click para incluir)'}
-                      onClick={() => updateIngredient(index, 'includeInCost', !item.includeInCost)}
-                      className={item.includeInCost ? 'text-primary' : 'text-muted-foreground'}
-                    >
-                      <DollarSign className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeIngredientRow(index)}
-                      disabled={ingredientsList.length <= 1}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cost Summary */}
-            <div className="rounded-lg bg-muted p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">Costo estimado por unidad</span>
-                </div>
-                <span className="text-lg font-bold text-primary">
-                  {formatCOP(calculatedCost)}
-                </span>
-              </div>
-              {ingredientsList.filter((i) => i.ingredientId && i.quantity).length >
-                0 && (
-                <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-                  {ingredientsList
-                    .filter((i) => i.ingredientId && i.quantity)
-                    .map((item, idx) => {
-                      const product = products.find(
-                        (p) => p.id === item.ingredientId
-                      )
-                      if (!product) return null
-                      const cost = item.includeInCost
-                        ? product.purchasePrice * parseFloat(item.quantity || '0')
-                        : 0
-                      return (
-                        <div key={idx} className="flex justify-between">
-                          <span className={!item.includeInCost ? 'opacity-50' : ''}>
-                            {product.articulo || product.name} x {item.quantity}
-                            {!item.includeInCost && ' (solo inventario)'}
-                          </span>
-                          <span className={!item.includeInCost ? 'opacity-50' : ''}>
-                            {item.includeInCost ? formatCOP(cost) : '$0'}
-                          </span>
-                        </div>
-                      )
-                    })}
-                </div>
-              )}
-            </div>
+          <div className="py-2">
+            <FormulaSection
+              productId={selectedProductId}
+              onProductChange={setSelectedProductId}
+              ingredients={ingredientsList}
+              onIngredientsChange={setIngredientsList}
+              products={products}
+              availableProducts={availableFinishedProducts}
+              productDisabled={!!editingRecipe}
+            />
           </div>
 
           <DialogFooter>
@@ -529,9 +837,7 @@ export function Recipes() {
               disabled={
                 isSaving ||
                 !selectedProductId ||
-                ingredientsList.filter(
-                  (i) => i.ingredientId && parseFloat(i.quantity) > 0
-                ).length === 0
+                !ingredientsList.some((i) => i.ingredientId && parseFloat(i.quantity) > 0)
               }
             >
               {isSaving ? 'Guardando...' : 'Guardar Receta'}
@@ -540,15 +846,134 @@ export function Recipes() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* ── Extracto Wizard Dialog ── */}
+      <Dialog open={isExtractoOpen} onOpenChange={setIsExtractoOpen}>
+        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-primary" />
+              Crear Fórmulas por Extracto
+            </DialogTitle>
+            <DialogDescription>
+              Selecciona un extracto y define las 3 fórmulas de presentación (30 ML, 50 ML, 100 ML)
+              de una vez. Solo se guardarán las fórmulas que tengan producto y al menos un ingrediente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Extracto selector */}
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label className="text-sm font-semibold">Extracto base</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Al seleccionarlo, se pre-llena como primer ingrediente en las 3 fórmulas con las
+                cantidades estándar (13 / 22 / 43 unidades).
+              </p>
+              <SearchableCombobox
+                options={products}
+                value={extractoId}
+                onChange={handleExtractoSelect}
+                placeholder="Buscar extracto en inventario..."
+                showPrice
+              />
+            </div>
+
+            {/* Tabs por tamaño */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="w-full grid grid-cols-3">
+                {EXTRACTO_SIZES.map((s) => {
+                  const status = extractoTabStatus(s.key)
+                  return (
+                    <TabsTrigger key={s.key} value={s.key} className="relative gap-1.5">
+                      {s.label}
+                      {status === 'complete' && (
+                        <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                      )}
+                      {status === 'partial' && (
+                        <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                      )}
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+
+              {EXTRACTO_SIZES.map((s) => {
+                const formula = extractoFormulas[s.key]
+                const availableForThisTab = finishedProducts.filter(
+                  (p) =>
+                    !usedProductIds.has(p.id) ||
+                    p.id === formula.productId
+                )
+                return (
+                  <TabsContent key={s.key} value={s.key} className="mt-4">
+                    <div className="rounded-lg border p-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="secondary" className="text-sm px-3 py-1">
+                          Presentación {s.label}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Cantidad sugerida de extracto: <strong>{s.defaultQty} und.</strong>
+                        </span>
+                      </div>
+                      <FormulaSection
+                        productId={formula.productId}
+                        onProductChange={(id) =>
+                          updateExtractoFormula(s.key, { ...formula, productId: id })
+                        }
+                        ingredients={formula.ingredients}
+                        onIngredientsChange={(items) =>
+                          updateExtractoFormula(s.key, { ...formula, ingredients: items })
+                        }
+                        products={products}
+                        availableProducts={availableForThisTab}
+                      />
+                    </div>
+                  </TabsContent>
+                )
+              })}
+            </Tabs>
+
+            {/* Status summary */}
+            {extractoReadyCount > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
+                <Check className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>{extractoReadyCount}</strong> de 3 fórmulas listas para guardar
+                  {extractoReadyCount < 3 && ' — puedes guardar las que ya están completas'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExtractoOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveAllExtracto}
+              disabled={isSavingExtracto || extractoReadyCount === 0}
+              className="gap-2"
+            >
+              <Layers className="h-4 w-4" />
+              {isSavingExtracto
+                ? 'Guardando...'
+                : `Guardar ${extractoReadyCount > 0 ? extractoReadyCount : ''} fórmula${extractoReadyCount !== 1 ? 's' : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation ── */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar Receta</AlertDialogTitle>
             <AlertDialogDescription>
               ¿Estás seguro de eliminar la receta de{' '}
-              <strong>{deletingRecipe?.productName}</strong>? Esta acción no se
-              puede deshacer. El producto dejará de ser compuesto.
+              <strong>{deletingRecipe?.productName}</strong>? El producto dejará de ser compuesto y
+              esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
