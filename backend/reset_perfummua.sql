@@ -10,7 +10,7 @@
 
 USE stockpro_db;
 
-SET @tid = 'd46bec36-5259-4b5b-83c7-01f1e6ea5dcd' COLLATE utf8mb4_unicode_ci;
+SET @tid = 'tenant-demo-001' COLLATE utf8mb4_unicode_ci;
 
 START TRANSACTION;
 
