@@ -281,71 +281,66 @@ function IngredientRow({
       : null
 
   return (
-    <div className="rounded-lg border bg-card p-2.5 space-y-2">
-      <div className="flex items-start gap-2">
-        {/* Badge de número */}
-        <span className="shrink-0 mt-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-          {index + 1}
-        </span>
-        <div className="flex-1 min-w-0">
-          <SearchableCombobox
-            options={products}
-            value={item.ingredientId}
-            onChange={(val) => onUpdate(index, 'ingredientId', val)}
-            placeholder="Buscar insumo o materia prima..."
-            showPrice
-          />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => onRemove(index)}
-          disabled={!canRemove}
-          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+    <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+      {/* Número */}
+      <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+        {index + 1}
+      </span>
+
+      {/* Combobox — ocupa todo el espacio libre */}
+      <div className="flex-1 min-w-0">
+        <SearchableCombobox
+          options={products}
+          value={item.ingredientId}
+          onChange={(val) => onUpdate(index, 'ingredientId', val)}
+          placeholder="Buscar insumo..."
+          showPrice
+        />
       </div>
 
-      <div className="flex items-center gap-2 pl-7">
-        {/* Cantidad */}
-        <div className="flex items-center gap-1.5 flex-1">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">Cantidad:</Label>
-          <Input
-            type="number"
-            step="0.001"
-            min="0.001"
-            placeholder="0.000"
-            value={item.quantity}
-            onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
-            className="h-8 w-28 text-sm text-center"
-          />
-        </div>
+      {/* Cantidad */}
+      <Input
+        type="number"
+        step="0.001"
+        min="0.001"
+        placeholder="Cant."
+        value={item.quantity}
+        onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
+        className="h-9 w-24 shrink-0 text-sm text-center"
+      />
 
-        {/* Toggle costo */}
-        <button
-          type="button"
-          onClick={() => onUpdate(index, 'includeInCost', !item.includeInCost)}
-          title={item.includeInCost ? 'Incluido en costo — clic para excluir' : 'Excluido del costo — clic para incluir'}
-          className={[
-            'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium border transition-colors',
-            item.includeInCost
-              ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
-              : 'border-border bg-muted text-muted-foreground hover:bg-muted/80',
-          ].join(' ')}
-        >
-          <DollarSign className="h-3.5 w-3.5" />
-          {item.includeInCost ? 'En costo' : 'Solo inv.'}
-        </button>
+      {/* Toggle costo */}
+      <button
+        type="button"
+        onClick={() => onUpdate(index, 'includeInCost', !item.includeInCost)}
+        title={item.includeInCost ? 'Incluido en costo — clic para excluir' : 'Excluido del costo — clic para incluir'}
+        className={[
+          'shrink-0 flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium border transition-colors whitespace-nowrap',
+          item.includeInCost
+            ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+            : 'border-border bg-muted text-muted-foreground hover:bg-muted/80',
+        ].join(' ')}
+      >
+        <DollarSign className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{item.includeInCost ? 'Costo' : 'Inv.'}</span>
+      </button>
 
-        {/* Costo de línea */}
-        {lineCost !== null && (
-          <span className="ml-auto text-xs font-semibold text-primary tabular-nums">
-            {formatCOP(lineCost)}
-          </span>
-        )}
-      </div>
+      {/* Costo de línea */}
+      <span className={`hidden lg:block w-24 shrink-0 text-right text-xs font-semibold tabular-nums ${lineCost !== null ? 'text-primary' : 'text-muted-foreground/30'}`}>
+        {lineCost !== null ? formatCOP(lineCost) : '—'}
+      </span>
+
+      {/* Eliminar */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemove(index)}
+        disabled={!canRemove}
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+      >
+        <X className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
@@ -427,7 +422,18 @@ function FormulaSection({
           </Button>
         </div>
 
-        <div className="space-y-2">
+        {/* Header columnas — solo desktop */}
+        {ingredients.length > 0 && (
+          <div className="hidden lg:flex items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="w-5 shrink-0" />
+            <span className="flex-1">Insumo / Materia prima</span>
+            <span className="w-24 shrink-0 text-center">Cantidad</span>
+            <span className="w-16 shrink-0 text-center">Costo</span>
+            <span className="w-24 shrink-0 text-right">Subtotal</span>
+            <span className="w-8 shrink-0" />
+          </div>
+        )}
+        <div className="space-y-1.5">
           {ingredients.map((item, idx) => (
             <IngredientRow
               key={idx}
@@ -805,7 +811,7 @@ export function Recipes() {
 
       {/* ── Single Recipe Dialog ── */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FlaskConical className="h-5 w-5 text-primary" />
@@ -848,120 +854,187 @@ export function Recipes() {
 
       {/* ── Extracto Wizard Dialog ── */}
       <Dialog open={isExtractoOpen} onOpenChange={setIsExtractoOpen}>
-        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
-              Crear Fórmulas por Extracto
-            </DialogTitle>
-            <DialogDescription>
-              Selecciona un extracto y define las 3 fórmulas de presentación (30 ML, 50 ML, 100 ML)
-              de una vez. Solo se guardarán las fórmulas que tengan producto y al menos un ingrediente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5 py-2">
-            {/* Extracto selector */}
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <Label className="text-sm font-semibold">Extracto base</Label>
+        <DialogContent className="w-[98vw] max-w-[98vw] xl:max-w-7xl max-h-[95vh] overflow-y-auto p-0">
+          {/* Header fijo */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <Layers className="h-5 w-5 text-primary" />
+                  Crear Fórmulas por Extracto
+                </DialogTitle>
+                <DialogDescription className="mt-1">
+                  Selecciona el extracto base y define las 3 presentaciones. En PC se ven las 3 columnas a la vez.
+                </DialogDescription>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Al seleccionarlo, se pre-llena como primer ingrediente en las 3 fórmulas con las
-                cantidades estándar (13 / 22 / 43 unidades).
-              </p>
-              <SearchableCombobox
-                options={products}
-                value={extractoId}
-                onChange={handleExtractoSelect}
-                placeholder="Buscar extracto en inventario..."
-                showPrice
-              />
+              {/* Status + Save en el header para PC */}
+              <div className="hidden sm:flex items-center gap-3 shrink-0">
+                {extractoReadyCount > 0 && (
+                  <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 font-medium">
+                    <Check className="h-4 w-4" />
+                    {extractoReadyCount}/3 listas
+                  </span>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setIsExtractoOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveAllExtracto}
+                  disabled={isSavingExtracto || extractoReadyCount === 0}
+                  className="gap-2"
+                >
+                  <Layers className="h-4 w-4" />
+                  {isSavingExtracto ? 'Guardando...' : `Guardar ${extractoReadyCount || ''} fórmula${extractoReadyCount !== 1 ? 's' : ''}`}
+                </Button>
+              </div>
             </div>
 
-            {/* Tabs por tamaño */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full grid grid-cols-3">
-                {EXTRACTO_SIZES.map((s) => {
-                  const status = extractoTabStatus(s.key)
-                  return (
-                    <TabsTrigger key={s.key} value={s.key} className="relative gap-1.5">
-                      {s.label}
-                      {status === 'complete' && (
-                        <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
-                      )}
-                      {status === 'partial' && (
-                        <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                      )}
-                    </TabsTrigger>
-                  )
-                })}
-              </TabsList>
-
-              {EXTRACTO_SIZES.map((s) => {
-                const formula = extractoFormulas[s.key]
-                const availableForThisTab = finishedProducts.filter(
-                  (p) =>
-                    !usedProductIds.has(p.id) ||
-                    p.id === formula.productId
-                )
-                return (
-                  <TabsContent key={s.key} value={s.key} className="mt-4">
-                    <div className="rounded-lg border p-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Badge variant="secondary" className="text-sm px-3 py-1">
-                          Presentación {s.label}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          Cantidad sugerida de extracto: <strong>{s.defaultQty} und.</strong>
-                        </span>
-                      </div>
-                      <FormulaSection
-                        productId={formula.productId}
-                        onProductChange={(id) =>
-                          updateExtractoFormula(s.key, { ...formula, productId: id })
-                        }
-                        ingredients={formula.ingredients}
-                        onIngredientsChange={(items) =>
-                          updateExtractoFormula(s.key, { ...formula, ingredients: items })
-                        }
-                        products={products}
-                        availableProducts={availableForThisTab}
-                      />
-                    </div>
-                  </TabsContent>
-                )
-              })}
-            </Tabs>
-
-            {/* Status summary */}
-            {extractoReadyCount > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
-                <Check className="h-4 w-4 shrink-0" />
-                <span>
-                  <strong>{extractoReadyCount}</strong> de 3 fórmulas listas para guardar
-                  {extractoReadyCount < 3 && ' — puedes guardar las que ya están completas'}
-                </span>
+            {/* Extracto selector — siempre visible en header */}
+            <div className="mt-3 flex items-center gap-3">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              <div className="flex-1 max-w-md">
+                <SearchableCombobox
+                  options={products}
+                  value={extractoId}
+                  onChange={handleExtractoSelect}
+                  placeholder="Selecciona el extracto base..."
+                  showPrice
+                />
               </div>
-            )}
+              {extractoId && (
+                <span className="text-xs text-muted-foreground hidden sm:block">
+                  Pre-llena: 13 / 22 / 43 und. por tamaño
+                </span>
+              )}
+            </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsExtractoOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveAllExtracto}
-              disabled={isSavingExtracto || extractoReadyCount === 0}
-              className="gap-2"
-            >
-              <Layers className="h-4 w-4" />
-              {isSavingExtracto
-                ? 'Guardando...'
-                : `Guardar ${extractoReadyCount > 0 ? extractoReadyCount : ''} fórmula${extractoReadyCount !== 1 ? 's' : ''}`}
-            </Button>
-          </DialogFooter>
+          {/* Cuerpo: 3 columnas en desktop, tabs en mobile */}
+          <div className="px-4 py-4 sm:px-6">
+
+            {/* ── DESKTOP: 3 columnas ── */}
+            <div className="hidden sm:grid sm:grid-cols-3 gap-4">
+              {EXTRACTO_SIZES.map((s) => {
+                const formula = extractoFormulas[s.key]
+                const status = extractoTabStatus(s.key)
+                const availableForCol = finishedProducts.filter(
+                  (p) => !usedProductIds.has(p.id) || p.id === formula.productId
+                )
+                return (
+                  <div
+                    key={s.key}
+                    className={[
+                      'rounded-xl border-2 p-4 flex flex-col gap-4 transition-colors',
+                      status === 'complete' ? 'border-green-500/40 bg-green-500/5' :
+                      status === 'partial'  ? 'border-amber-400/40 bg-amber-400/5' :
+                                             'border-border bg-card',
+                    ].join(' ')}
+                  >
+                    {/* Cabecera columna */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className={[
+                            'text-sm font-bold px-3 py-1',
+                            status === 'complete' ? 'bg-green-500 text-white hover:bg-green-500' :
+                            status === 'partial'  ? 'bg-amber-400 text-white hover:bg-amber-400' :
+                                                   '',
+                          ].join(' ')}
+                          variant={status === 'empty' ? 'secondary' : 'default'}
+                        >
+                          {s.label}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{s.defaultQty} und.</span>
+                      </div>
+                      {status === 'complete' && <Check className="h-4 w-4 text-green-500" />}
+                    </div>
+
+                    <FormulaSection
+                      productId={formula.productId}
+                      onProductChange={(id) =>
+                        updateExtractoFormula(s.key, { ...formula, productId: id })
+                      }
+                      ingredients={formula.ingredients}
+                      onIngredientsChange={(items) =>
+                        updateExtractoFormula(s.key, { ...formula, ingredients: items })
+                      }
+                      products={products}
+                      availableProducts={availableForCol}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* ── MOBILE: tabs ── */}
+            <div className="sm:hidden">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="w-full grid grid-cols-3">
+                  {EXTRACTO_SIZES.map((s) => {
+                    const status = extractoTabStatus(s.key)
+                    return (
+                      <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
+                        {s.label}
+                        {status === 'complete' && <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />}
+                        {status === 'partial'  && <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />}
+                      </TabsTrigger>
+                    )
+                  })}
+                </TabsList>
+                {EXTRACTO_SIZES.map((s) => {
+                  const formula = extractoFormulas[s.key]
+                  const availableForTab = finishedProducts.filter(
+                    (p) => !usedProductIds.has(p.id) || p.id === formula.productId
+                  )
+                  return (
+                    <TabsContent key={s.key} value={s.key} className="mt-4">
+                      <div className="rounded-lg border p-4">
+                        <FormulaSection
+                          productId={formula.productId}
+                          onProductChange={(id) =>
+                            updateExtractoFormula(s.key, { ...formula, productId: id })
+                          }
+                          ingredients={formula.ingredients}
+                          onIngredientsChange={(items) =>
+                            updateExtractoFormula(s.key, { ...formula, ingredients: items })
+                          }
+                          products={products}
+                          availableProducts={availableForTab}
+                        />
+                      </div>
+                    </TabsContent>
+                  )
+                })}
+              </Tabs>
+
+              {/* Footer mobile */}
+              <div className="mt-4 flex flex-col gap-2">
+                {extractoReadyCount > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
+                    <Check className="h-4 w-4 shrink-0" />
+                    <strong>{extractoReadyCount}</strong>&nbsp;de 3 fórmulas listas
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setIsExtractoOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={handleSaveAllExtracto}
+                    disabled={isSavingExtracto || extractoReadyCount === 0}
+                  >
+                    <Layers className="h-4 w-4" />
+                    {isSavingExtracto ? 'Guardando...' : `Guardar ${extractoReadyCount || ''} fórmula${extractoReadyCount !== 1 ? 's' : ''}`}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer PC vacío — los botones están en el header */}
+          <div className="hidden sm:block" />
         </DialogContent>
       </Dialog>
 
