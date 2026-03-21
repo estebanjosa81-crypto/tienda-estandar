@@ -39,7 +39,7 @@ services:
     volumes:
       - ./backend/inventarioEsteban_v3_multitenant.sql:/init.sql:ro
     command: >
-      bash -c "mysql --force -h db -u root $$DB_NAME < /init.sql && echo 'Schema aplicado'"
+      bash -c "mysql --force --default-character-set=utf8mb4 -h db -u root $$DB_NAME < /init.sql && echo 'Schema aplicado'"
 
   # ── Backend Node.js ────────────────────────────────────────
   backend:
