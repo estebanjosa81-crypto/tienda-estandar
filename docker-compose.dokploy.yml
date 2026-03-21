@@ -63,7 +63,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${BACKEND_URL}/api
+        NEXT_PUBLIC_API_URL: /api
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
         NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
         NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${CLOUDINARY_UPLOAD_PRESET:-}
@@ -71,7 +71,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: ${BACKEND_URL}/api
+      NEXT_PUBLIC_API_URL: /api
       HOSTNAME: "0.0.0.0"
     ports:
       - "3002:3000"
