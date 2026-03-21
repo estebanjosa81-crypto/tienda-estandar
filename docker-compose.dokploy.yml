@@ -19,27 +19,11 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
-      - ./backend/inventarioEsteban_v3_multitenant.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # ── Inicialización del schema SQL ─────────────────────────
-  db-init:
-    image: mysql:8.0
-    restart: "no"
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      MYSQL_PWD: ${DB_ROOT_PASSWORD}
-      DB_NAME: ${DB_NAME}
-    volumes:
-      - ./backend/inventarioEsteban_v3_multitenant.sql:/init.sql:ro
-    command: >
-      bash -c "mysql --force --default-character-set=utf8mb4 -h db -u root $$DB_NAME < /init.sql && echo 'Schema aplicado'"
 
   # ── Backend Node.js ────────────────────────────────────────
   backend:
@@ -48,8 +32,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      db-init:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3001
