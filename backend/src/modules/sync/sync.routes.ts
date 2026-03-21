@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getStatus, triggerSync, receiveSales, receivePurchases } from './sync.controller';
+import { getStatus, triggerSync, receiveSales, receivePurchases, getChanges } from './sync.controller';
 import { authenticate } from '../../common/middleware';
 
 const router = Router();
@@ -10,7 +10,10 @@ router.get('/status', authenticate, getStatus);
 // Disparar sync manual
 router.post('/trigger', authenticate, triggerSync);
 
-// Endpoints que usa el backend LOCAL para enviar datos a la NUBE
+// Endpoint de la NUBE: sirve cambios incrementales a las instancias locales (PULL)
+router.get('/changes', getChanges);
+
+// Endpoints que usa el backend LOCAL para enviar datos a la NUBE (PUSH)
 router.post('/receive-sales', receiveSales);
 router.post('/receive-purchases', receivePurchases);
 

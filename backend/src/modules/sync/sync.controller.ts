@@ -4,6 +4,7 @@ import {
   runSync,
   receiveSalesFromLocal,
   receivePurchasesFromLocal,
+  getChangesSince,
 } from './sync.service';
 import { config } from '../../config/env';
 
@@ -54,6 +55,40 @@ export async function receiveSales(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: result });
   } catch (err: any) {
     console.error('[Sync] Error recibiendo ventas:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+/**
+ * GET /api/sync/changes?since=ISO_TIMESTAMP&tenantId=UUID
+ * ENDPOINT DE LA NUBE: retorna productos y clientes modificados desde `since`.
+ * El local lo llama para hacer el PULL (bajar cambios de la nube).
+ * Protegido con x-sync-secret header.
+ */
+export async function getChanges(req: Request, res: Response): Promise<void> {
+  const secret = req.headers['x-sync-secret'];
+  if (!config.sync.secret || secret !== config.sync.secret) {
+    res.status(401).json({ success: false, error: 'No autorizado' });
+    return;
+  }
+
+  const { since, tenantId } = req.query as { since?: string; tenantId?: string };
+  if (!since || !tenantId) {
+    res.status(400).json({ success: false, error: 'Parámetros since y tenantId requeridos' });
+    return;
+  }
+
+  const sinceDate = new Date(since);
+  if (isNaN(sinceDate.getTime())) {
+    res.status(400).json({ success: false, error: 'Formato de since inválido (usar ISO 8601)' });
+    return;
+  }
+
+  try {
+    const data = await getChangesSince(tenantId, sinceDate);
+    res.json({ success: true, ...data });
+  } catch (err: any) {
+    console.error('[Sync] Error en GET /changes:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 }

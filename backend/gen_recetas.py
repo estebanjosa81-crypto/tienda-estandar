@@ -716,8 +716,8 @@ def gen_products(extractos, sede_id, section_num_base):
     # ---- 30ML ----
     result.append("-- ============================================================")
     result.append(f"-- {section_num_base}. PRODUCTOS TERMINADOS 30ML - {sede_id.upper()}")
-    result.append("--    Costo BOM: 13*1700 + caja = $22,000")
-    result.append(f"--    Precio venta (sin IVA): ${round(22000/1.19):,}")
+    result.append("--    13g extracto + envase 30ML + caja")
+    result.append("--    Precio venta: $22,000")
     result.append("-- ============================================================")
     result.append("INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES")
     rows = []
@@ -726,7 +726,7 @@ def gen_products(extractos, sede_id, section_num_base):
         sku = f"PM-PERF-{code.upper()}-030"
         ext_id = f"prod-pm-{code}"
         rows.append(
-            f"('{pid}', @tid, '{name} 30ML', 'PERF-{name} 30ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 22000, {round(22000/1.19)}, '30ML', 'Extracto: {ext_id}', '{sede_id}')"
+            f"('{pid}', @tid, '{name} 30ML', 'PERF-{name} 30ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 0, 22000, '30ML', 'Extracto: {ext_id}', '{sede_id}')"
         )
     result.append(",\n".join(rows) + ";")
     result.append("")
@@ -734,8 +734,8 @@ def gen_products(extractos, sede_id, section_num_base):
     # ---- 50ML ----
     result.append("-- ============================================================")
     result.append(f"-- {section_num_base+1}. PRODUCTOS TERMINADOS 50ML - {sede_id.upper()}")
-    result.append("--    Costo BOM: 22*1700 + caja = $38,000")
-    result.append(f"--    Precio venta (sin IVA): ${round(38000/1.19):,}")
+    result.append("--    22g extracto + envase 50ML + caja")
+    result.append("--    Precio venta: $38,000")
     result.append("-- ============================================================")
     result.append("INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES")
     rows = []
@@ -744,7 +744,7 @@ def gen_products(extractos, sede_id, section_num_base):
         sku = f"PM-PERF-{code.upper()}-050"
         ext_id = f"prod-pm-{code}"
         rows.append(
-            f"('{pid}', @tid, '{name} 50ML', 'PERF-{name} 50ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 38000, {round(38000/1.19)}, '50ML', 'Extracto: {ext_id}', '{sede_id}')"
+            f"('{pid}', @tid, '{name} 50ML', 'PERF-{name} 50ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 0, 38000, '50ML', 'Extracto: {ext_id}', '{sede_id}')"
         )
     result.append(",\n".join(rows) + ";")
     result.append("")
@@ -752,8 +752,8 @@ def gen_products(extractos, sede_id, section_num_base):
     # ---- 100ML ----
     result.append("-- ============================================================")
     result.append(f"-- {section_num_base+2}. PRODUCTOS TERMINADOS 100ML - {sede_id.upper()}")
-    result.append("--    Costo BOM: 43*1700 + caja = $75,000")
-    result.append(f"--    Precio venta (sin IVA): ${round(75000/1.19):,}")
+    result.append("--    43g extracto + envase 100ML + caja")
+    result.append("--    Precio venta: $75,000")
     result.append("-- ============================================================")
     result.append("INSERT INTO products (id, tenant_id, name, articulo, category, product_type, sku, stock, reorder_point, entry_date, purchase_price, sale_price, presentation, notes, sede_id) VALUES")
     rows = []
@@ -762,7 +762,7 @@ def gen_products(extractos, sede_id, section_num_base):
         sku = f"PM-PERF-{code.upper()}-100"
         ext_id = f"prod-pm-{code}"
         rows.append(
-            f"('{pid}', @tid, '{name} 100ML', 'PERF-{name} 100ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 75000, {round(75000/1.19)}, '100ML', 'Extracto: {ext_id}', '{sede_id}')"
+            f"('{pid}', @tid, '{name} 100ML', 'PERF-{name} 100ML', 'cat-pm-perfumeria', 'perfumes', '{sku}', 0, 0, CURDATE(), 0, 75000, '100ML', 'Extracto: {ext_id}', '{sede_id}')"
         )
     result.append(",\n".join(rows) + ";")
     result.append("")
@@ -872,4 +872,4 @@ print(f"  Total extractos: {len(extractos_s1) + len(extractos_s2)}")
 print(f"  Total productos terminados: {(len(extractos_s1) + len(extractos_s2)) * 3}")
 print(f"  Total filas de receta: {total_recipe_rows}")
 print(f"  Lineas SQL generadas: {len(lines)}")
-print(f"  Precios: 30ML=$22000/{round(22000/1.19)}, 50ML=$38000/{round(38000/1.19)}, 100ML=$75000/{round(75000/1.19)}")
+print(f"  Precios venta: 30ML=$22,000 | 50ML=$38,000 | 100ML=$75,000 (purchase_price=0, el BOM calcula el costo real)")
