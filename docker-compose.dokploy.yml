@@ -11,7 +11,7 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --log-bin-trust-function-creators=1
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
@@ -34,13 +34,12 @@ services:
       db:
         condition: service_healthy
     environment:
-      MYSQL_PWD: ${DB_PASSWORD}
-      DB_USER: ${DB_USER}
+      MYSQL_PWD: ${DB_ROOT_PASSWORD}
       DB_NAME: ${DB_NAME}
     volumes:
       - ./backend/inventarioEsteban_v3_multitenant.sql:/init.sql:ro
     command: >
-      bash -c "mysql --force -h db -u $$DB_USER $$DB_NAME < /init.sql && echo 'Schema aplicado'"
+      bash -c "mysql --force -h db -u root $$DB_NAME < /init.sql && echo 'Schema aplicado'"
 
   # ── Backend Node.js ────────────────────────────────────────
   backend:
