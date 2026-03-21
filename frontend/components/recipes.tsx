@@ -196,7 +196,7 @@ function SearchableCombobox({
 
       {/* Dropdown */}
       {open && !disabled && (
-        <div className="absolute left-0 right-0 z-50 mt-1 rounded-md border bg-popover shadow-lg">
+        <div className="absolute left-0 z-50 mt-1 rounded-md border bg-popover shadow-lg min-w-[260px] w-full max-w-[420px]">
           {/* Search input */}
           <div className="flex items-center border-b px-2 py-1.5">
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0 mr-1.5" />
@@ -281,66 +281,64 @@ function IngredientRow({
       : null
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-      {/* Número */}
-      <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-        {index + 1}
-      </span>
-
-      {/* Combobox — ocupa todo el espacio libre */}
-      <div className="flex-1 min-w-0">
-        <SearchableCombobox
-          options={products}
-          value={item.ingredientId}
-          onChange={(val) => onUpdate(index, 'ingredientId', val)}
-          placeholder="Buscar insumo..."
-          showPrice
-        />
+    <div className="rounded-lg border bg-card p-2 space-y-1.5">
+      {/* Fila principal: número + combobox */}
+      <div className="flex items-center gap-1.5">
+        <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+          {index + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <SearchableCombobox
+            options={products}
+            value={item.ingredientId}
+            onChange={(val) => onUpdate(index, 'ingredientId', val)}
+            placeholder="Buscar insumo..."
+            showPrice
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemove(index)}
+          disabled={!canRemove}
+          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
-      {/* Cantidad */}
-      <Input
-        type="number"
-        step="0.001"
-        min="0.001"
-        placeholder="Cant."
-        value={item.quantity}
-        onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
-        className="h-9 w-24 shrink-0 text-sm text-center"
-      />
-
-      {/* Toggle costo */}
-      <button
-        type="button"
-        onClick={() => onUpdate(index, 'includeInCost', !item.includeInCost)}
-        title={item.includeInCost ? 'Incluido en costo — clic para excluir' : 'Excluido del costo — clic para incluir'}
-        className={[
-          'shrink-0 flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium border transition-colors whitespace-nowrap',
-          item.includeInCost
-            ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
-            : 'border-border bg-muted text-muted-foreground hover:bg-muted/80',
-        ].join(' ')}
-      >
-        <DollarSign className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">{item.includeInCost ? 'Costo' : 'Inv.'}</span>
-      </button>
-
-      {/* Costo de línea */}
-      <span className={`hidden lg:block w-24 shrink-0 text-right text-xs font-semibold tabular-nums ${lineCost !== null ? 'text-primary' : 'text-muted-foreground/30'}`}>
-        {lineCost !== null ? formatCOP(lineCost) : '—'}
-      </span>
-
-      {/* Eliminar */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => onRemove(index)}
-        disabled={!canRemove}
-        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+      {/* Fila secundaria: cantidad + toggle + costo */}
+      <div className="flex items-center gap-1.5 pl-6">
+        <Input
+          type="number"
+          step="0.001"
+          min="0.001"
+          placeholder="Cant."
+          value={item.quantity}
+          onChange={(e) => onUpdate(index, 'quantity', e.target.value)}
+          className="h-7 w-20 shrink-0 text-xs text-center"
+        />
+        <button
+          type="button"
+          onClick={() => onUpdate(index, 'includeInCost', !item.includeInCost)}
+          title={item.includeInCost ? 'Incluido en costo' : 'Solo inventario'}
+          className={[
+            'shrink-0 flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium border transition-colors',
+            item.includeInCost
+              ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+              : 'border-border bg-muted text-muted-foreground hover:bg-muted/80',
+          ].join(' ')}
+        >
+          <DollarSign className="h-3 w-3" />
+          {item.includeInCost ? 'Costo' : 'Inv.'}
+        </button>
+        {lineCost !== null && (
+          <span className="ml-auto text-[11px] font-semibold text-primary tabular-nums">
+            {formatCOP(lineCost)}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -388,26 +386,26 @@ function FormulaSection({
   const filledCount = ingredients.filter((i) => i.ingredientId && parseFloat(i.quantity) > 0).length
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 min-w-0">
       {/* Producto terminado */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="space-y-1">
+        <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Producto terminado *
         </Label>
         <SearchableCombobox
           options={availableProducts}
           value={productId}
           onChange={onProductChange}
-          placeholder="Buscar producto terminado..."
+          placeholder="Buscar producto..."
           disabled={productDisabled}
         />
       </div>
 
       {/* Ingredientes */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Ingredientes
             </Label>
             {filledCount > 0 && (
@@ -416,23 +414,12 @@ function FormulaSection({
               </Badge>
             )}
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-7 gap-1 text-xs">
+          <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-6 gap-1 text-xs px-2">
             <Plus className="h-3 w-3" />
             Agregar
           </Button>
         </div>
 
-        {/* Header columnas — solo desktop */}
-        {ingredients.length > 0 && (
-          <div className="hidden lg:flex items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span className="w-5 shrink-0" />
-            <span className="flex-1">Insumo / Materia prima</span>
-            <span className="w-24 shrink-0 text-center">Cantidad</span>
-            <span className="w-16 shrink-0 text-center">Costo</span>
-            <span className="w-24 shrink-0 text-right">Subtotal</span>
-            <span className="w-8 shrink-0" />
-          </div>
-        )}
         <div className="space-y-1.5">
           {ingredients.map((item, idx) => (
             <IngredientRow
@@ -449,12 +436,12 @@ function FormulaSection({
       </div>
 
       {/* Costo total */}
-      <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Package className="h-4 w-4" />
-          Costo estimado por unidad
+      <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Package className="h-3.5 w-3.5" />
+          Costo estimado
         </div>
-        <span className="text-lg font-bold text-primary tabular-nums">{formatCOP(totalCost)}</span>
+        <span className="text-base font-bold text-primary tabular-nums">{formatCOP(totalCost)}</span>
       </div>
     </div>
   )
@@ -911,10 +898,10 @@ export function Recipes() {
           </div>
 
           {/* Cuerpo: 3 columnas en desktop, tabs en mobile */}
-          <div className="px-4 py-4 sm:px-6">
+          <div className="px-3 py-3 sm:px-4">
 
             {/* ── DESKTOP: 3 columnas ── */}
-            <div className="hidden sm:grid sm:grid-cols-3 gap-4">
+            <div className="hidden sm:grid sm:grid-cols-3 gap-3">
               {EXTRACTO_SIZES.map((s) => {
                 const formula = extractoFormulas[s.key]
                 const status = extractoTabStatus(s.key)
@@ -925,7 +912,7 @@ export function Recipes() {
                   <div
                     key={s.key}
                     className={[
-                      'rounded-xl border-2 p-4 flex flex-col gap-4 transition-colors',
+                      'rounded-xl border-2 p-3 flex flex-col gap-3 transition-colors min-w-0',
                       status === 'complete' ? 'border-green-500/40 bg-green-500/5' :
                       status === 'partial'  ? 'border-amber-400/40 bg-amber-400/5' :
                                              'border-border bg-card',
@@ -936,7 +923,7 @@ export function Recipes() {
                       <div className="flex items-center gap-2">
                         <Badge
                           className={[
-                            'text-sm font-bold px-3 py-1',
+                            'text-sm font-bold px-2.5 py-0.5',
                             status === 'complete' ? 'bg-green-500 text-white hover:bg-green-500' :
                             status === 'partial'  ? 'bg-amber-400 text-white hover:bg-amber-400' :
                                                    '',

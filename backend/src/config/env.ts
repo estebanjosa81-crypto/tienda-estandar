@@ -58,10 +58,12 @@ export const config = {
   // IS_LOCAL_INSTANCE=true  → este backend corre en el PC del cliente y debe sincronizar con la nube
   // CLOUD_API_URL            → URL del backend en la nube (ej: https://api.miapp.com)
   // SYNC_SECRET              → clave compartida entre local y nube para autenticar el sync
+  // SYNC_TENANT_ID           → UUID del tenant al que pertenece esta instalación local
   sync: {
     isLocalInstance: process.env.IS_LOCAL_INSTANCE === 'true',
     cloudApiUrl: process.env.CLOUD_API_URL || '',
     secret: process.env.SYNC_SECRET || '',
     intervalMs: parseInt(process.env.SYNC_INTERVAL_MS || '30000', 10),
+    tenantId: process.env.SYNC_TENANT_ID || '',
   },
 };
