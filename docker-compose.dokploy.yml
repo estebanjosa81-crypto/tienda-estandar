@@ -34,13 +34,13 @@ services:
       db:
         condition: service_healthy
     environment:
+      MYSQL_PWD: ${DB_PASSWORD}
       DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
     volumes:
       - ./backend/inventarioEsteban_v3_multitenant.sql:/init.sql:ro
     command: >
-      sh -c "mysql -h db -u $$DB_USER -p$$DB_PASSWORD $$DB_NAME < /init.sql && echo '✅ Schema aplicado'"
+      bash -c "mysql -h db -u $$DB_USER $$DB_NAME < /init.sql && echo 'Schema aplicado'"
 
   # ── Backend Node.js ────────────────────────────────────────
   backend:
