@@ -10,6 +10,12 @@
 -- Cada tabla de datos tiene tenant_id para aislamiento de datos
 -- ============================================
 
+-- Crear base de datos
+CREATE DATABASE IF NOT EXISTS stockpro_db
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE stockpro_db;
 
 -- ============================================
 -- TABLA: tenants (Negocios/Inquilinos)
@@ -434,7 +440,6 @@ CREATE TABLE IF NOT EXISTS product_recipes (
     product_id VARCHAR(36) NOT NULL,
     ingredient_id VARCHAR(36) NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
-    include_in_cost TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
@@ -1501,23 +1506,23 @@ VALUES
 -- RECETAS BOM (Bill of Materials)
 -- Define cuantos insumos se necesitan para armar cada referencia
 
--- Receta 100ML: 43 Extracto (costo) + 1 Envase 100ML (costo) + 1 Caja 100ML (costo)
-INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES
-(UUID(), @tenant, @id_p100, @id_extracto, 43, 1),
-(UUID(), @tenant, @id_p100, @id_env_100, 1, 1),
-(UUID(), @tenant, @id_p100, @id_caja_100, 1, 1);
+-- Receta 100ML: 43 Extracto + 1 Envase 100ML + 1 Caja 100ML
+INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity) VALUES
+(UUID(), @tenant, @id_p100, @id_extracto, 43),
+(UUID(), @tenant, @id_p100, @id_env_100, 1),
+(UUID(), @tenant, @id_p100, @id_caja_100, 1);
 
--- Receta 50ML: 22 Extracto (costo) + 1 Envase 50ML (costo) + 1 Caja 50ML (costo)
-INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES
-(UUID(), @tenant, @id_p50, @id_extracto, 22, 1),
-(UUID(), @tenant, @id_p50, @id_env_50, 1, 1),
-(UUID(), @tenant, @id_p50, @id_caja_50, 1, 1);
+-- Receta 50ML: 22 Extracto + 1 Envase 50ML + 1 Caja 50ML
+INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity) VALUES
+(UUID(), @tenant, @id_p50, @id_extracto, 22),
+(UUID(), @tenant, @id_p50, @id_env_50, 1),
+(UUID(), @tenant, @id_p50, @id_caja_50, 1);
 
--- Receta 30ML: 13 Extracto (costo) + 1 Envase 30ML (costo) + 1 Caja 30ML (costo)
-INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES
-(UUID(), @tenant, @id_p30, @id_extracto, 13, 1),
-(UUID(), @tenant, @id_p30, @id_env_30, 1, 1),
-(UUID(), @tenant, @id_p30, @id_caja_30, 1, 1);
+-- Receta 30ML: 13 Extracto + 1 Envase 30ML + 1 Caja 30ML
+INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity) VALUES
+(UUID(), @tenant, @id_p30, @id_extracto, 13),
+(UUID(), @tenant, @id_p30, @id_env_30, 1),
+(UUID(), @tenant, @id_p30, @id_caja_30, 1);
 
 -- ============================================
 -- SOPORTE GOOGLE OAuth (Login rápido con Google)
