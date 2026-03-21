@@ -11,6 +11,7 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
@@ -25,6 +26,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── Inicialización del schema SQL ─────────────────────────
+  db-init:
+    image: mysql:8.0
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    volumes:
+      - ./backend/inventarioEsteban_v3_multitenant.sql:/init.sql:ro
+    command: >
+      sh -c "mysql -h db -u $$DB_USER -p$$DB_PASSWORD $$DB_NAME < /init.sql && echo '✅ Schema aplicado'"
+
   # ── Backend Node.js ────────────────────────────────────────
   backend:
     build:
@@ -32,8 +49,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3001
