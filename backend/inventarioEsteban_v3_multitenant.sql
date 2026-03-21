@@ -10,12 +10,6 @@
 -- Cada tabla de datos tiene tenant_id para aislamiento de datos
 -- ============================================
 
--- Crear base de datos
-CREATE DATABASE IF NOT EXISTS stockpro_db
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
-
-USE stockpro_db;
 
 -- ============================================
 -- TABLA: tenants (Negocios/Inquilinos)
