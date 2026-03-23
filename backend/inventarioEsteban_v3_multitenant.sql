@@ -54,6 +54,16 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     can_login BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'FALSE = el empleado existe en el sistema pero no puede iniciar sesión (ej: empleados de aseo, bodega)',
     cargo_id VARCHAR(36) NULL COMMENT 'Cargo personalizado del empleado (FK a employee_cargos)',
+    -- Campos de domicilio / perfil cliente
+    cedula VARCHAR(50) NULL,
+    department VARCHAR(100) NULL,
+    municipality VARCHAR(100) NULL,
+    address TEXT NULL,
+    neighborhood VARCHAR(255) NULL,
+    delivery_latitude DECIMAL(10,7) NULL,
+    delivery_longitude DECIMAL(10,7) NULL,
+    profile_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    data_encrypted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = campos sensibles (phone, cedula, address) cifrados con AES-256-CBC',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -1540,17 +1550,9 @@ ALTER TABLE users ADD INDEX idx_google_id (google_id);
 -- SISTEMA DE DOMICILIOS / DELIVERY
 -- ============================================
 
--- Campos de dirección de domicilio en usuarios (clientes)
--- Nota: phone ya existe en CREATE TABLE users; se omite aquí.
-ALTER TABLE users
-  ADD COLUMN cedula VARCHAR(50) NULL,
-  ADD COLUMN department VARCHAR(100) NULL,
-  ADD COLUMN municipality VARCHAR(100) NULL,
-  ADD COLUMN address TEXT NULL,
-  ADD COLUMN neighborhood VARCHAR(255) NULL,
-  ADD COLUMN delivery_latitude DECIMAL(10,7) NULL,
-  ADD COLUMN delivery_longitude DECIMAL(10,7) NULL,
-  ADD COLUMN profile_completed BOOLEAN NOT NULL DEFAULT FALSE;
+-- Campos de domicilio ya incluidos en CREATE TABLE users.
+-- Este bloque queda para migraciones de DBs antiguas (instalaciones previas).
+-- En instalaciones frescas no tiene efecto porque las columnas ya existen.
 
 -- ============================================
 -- ALTER TABLE para DBs existentes (compatible MySQL 5.7+)
