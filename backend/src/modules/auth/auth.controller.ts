@@ -7,7 +7,8 @@ import { audit } from '../../utils/audit-logger';
 const COOKIE_NAME = 'authToken';
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  // secure=true solo en producción con HTTPS (no en instancias locales que usan http://localhost)
+  secure: process.env.NODE_ENV === 'production' && process.env.IS_LOCAL_INSTANCE !== 'true',
   sameSite: 'strict' as const,
   maxAge: 24 * 60 * 60 * 1000, // 24h in ms (matches JWT_EXPIRES_IN)
   path: '/',
