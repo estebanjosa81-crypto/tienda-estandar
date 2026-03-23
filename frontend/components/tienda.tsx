@@ -869,59 +869,61 @@ export function Tienda() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {paginatedProducts.map(product => renderProductCard(product, false))}
-            </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-muted-foreground">
-                  Página {currentPage} de {totalPages} ({filteredProducts.length} productos)
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let page: number
-                    if (totalPages <= 5) {
-                      page = i + 1
-                    } else if (currentPage <= 3) {
-                      page = i + 1
-                    } else if (currentPage >= totalPages - 2) {
-                      page = totalPages - 4 + i
-                    } else {
-                      page = currentPage - 2 + i
-                    }
-                    return (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="icon"
-                        className="h-8 w-8 text-sm"
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    )
-                  })}
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedProducts.map(product => renderProductCard(product, false))}
               </div>
-            )}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages} ({filteredProducts.length} productos)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let page: number
+                      if (totalPages <= 5) {
+                        page = i + 1
+                      } else if (currentPage <= 3) {
+                        page = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        page = totalPages - 4 + i
+                      } else {
+                        page = currentPage - 2 + i
+                      }
+                      return (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-sm"
+                          onClick={() => setCurrentPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      )
+                    })}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
