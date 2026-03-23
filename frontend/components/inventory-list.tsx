@@ -78,7 +78,7 @@ export function InventoryList() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 50
+  const ITEMS_PER_PAGE = 100
 
   const handleExportCsv = async () => {
     setIsExporting(true)
