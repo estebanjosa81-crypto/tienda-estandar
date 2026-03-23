@@ -33,8 +33,9 @@ export const config = {
       const isProd = (process.env.NODE_ENV || 'development') === 'production';
       if (process.env.CORS_ORIGIN) {
         const origins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
-        if (isProd) {
+        if (isProd && process.env.IS_LOCAL_INSTANCE !== 'true') {
           // Strip localhost entries in production to prevent accidental exposure
+          // Exception: local client installations (IS_LOCAL_INSTANCE=true) need localhost
           return origins.filter(o => !o.includes('localhost') && !o.includes('127.0.0.1'));
         }
         return origins;

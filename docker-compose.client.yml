@@ -17,6 +17,10 @@
 # Para ACTUALIZAR cuando salga una nueva versión:
 #   docker compose -f docker-compose.client.yml pull
 #   docker compose -f docker-compose.client.yml up -d
+#
+# Para REINICIAR DESDE CERO (borra todos los datos locales):
+#   docker compose -f docker-compose.client.yml down -v
+#   docker compose -f docker-compose.client.yml up -d
 # ============================================================
 
 services:
@@ -63,6 +67,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: http://localhost:3000
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       # ── Sync offline → nube ──
       IS_LOCAL_INSTANCE: "true"
       CLOUD_API_URL: ${CLOUD_API_URL}
@@ -80,8 +85,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    # Nota: NEXT_PUBLIC_* están bakeados en la imagen en build time.
+    # No se pueden sobreescribir en runtime con Next.js.
     ports:
       - "3000:3000"
 

@@ -2,7 +2,21 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db } from '../../config';
 import { config } from '../../config/env';
 
-// ─── Estado interno del servicio ────────────────────────────────────────────
+// ─── Helpers de conversión de fechas ─────────────────────────────────────────
+
+/** Convierte ISO 8601 ('2026-03-23T12:58:58.000Z') a 'YYYY-MM-DD HH:MM:SS' para MySQL TIMESTAMP/DATETIME */
+function toMysqlDatetime(val: unknown): string | null {
+  if (!val) return null;
+  return String(val).replace('T', ' ').replace('Z', '').substring(0, 19);
+}
+
+/** Convierte ISO 8601 a 'YYYY-MM-DD' para MySQL DATE */
+function toMysqlDate(val: unknown): string {
+  if (!val) return new Date().toISOString().substring(0, 10);
+  return String(val).substring(0, 10);
+}
+
+// ─── Estado interno del servicio ─────────────────────────────────────────────
 
 interface SyncStatus {
   isOnline: boolean;
@@ -294,9 +308,25 @@ async function pullFromCloud(): Promise<number> {
     clearTimeout(timer);
 
     if (!res.ok) return 0;
-    const data = await res.json() as { products?: any[]; customers?: any[] };
+    const data = await res.json() as { tenant?: any; products?: any[]; customers?: any[] };
 
     let applied = 0;
+
+    // Upsert del tenant: debe existir antes de insertar productos/clientes (FK)
+    if (data.tenant) {
+      const t = data.tenant;
+      await db.execute(
+        `INSERT INTO tenants (id, name, slug, business_type, status, plan, max_users, max_products, bg_color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name=VALUES(name), slug=VALUES(slug), status=VALUES(status), plan=VALUES(plan)`,
+        [
+          t.id, t.name, t.slug, t.business_type || null,
+          t.status || 'activo', t.plan || 'basico',
+          t.max_users || 5, t.max_products || 500, t.bg_color || '#000000',
+        ]
+      );
+    }
 
     // Aplicar productos: actualiza stock y precios si la nube tiene dato más nuevo
     for (const p of (data.products || [])) {
@@ -318,9 +348,10 @@ async function pullFromCloud(): Promise<number> {
           p.product_type || 'general', p.brand || null, p.model || null,
           p.description || null, p.purchase_price, p.sale_price, p.sku,
           p.barcode || null, p.stock, p.reorder_point || 5,
-          p.supplier || null, p.supplier_id || null, p.entry_date || null,
+          p.supplier || null, p.supplier_id || null,
+          toMysqlDate(p.entry_date),
           p.image_url || null, p.notes || null, p.location_in_store || null,
-          p.updated_at,
+          toMysqlDatetime(p.updated_at),
         ]
       );
       applied++;
@@ -342,7 +373,7 @@ async function pullFromCloud(): Promise<number> {
         [
           c.id, c.tenant_id, c.cedula, c.name, c.phone || null,
           c.email || null, c.address || null, c.credit_limit || 0,
-          c.notes || null, c.updated_at,
+          c.notes || null, toMysqlDatetime(c.updated_at),
         ]
       );
       applied++;
@@ -367,7 +398,13 @@ async function pullFromCloud(): Promise<number> {
 export async function getChangesSince(
   tenantId: string,
   since: Date
-): Promise<{ products: any[]; customers: any[] }> {
+): Promise<{ tenant: any | null; products: any[]; customers: any[] }> {
+  const [tenantRows] = await db.execute<RowDataPacket[]>(
+    `SELECT id, name, slug, business_type, status, plan, max_users, max_products, bg_color
+     FROM tenants WHERE id = ? LIMIT 1`,
+    [tenantId]
+  );
+
   const [products] = await db.execute<RowDataPacket[]>(
     `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
             description, purchase_price, sale_price, sku, barcode, stock,
@@ -389,7 +426,11 @@ export async function getChangesSince(
     [tenantId, since]
   );
 
-  return { products: products as any[], customers: customers as any[] };
+  return {
+    tenant: (tenantRows as any[])[0] || null,
+    products: products as any[],
+    customers: customers as any[],
+  };
 }
 
 // ─── Ciclo principal de sync ──────────────────────────────────────────────────

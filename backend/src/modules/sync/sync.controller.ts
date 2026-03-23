@@ -86,7 +86,7 @@ export async function getChanges(req: Request, res: Response): Promise<void> {
 
   try {
     const data = await getChangesSince(tenantId, sinceDate);
-    res.json({ success: true, ...data });
+    res.json({ success: true, tenant: data.tenant, products: data.products, customers: data.customers });
   } catch (err: any) {
     console.error('[Sync] Error en GET /changes:', err);
     res.status(500).json({ success: false, error: err.message });
