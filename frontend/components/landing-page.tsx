@@ -5633,7 +5633,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Form */}
               <div className="px-6 py-5">
                 {/* Google login */}
-                <div ref={clientGoogleBtnRef} className="mb-4 w-full overflow-hidden">
+                <div ref={clientGoogleBtnRef} className="mb-4 w-full overflow-hidden rounded-xl" style={{ background: '#131314' }}>
                   <GoogleLogin
                     onSuccess={handleClientGoogleLogin}
                     onError={() => setClientLoginError('Error al conectar con Google')}
