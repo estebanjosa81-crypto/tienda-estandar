@@ -799,6 +799,29 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }, [selectedStore])
 
   // ====== FETCH STORE CONFIG (Hero Sections) ======
+  // ── Dynamic favicon + tab title when a store is selected ──
+  useEffect(() => {
+    const logoUrl = storeConfig?.storeInfo?.logoUrl
+    const storeName = storeConfig?.storeInfo?.name
+
+    // Update tab title
+    document.title = storeName ? storeName : 'Lopbuk'
+
+    // Update favicon
+    const existing = document.querySelector<HTMLLinkElement>('link[rel="icon"][data-dynamic]')
+    if (logoUrl) {
+      const link = existing || document.createElement('link')
+      link.setAttribute('rel', 'icon')
+      link.setAttribute('type', 'image/png')
+      link.setAttribute('data-dynamic', 'true')
+      link.href = logoUrl + '?v=' + Date.now()
+      if (!existing) document.head.appendChild(link)
+    } else if (existing) {
+      existing.remove()
+      document.title = 'Lopbuk'
+    }
+  }, [storeConfig])
+
   useEffect(() => {
     if (selectedStore === 'all') {
       setStoreConfig(null)
