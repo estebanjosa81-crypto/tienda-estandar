@@ -57,7 +57,7 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [loginBgUrl, setLoginBgUrl] = useState('/image/giflogin.gif')
   const googleBtnRef = useRef<HTMLDivElement>(null)
-  const [googleBtnWidth, setGoogleBtnWidth] = useState(380)
+  const [googleBtnWidth, setGoogleBtnWidth] = useState(360)
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
   const [lockUntil, setLockUntil] = useState<number | null>(null)
   const [lockRemaining, setLockRemaining] = useState(0)
@@ -591,7 +591,7 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
                   Conectando con Google...
                 </div>
               ) : (
-                <div ref={googleBtnRef} className="w-full max-w-sm">
+                <div ref={googleBtnRef} className="w-full max-w-sm overflow-hidden rounded-xl" style={{ background: '#131314' }}>
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
                     onError={() => setError('Error al conectar con Google')}

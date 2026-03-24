@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: 'perfum mua - !Bienvenido a la mejor perfumeria de colombia!',
-  description: 'Sistema completo de gestión de inventario para tiendas',
+  description: 'Sistema completo de gestión de inventario',
   generator: 'v0.app',
   icons: {
     icon: '/image/lopbukicon.png',
