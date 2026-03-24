@@ -36,12 +36,25 @@ const state: SyncStatus = {
   pendingPurchases: 0,
 };
 
-// Cursor para pull incremental: última vez que descargamos cambios de la nube.
-// Se inicializa en 2020 para que el primer arranque traiga TODO el historial.
-let lastPullCursor: Date = new Date('2020-01-01T00:00:00.000Z');
-// Cuando el pull devuelve una página completa (LIMIT registros) el cursor avanza
-// al updated_at del último registro recibido para continuar la paginación en el
-// siguiente ciclo. Solo se mueve a "ahora" cuando la página está incompleta.
+// ─── Cursores por entidad ────────────────────────────────────────────────────
+// Cada entidad mantiene su propio cursor (since + afterId) para que la
+// paginación de ventas no interfiera con la de productos, etc.
+// Se inicializan en 2020 para que el primer arranque traiga TODO el historial.
+
+interface EntityCursor { since: string; afterId: string; }
+
+const EPOCH = '2020-01-01T00:00:00.000Z';
+
+const pullCursors: Record<string, EntityCursor> = {
+  products:       { since: EPOCH, afterId: '' },
+  customers:      { since: EPOCH, afterId: '' },
+  sales:          { since: EPOCH, afterId: '' },
+  purchases:      { since: EPOCH, afterId: '' },
+  movements:      { since: EPOCH, afterId: '' },
+  cashSessions:   { since: EPOCH, afterId: '' },
+  creditPayments: { since: EPOCH, afterId: '' },
+  categories:     { since: EPOCH, afterId: '' },
+};
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -288,21 +301,47 @@ export async function receivePurchasesFromLocal(purchases: any[]): Promise<{ ins
 
 // ─── Pull: nube → local (productos y clientes actualizados) ──────────────────
 
+/** Avanza el cursor de una entidad tras recibir una página. */
+function advanceCursor(
+  entity: string,
+  rows: any[],
+  limit: number,
+  dateField = 'updated_at'
+): void {
+  if (rows.length >= limit) {
+    const last = rows[rows.length - 1];
+    pullCursors[entity].since   = new Date(last[dateField]).toISOString();
+    pullCursors[entity].afterId = last.id ?? '';
+  } else {
+    pullCursors[entity].since   = new Date().toISOString();
+    pullCursors[entity].afterId = '';
+  }
+}
+
+/** true si alguna entidad sigue paginando (recibió página completa). */
+function stillPaginating(): boolean {
+  return Object.keys(pullCursors).some((e) => pullCursors[e].since !== new Date().toISOString() && pullCursors[e].since > EPOCH && pullCursors[e].afterId !== '' );
+}
+
 /**
- * Descarga de la nube los productos y clientes modificados desde `lastPullCursor`
- * y los aplica localmente con estrategia "último updated_at gana".
- * Solo se ejecuta en instancias locales con SYNC_TENANT_ID configurado.
+ * Descarga de la nube TODOS los módulos y los aplica localmente.
+ * Cada entidad tiene su propio cursor para paginar independientemente.
  */
 async function pullFromCloud(): Promise<number> {
   if (!config.sync.cloudApiUrl || !config.sync.tenantId) return 0;
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    const since = lastPullCursor.toISOString();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
+    // Enviamos el estado de cada cursor al servidor
+    const params = new URLSearchParams({
+      tenantId: config.sync.tenantId,
+      cursors: JSON.stringify(pullCursors),
+    });
 
     const res = await fetch(
-      `${config.sync.cloudApiUrl}/api/sync/changes?since=${encodeURIComponent(since)}&tenantId=${encodeURIComponent(config.sync.tenantId)}`,
+      `${config.sync.cloudApiUrl}/api/sync/changes?${params.toString()}`,
       {
         headers: { 'x-sync-secret': config.sync.secret },
         signal: controller.signal,
@@ -311,27 +350,70 @@ async function pullFromCloud(): Promise<number> {
     clearTimeout(timer);
 
     if (!res.ok) return 0;
-    const data = await res.json() as { tenant?: any; products?: any[]; customers?: any[]; recipes?: any[]; recipeItems?: any[] };
+    const data = await res.json() as {
+      tenant?: any;
+      products?: any[];       customers?: any[];
+      sales?: any[];          saleItems?: any[];
+      purchases?: any[];      purchaseItems?: any[];
+      movements?: any[];
+      cashSessions?: any[];
+      creditPayments?: any[];
+      categories?: any[];
+      storeInfo?: any;
+      recipes?: any[];        recipeItems?: any[];
+    };
 
     let applied = 0;
 
-    // Upsert del tenant: debe existir antes de insertar productos/clientes (FK)
+    // ── Tenant ──────────────────────────────────────────────────────────────
     if (data.tenant) {
       const t = data.tenant;
       await db.execute(
         `INSERT INTO tenants (id, name, slug, business_type, status, plan, max_users, max_products, bg_color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE
-           name=VALUES(name), slug=VALUES(slug), status=VALUES(status), plan=VALUES(plan)`,
-        [
-          t.id, t.name, t.slug, t.business_type || null,
-          t.status || 'activo', t.plan || 'basico',
-          t.max_users || 5, t.max_products || 500, t.bg_color || '#000000',
-        ]
+           name=VALUES(name), slug=VALUES(slug), status=VALUES(status), plan=VALUES(plan), bg_color=VALUES(bg_color)`,
+        [t.id, t.name, t.slug, t.business_type||null, t.status||'activo',
+         t.plan||'basico', t.max_users||5, t.max_products||500, t.bg_color||'#000000']
       );
     }
 
-    // Aplicar productos: actualiza stock y precios si la nube tiene dato más nuevo
+    // ── Categorías ──────────────────────────────────────────────────────────
+    for (const cat of (data.categories || [])) {
+      await db.execute(
+        `INSERT INTO categories (id, tenant_id, name, description, image_url, hidden_in_store)
+         VALUES (?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description),
+           image_url=VALUES(image_url), hidden_in_store=VALUES(hidden_in_store)`,
+        [cat.id, cat.tenant_id, cat.name, cat.description||null,
+         cat.image_url||null, cat.hidden_in_store||0]
+      );
+    }
+    if ((data.categories||[]).length) advanceCursor('categories', data.categories!, 200);
+
+    // ── Store info ──────────────────────────────────────────────────────────
+    if (data.storeInfo) {
+      const s = data.storeInfo;
+      await db.execute(
+        `INSERT INTO store_info (tenant_id, name, address, phone, tax_id, email, logo_url,
+           schedule, social_instagram, social_facebook, social_tiktok, social_whatsapp,
+           invoice_greeting, invoice_copies)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           name=VALUES(name), address=VALUES(address), phone=VALUES(phone),
+           logo_url=VALUES(logo_url), email=VALUES(email), schedule=VALUES(schedule),
+           social_instagram=VALUES(social_instagram), social_facebook=VALUES(social_facebook),
+           social_tiktok=VALUES(social_tiktok), social_whatsapp=VALUES(social_whatsapp),
+           invoice_greeting=VALUES(invoice_greeting), invoice_copies=VALUES(invoice_copies)`,
+        [s.tenant_id, s.name, s.address||null, s.phone||null, s.tax_id||null,
+         s.email||null, s.logo_url||null, s.schedule||null,
+         s.social_instagram||null, s.social_facebook||null,
+         s.social_tiktok||null, s.social_whatsapp||null,
+         s.invoice_greeting||'¡Gracias por su compra!', s.invoice_copies||1]
+      );
+    }
+
+    // ── Productos ───────────────────────────────────────────────────────────
     for (const p of (data.products || [])) {
       await db.execute(
         `INSERT INTO products
@@ -341,95 +423,187 @@ async function pullFromCloud(): Promise<number> {
             location_in_store, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE
-           stock          = IF(VALUES(updated_at) > updated_at, VALUES(stock),          stock),
-           sale_price     = IF(VALUES(updated_at) > updated_at, VALUES(sale_price),     sale_price),
-           purchase_price = IF(VALUES(updated_at) > updated_at, VALUES(purchase_price), purchase_price),
-           name           = IF(VALUES(updated_at) > updated_at, VALUES(name),           name),
-           updated_at     = IF(VALUES(updated_at) > updated_at, VALUES(updated_at),     updated_at)`,
-        [
-          p.id, p.tenant_id, p.name, p.articulo || null, p.category,
-          p.product_type || 'general', p.brand || null, p.model || null,
-          p.description || null, p.purchase_price, p.sale_price, p.sku,
-          p.barcode || null, p.stock, p.reorder_point || 5,
-          p.supplier || null, p.supplier_id || null,
-          toMysqlDate(p.entry_date),
-          p.image_url || null, p.notes || null, p.location_in_store || null,
-          toMysqlDatetime(p.updated_at),
-        ]
+           stock=IF(VALUES(updated_at)>updated_at,VALUES(stock),stock),
+           sale_price=IF(VALUES(updated_at)>updated_at,VALUES(sale_price),sale_price),
+           purchase_price=IF(VALUES(updated_at)>updated_at,VALUES(purchase_price),purchase_price),
+           name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+           updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+        [p.id, p.tenant_id, p.name, p.articulo||null, p.category,
+         p.product_type||'general', p.brand||null, p.model||null,
+         p.description||null, p.purchase_price, p.sale_price, p.sku,
+         p.barcode||null, p.stock, p.reorder_point||5,
+         p.supplier||null, p.supplier_id||null, toMysqlDate(p.entry_date),
+         p.image_url||null, p.notes||null, p.location_in_store||null,
+         toMysqlDatetime(p.updated_at)]
       );
       applied++;
     }
+    advanceCursor('products', data.products||[], 500);
 
-    // Aplicar clientes: inserta nuevos o actualiza si la nube tiene dato más nuevo
+    // ── Clientes ────────────────────────────────────────────────────────────
     for (const c of (data.customers || [])) {
       await db.execute(
         `INSERT INTO customers
            (id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at)
          VALUES (?,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE
-           name         = IF(VALUES(updated_at) > updated_at, VALUES(name),         name),
-           phone        = IF(VALUES(updated_at) > updated_at, VALUES(phone),        phone),
-           email        = IF(VALUES(updated_at) > updated_at, VALUES(email),        email),
-           address      = IF(VALUES(updated_at) > updated_at, VALUES(address),      address),
-           credit_limit = IF(VALUES(updated_at) > updated_at, VALUES(credit_limit), credit_limit),
-           updated_at   = IF(VALUES(updated_at) > updated_at, VALUES(updated_at),   updated_at)`,
-        [
-          c.id, c.tenant_id, c.cedula, c.name, c.phone || null,
-          c.email || null, c.address || null, c.credit_limit || 0,
-          c.notes || null, toMysqlDatetime(c.updated_at),
-        ]
+           name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+           phone=IF(VALUES(updated_at)>updated_at,VALUES(phone),phone),
+           credit_limit=IF(VALUES(updated_at)>updated_at,VALUES(credit_limit),credit_limit),
+           updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+        [c.id, c.tenant_id, c.cedula, c.name, c.phone||null,
+         c.email||null, c.address||null, c.credit_limit||0,
+         c.notes||null, toMysqlDatetime(c.updated_at)]
       );
       applied++;
     }
+    advanceCursor('customers', data.customers||[], 500);
 
-    // Aplicar recetas (BOM)
+    // ── Ventas ──────────────────────────────────────────────────────────────
+    for (const s of (data.sales || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO sales
+           (id, tenant_id, invoice_number, customer_id, customer_name, customer_phone,
+            customer_email, subtotal, tax, discount, total, payment_method, amount_paid,
+            change_amount, seller_id, seller_name, cash_session_id, status, credit_status,
+            due_date, notes, synced, synced_at, origin, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,NOW(),'cloud',?,?)`,
+        [s.id, s.tenant_id, s.invoice_number, s.customer_id||null,
+         s.customer_name||null, s.customer_phone||null, s.customer_email||null,
+         s.subtotal, s.tax, s.discount, s.total, s.payment_method,
+         s.amount_paid, s.change_amount, s.seller_id||null, s.seller_name,
+         s.cash_session_id||null, s.status, s.credit_status||null,
+         s.due_date||null, s.notes||null, s.created_at, s.updated_at]
+      );
+      applied++;
+    }
+    for (const si of (data.saleItems || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO sale_items
+           (id, tenant_id, sale_id, product_id, product_name, product_sku,
+            quantity, unit_price, discount, subtotal, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [si.id, si.tenant_id, si.sale_id, si.product_id, si.product_name,
+         si.product_sku, si.quantity, si.unit_price, si.discount, si.subtotal, si.created_at]
+      );
+    }
+    advanceCursor('sales', data.sales||[], 200);
+
+    // ── Compras ─────────────────────────────────────────────────────────────
+    for (const inv of (data.purchases || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO purchase_invoices
+           (id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date,
+            document_type, subtotal, discount, tax, total, payment_method, payment_status,
+            due_date, file_url, notes, created_by, synced, synced_at, origin, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,NOW(),'cloud',?,?)`,
+        [inv.id, inv.tenant_id, inv.invoice_number, inv.supplier_id||null,
+         inv.supplier_name, inv.purchase_date, inv.document_type,
+         inv.subtotal, inv.discount, inv.tax, inv.total, inv.payment_method,
+         inv.payment_status, inv.due_date||null, inv.file_url||null,
+         inv.notes||null, inv.created_by||null, inv.created_at, inv.updated_at]
+      );
+      applied++;
+    }
+    for (const pi of (data.purchaseItems || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO purchase_invoice_items
+           (id, tenant_id, invoice_id, product_id, product_name, product_sku,
+            quantity, unit_cost, subtotal)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [pi.id, pi.tenant_id, pi.invoice_id, pi.product_id, pi.product_name,
+         pi.product_sku, pi.quantity, pi.unit_cost, pi.subtotal]
+      );
+    }
+    advanceCursor('purchases', data.purchases||[], 100);
+
+    // ── Movimientos de stock ────────────────────────────────────────────────
+    for (const m of (data.movements || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO stock_movements
+           (id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
+            reason, reference_id, user_id, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [m.id, m.tenant_id, m.product_id, m.type, m.quantity,
+         m.previous_stock, m.new_stock, m.reason||null,
+         m.reference_id||null, m.user_id||null, m.created_at]
+      );
+      applied++;
+    }
+    advanceCursor('movements', data.movements||[], 500, 'created_at');
+
+    // ── Sesiones de caja ────────────────────────────────────────────────────
+    for (const cs of (data.cashSessions || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO cash_sessions
+           (id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
+            closed_by, closed_by_name, closed_at, status, observations,
+            total_sales_count, total_cash_sales, total_card_sales,
+            total_transfer_sales, total_fiado_sales, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [cs.id, cs.tenant_id, cs.opened_by, cs.opened_by_name,
+         cs.opening_amount||0, cs.opened_at, cs.closed_by||null,
+         cs.closed_by_name||null, cs.closed_at||null, cs.status||'cerrada',
+         cs.observations||null, cs.total_sales_count||0,
+         cs.total_cash_sales||0, cs.total_card_sales||0,
+         cs.total_transfer_sales||0, cs.total_fiado_sales||0,
+         cs.created_at, cs.updated_at]
+      );
+      applied++;
+    }
+    advanceCursor('cashSessions', data.cashSessions||[], 100);
+
+    // ── Pagos de crédito ────────────────────────────────────────────────────
+    for (const cp of (data.creditPayments || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO credit_payments
+           (id, tenant_id, sale_id, customer_id, amount, payment_method,
+            receipt_number, notes, received_by, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [cp.id, cp.tenant_id, cp.sale_id, cp.customer_id, cp.amount,
+         cp.payment_method, cp.receipt_number||null, cp.notes||null,
+         cp.received_by||null, cp.created_at]
+      );
+      applied++;
+    }
+    advanceCursor('creditPayments', data.creditPayments||[], 200, 'created_at');
+
+    // ── Recetas (BOM) ───────────────────────────────────────────────────────
     try {
       for (const r of (data.recipes || [])) {
         await db.execute(
-          `INSERT INTO recipes (id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at)
+          `INSERT INTO recipes
+             (id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at)
            VALUES (?,?,?,?,?,?,?,?,?)
            ON DUPLICATE KEY UPDATE
-             name               = IF(VALUES(updated_at) > updated_at, VALUES(name),               name),
-             description        = IF(VALUES(updated_at) > updated_at, VALUES(description),        description),
-             output_quantity    = IF(VALUES(updated_at) > updated_at, VALUES(output_quantity),    output_quantity),
-             updated_at         = IF(VALUES(updated_at) > updated_at, VALUES(updated_at),         updated_at)`,
-          [r.id, r.tenant_id, r.name, r.description || null, r.output_product_id || null,
-           r.output_quantity || 1, r.unit || null, r.notes || null, toMysqlDatetime(r.updated_at)]
+             name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+             output_quantity=IF(VALUES(updated_at)>updated_at,VALUES(output_quantity),output_quantity),
+             updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+          [r.id, r.tenant_id, r.name, r.description||null, r.output_product_id||null,
+           r.output_quantity||1, r.unit||null, r.notes||null, toMysqlDatetime(r.updated_at)]
         );
         applied++;
       }
       for (const ri of (data.recipeItems || [])) {
         await db.execute(
-          `INSERT IGNORE INTO recipe_items (id, recipe_id, tenant_id, component_product_id, quantity, unit, notes)
+          `INSERT IGNORE INTO recipe_items
+             (id, recipe_id, tenant_id, component_product_id, quantity, unit, notes)
            VALUES (?,?,?,?,?,?,?)`,
           [ri.id, ri.recipe_id, ri.tenant_id, ri.component_product_id,
-           ri.quantity, ri.unit || null, ri.notes || null]
+           ri.quantity, ri.unit||null, ri.notes||null]
         );
       }
-    } catch { /* tabla recipes puede no existir en instancias antiguas */ }
+    } catch { /* tabla recipes puede no existir */ }
 
-    const PAGE_LIMIT = 500;
-    const totalReceived = (data.products || []).length + (data.customers || []).length;
-
-    if ((data.products || []).length >= PAGE_LIMIT) {
-      // Página completa: avanza cursor al updated_at más reciente del lote
-      // para que el próximo ciclo traiga la siguiente página
-      const allDates = [
-        ...(data.products || []).map((p: any) => new Date(p.updated_at)),
-        ...(data.customers || []).map((c: any) => new Date(c.updated_at)),
-      ].filter((d) => !isNaN(d.getTime()));
-      if (allDates.length > 0) {
-        lastPullCursor = new Date(Math.max(...allDates.map((d) => d.getTime())));
-      }
-      console.log(`[Sync] PULL: ${applied} registros aplicados (página completa, continúa en próximo ciclo)`);
+    // ── Log de progreso ─────────────────────────────────────────────────────
+    const anyPageFull = Object.entries(pullCursors).some(([, c]) => c.afterId !== '');
+    if (anyPageFull) {
+      console.log(`[Sync] PULL: ${applied} registros aplicados (paginando, continúa en próximo ciclo)`);
     } else {
-      // Página incompleta: ya no hay más datos históricos, mueve cursor a ahora
-      lastPullCursor = new Date();
       state.lastPullAt = new Date();
       console.log(`[Sync] PULL: ${applied} registros aplicados desde la nube`);
     }
 
-    state.lastPullAt = state.lastPullAt ?? new Date();
     return applied;
   } catch (err) {
     console.error('[Sync] Error en pull:', err);
@@ -443,69 +617,195 @@ async function pullFromCloud(): Promise<number> {
  * Retorna productos y clientes del tenant modificados desde `since`.
  * Se usa en el endpoint GET /api/sync/changes (solo corre en la nube).
  */
+/** Helper: query con cursor compuesto (updated_at, id) */
+async function queryWithCursor(
+  sql: string,
+  sqlWithAfterId: string,
+  params: any[],
+  paramsWithAfterId: any[]
+): Promise<RowDataPacket[]> {
+  const [rows] = paramsWithAfterId[paramsWithAfterId.length - 1]
+    ? await db.execute<RowDataPacket[]>(sqlWithAfterId, paramsWithAfterId)
+    : await db.execute<RowDataPacket[]>(sql, params);
+  return rows;
+}
+
+/**
+ * Endpoint de la NUBE: retorna todos los módulos del tenant para el local.
+ * Recibe un mapa de cursores por entidad enviado por el cliente local.
+ */
 export async function getChangesSince(
   tenantId: string,
-  since: Date
-): Promise<{ tenant: any | null; products: any[]; customers: any[]; recipes: any[]; recipeItems: any[] }> {
+  cursors: Record<string, { since: string; afterId: string }>
+): Promise<Record<string, any>> {
+
+  const c = (entity: string) => cursors[entity] ?? { since: EPOCH, afterId: '' };
+
+  // ── Tenant ────────────────────────────────────────────────────────────────
   const [tenantRows] = await db.execute<RowDataPacket[]>(
     `SELECT id, name, slug, business_type, status, plan, max_users, max_products, bg_color
      FROM tenants WHERE id = ? LIMIT 1`,
     [tenantId]
   );
 
-  const [products] = await db.execute<RowDataPacket[]>(
+  // ── Categorías ────────────────────────────────────────────────────────────
+  const [categories] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, name, description, image_url, hidden_in_store
+     FROM categories WHERE tenant_id = ?
+     ORDER BY name ASC LIMIT 200`,
+    [tenantId]
+  );
+
+  // ── Store info ────────────────────────────────────────────────────────────
+  const [storeRows] = await db.execute<RowDataPacket[]>(
+    `SELECT tenant_id, name, address, phone, tax_id, email, logo_url, schedule,
+            social_instagram, social_facebook, social_tiktok, social_whatsapp,
+            invoice_greeting, invoice_copies
+     FROM store_info WHERE tenant_id = ? LIMIT 1`,
+    [tenantId]
+  );
+
+  // ── Productos ────────────────────────────────────────────────────────────
+  const cp = c('products');
+  const products = await queryWithCursor(
     `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
             description, purchase_price, sale_price, sku, barcode, stock,
             reorder_point, supplier, supplier_id, entry_date, image_url, notes,
             location_in_store, updated_at
-     FROM products
-     WHERE tenant_id = ? AND updated_at > ?
-     ORDER BY updated_at ASC
-     LIMIT 500`,
-    [tenantId, since]
+     FROM products WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 500`,
+    `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
+            description, purchase_price, sale_price, sku, barcode, stock,
+            reorder_point, supplier, supplier_id, entry_date, image_url, notes,
+            location_in_store, updated_at
+     FROM products WHERE tenant_id = ? AND (updated_at > ? OR (updated_at = ? AND id > ?))
+     ORDER BY updated_at ASC, id ASC LIMIT 500`,
+    [tenantId, cp.since],
+    [tenantId, cp.since, cp.since, cp.afterId]
   );
 
+  // ── Clientes ──────────────────────────────────────────────────────────────
+  const cc = c('customers');
   const [customers] = await db.execute<RowDataPacket[]>(
     `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
-     FROM customers
-     WHERE tenant_id = ? AND updated_at > ?
-     ORDER BY updated_at ASC
-     LIMIT 500`,
-    [tenantId, since]
+     FROM customers WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 500`,
+    [tenantId, cc.since]
   );
 
-  // Recetas (BOM): se sincronizan completas cuando tienen cambios
+  // ── Ventas ────────────────────────────────────────────────────────────────
+  const cs = c('sales');
+  const [sales] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, invoice_number, customer_id, customer_name, customer_phone,
+            customer_email, subtotal, tax, discount, total, payment_method, amount_paid,
+            change_amount, seller_id, seller_name, cash_session_id, status, credit_status,
+            due_date, notes, created_at, updated_at
+     FROM sales WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 200`,
+    [tenantId, cs.since]
+  );
+  let saleItems: any[] = [];
+  if ((sales as any[]).length > 0) {
+    const ids = (sales as any[]).map((s: any) => s.id);
+    const ph = ids.map(() => '?').join(',');
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, tenant_id, sale_id, product_id, product_name, product_sku,
+              quantity, unit_price, discount, subtotal, created_at
+       FROM sale_items WHERE sale_id IN (${ph})`,
+      ids
+    );
+    saleItems = rows as any[];
+  }
+
+  // ── Compras ───────────────────────────────────────────────────────────────
+  const cpu = c('purchases');
+  const [purchases] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date,
+            document_type, subtotal, discount, tax, total, payment_method, payment_status,
+            due_date, file_url, notes, created_by, created_at, updated_at
+     FROM purchase_invoices WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 100`,
+    [tenantId, cpu.since]
+  );
+  let purchaseItems: any[] = [];
+  if ((purchases as any[]).length > 0) {
+    const ids = (purchases as any[]).map((p: any) => p.id);
+    const ph = ids.map(() => '?').join(',');
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, tenant_id, invoice_id, product_id, product_name, product_sku,
+              quantity, unit_cost, subtotal
+       FROM purchase_invoice_items WHERE invoice_id IN (${ph})`,
+      ids
+    );
+    purchaseItems = rows as any[];
+  }
+
+  // ── Movimientos de stock ──────────────────────────────────────────────────
+  const cm = c('movements');
+  const [movements] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
+            reason, reference_id, user_id, created_at
+     FROM stock_movements WHERE tenant_id = ? AND created_at > ?
+     ORDER BY created_at ASC, id ASC LIMIT 500`,
+    [tenantId, cm.since]
+  );
+
+  // ── Sesiones de caja ──────────────────────────────────────────────────────
+  const ccs = c('cashSessions');
+  const [cashSessions] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
+            closed_by, closed_by_name, closed_at, status, observations,
+            total_sales_count, total_cash_sales, total_card_sales,
+            total_transfer_sales, total_fiado_sales, created_at, updated_at
+     FROM cash_sessions WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 100`,
+    [tenantId, ccs.since]
+  );
+
+  // ── Pagos de crédito ──────────────────────────────────────────────────────
+  const ccp = c('creditPayments');
+  const [creditPayments] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, sale_id, customer_id, amount, payment_method,
+            receipt_number, notes, received_by, created_at
+     FROM credit_payments WHERE tenant_id = ? AND created_at > ?
+     ORDER BY created_at ASC, id ASC LIMIT 200`,
+    [tenantId, ccp.since]
+  );
+
+  // ── Recetas ───────────────────────────────────────────────────────────────
   let recipes: any[] = [];
   let recipeItems: any[] = [];
   try {
+    const cr = c('recipes') ?? { since: EPOCH, afterId: '' };
     const [recipeRows] = await db.execute<RowDataPacket[]>(
       `SELECT id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at
-       FROM recipes
-       WHERE tenant_id = ? AND updated_at > ?
-       ORDER BY updated_at ASC
-       LIMIT 200`,
-      [tenantId, since]
+       FROM recipes WHERE tenant_id = ? AND updated_at > ?
+       ORDER BY updated_at ASC LIMIT 200`,
+      [tenantId, cr.since]
     );
     recipes = recipeRows as any[];
-
     if (recipes.length > 0) {
-      const recipeIds = recipes.map((r: any) => r.id);
-      const placeholders = recipeIds.map(() => '?').join(',');
-      const [itemRows] = await db.execute<RowDataPacket[]>(
+      const ids = recipes.map((r: any) => r.id);
+      const ph = ids.map(() => '?').join(',');
+      const [rows] = await db.execute<RowDataPacket[]>(
         `SELECT id, recipe_id, tenant_id, component_product_id, quantity, unit, notes
-         FROM recipe_items WHERE recipe_id IN (${placeholders})`,
-        recipeIds
+         FROM recipe_items WHERE recipe_id IN (${ph})`,
+        ids
       );
-      recipeItems = itemRows as any[];
+      recipeItems = rows as any[];
     }
-  } catch { /* tabla recipes puede no existir en instancias antiguas */ }
+  } catch { /* tabla recipes puede no existir */ }
 
   return {
     tenant: (tenantRows as any[])[0] || null,
-    products: products as any[],
-    customers: customers as any[],
-    recipes,
-    recipeItems,
+    categories, storeInfo: (storeRows as any[])[0] || null,
+    products, customers,
+    sales, saleItems,
+    purchases, purchaseItems,
+    movements,
+    cashSessions,
+    creditPayments,
+    recipes, recipeItems,
   };
 }
 

@@ -2510,23 +2510,23 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     )}
 
                     {/* Quantity */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <span className={`text-xs uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Cantidad</span>
                       <div className={`flex items-center border ${isLightBg ? 'border-black/15' : 'border-white/10'}`}>
                         <button
                           onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
-                          className={`w-10 h-10 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                          className={`w-8 h-8 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
-                          <Minus className="w-4 h-4" />
+                          <Minus className="w-3 h-3" />
                         </button>
-                        <span className={`w-12 text-center text-sm font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
+                        <span className={`w-9 text-center text-sm font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                         <button
                           onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
-                          className={`w-10 h-10 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                          className={`w-8 h-8 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -2540,10 +2540,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="flex gap-3">
                         <button
                           onClick={addFromModal}
-                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 border ${
+                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
                             isLightBg
-                              ? 'border-black/20 text-black hover:bg-black hover:text-white'
-                              : 'border-white/20 text-white hover:bg-white hover:text-black'
+                              ? 'bg-black/80 text-white hover:bg-black'
+                              : 'bg-white/80 text-black hover:bg-white'
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
@@ -2551,7 +2551,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </button>
                         <button
                           onClick={() => { addFromModal(); setShowCheckout(true) }}
-                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
+                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
                             isLightBg
                               ? 'bg-black text-white hover:bg-black/80'
                               : 'bg-white text-black hover:bg-white/90'
