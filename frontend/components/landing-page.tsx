@@ -2438,18 +2438,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {/* Stock status */}
                     <div>
                       {selectedProduct.stock === 0 ? (
-                        <div className="flex items-center gap-2 text-red-400 text-sm">
+                        <div className="flex items-center gap-2 text-sm" style={{ color: isLightBg ? '#ef4444' : '#f87171' }}>
                           <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                           Agotado por el momento
                         </div>
                       ) : selectedProduct.stock <= 5 ? (
-                        <div className="flex items-center gap-2 text-amber-400 text-sm">
-                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                        <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
+                          <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
                           ¡Últimas unidades!
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-white/60 text-sm">
-                          <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                        <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                          <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                           En stock
                         </div>
                       )}
@@ -2460,16 +2460,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="space-y-3">
                         {selectedProduct.color && (
                           <div>
-                            <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Color</p>
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/20 text-white/60 text-xs">
+                            <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Color</p>
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 border text-xs ${isLightBg ? 'border-black/20 text-black/60' : 'border-white/20 text-white/60'}`}>
                               {selectedProduct.color}
                             </div>
                           </div>
                         )}
                         {selectedProduct.size && (
                           <div>
-                            <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2">Tamaño</p>
-                            <div className="inline-flex px-4 py-1.5 border border-white/20 text-white/60 text-xs font-medium">
+                            <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tamaño</p>
+                            <div className={`inline-flex px-4 py-1.5 border text-xs font-medium ${isLightBg ? 'border-black/20 text-black/60' : 'border-white/20 text-white/60'}`}>
                               {selectedProduct.size}
                             </div>
                           </div>
@@ -2479,19 +2479,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                     {/* Quantity */}
                     <div className="flex items-center gap-4">
-                      <span className="text-xs text-white/40 uppercase tracking-widest">Cantidad</span>
-                      <div className="flex items-center border border-white/10">
+                      <span className={`text-xs uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Cantidad</span>
+                      <div className={`flex items-center border ${isLightBg ? 'border-black/15' : 'border-white/10'}`}>
                         <button
                           onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
-                          className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                          className={`w-10 h-10 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-12 text-center text-white text-sm font-light">{productQuantity}</span>
+                        <span className={`w-12 text-center text-sm font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                         <button
                           onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
-                          className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                          className={`w-10 h-10 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
                           <Plus className="w-4 h-4" />
@@ -2499,33 +2499,50 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     </div>
 
-                    {/* CTA */}
-                    <button
-                      onClick={addFromModal}
-                      disabled={selectedProduct.stock === 0}
-                      className={`w-full py-5 text-sm uppercase tracking-[0.2em] font-semibold transition-all duration-300 flex items-center justify-center gap-3 ${
-                        selectedProduct.stock === 0
-                          ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10'
-                          : 'bg-amber-500 hover:bg-amber-400 text-black'
-                      }`}
-                    >
-                      <ShoppingCart className="w-5 h-5" />
-                      {selectedProduct.stock === 0 ? 'Agotado' : 'Agregar al Carrito'}
-                    </button>
+                    {/* CTA buttons */}
+                    {selectedProduct.stock === 0 ? (
+                      <div className={`w-full py-4 text-sm uppercase tracking-[0.2em] font-semibold text-center border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
+                        Agotado
+                      </div>
+                    ) : (
+                      <div className="flex gap-3">
+                        <button
+                          onClick={addFromModal}
+                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 border ${
+                            isLightBg
+                              ? 'border-black/20 text-black hover:bg-black hover:text-white'
+                              : 'border-white/20 text-white hover:bg-white hover:text-black'
+                          }`}
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          Agregar
+                        </button>
+                        <button
+                          onClick={() => { addFromModal(); setShowCheckout(true) }}
+                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
+                            isLightBg
+                              ? 'bg-black text-white hover:bg-black/80'
+                              : 'bg-white text-black hover:bg-white/90'
+                          }`}
+                        >
+                          Comprar
+                        </button>
+                      </div>
+                    )}
 
                     {/* Trust badges */}
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="flex flex-col items-center gap-1.5 p-3 border border-white/5 text-center">
-                        <Zap className="w-4 h-4 text-white/30" />
-                        <p className="text-[10px] text-white/40 leading-tight">Envío a todo Colombia</p>
+                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                        <Zap className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
+                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Envío a todo Colombia</p>
                       </div>
-                      <div className="flex flex-col items-center gap-1.5 p-3 border border-white/5 text-center">
-                        <ShieldCheck className="w-4 h-4 text-white/30" />
-                        <p className="text-[10px] text-white/40 leading-tight">Pago 100% seguro</p>
+                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                        <ShieldCheck className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
+                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Pago 100% seguro</p>
                       </div>
-                      <div className="flex flex-col items-center gap-1.5 p-3 border border-white/5 text-center">
-                        <RotateCcw className="w-4 h-4 text-white/30" />
-                        <p className="text-[10px] text-white/40 leading-tight">Devoluciones fáciles</p>
+                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                        <RotateCcw className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
+                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Devoluciones fáciles</p>
                       </div>
                     </div>
                   </div>
