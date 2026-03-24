@@ -6656,7 +6656,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div>
                 <h2 className="font-semibold text-base text-foreground">¿Dónde estás?</h2>
                 <p className="text-xs text-foreground/50 mt-0.5 leading-relaxed">
-                  Para mostrarte tiendas y domicilios disponibles en tu zona.
+                  Te Brindamos Asesoria Personalizada
                 </p>
               </div>
             </div>
