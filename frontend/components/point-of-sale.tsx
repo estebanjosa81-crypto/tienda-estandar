@@ -54,6 +54,8 @@ import {
   Zap,
   Split,
   ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Sale } from '@/lib/types'
@@ -66,6 +68,8 @@ export function PointOfSale() {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedSede, setSelectedSede] = useState<string | null>(null)
+  const [posPage, setPosPage] = useState(1)
+  const POS_PAGE_SIZE = 60
   const [isProcessing, setIsProcessing] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
@@ -195,7 +199,18 @@ export function PointOfSale() {
     if (p.isComposite) return matchesSearch && matchesCategory && matchesSede
     return matchesSearch && matchesCategory && matchesSede && p.stock > 0
   })
-  
+
+  const posTotalPages = Math.ceil(availableProducts.length / POS_PAGE_SIZE)
+  const posProducts = availableProducts.slice(
+    (posPage - 1) * POS_PAGE_SIZE,
+    posPage * POS_PAGE_SIZE
+  )
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPosPage(1)
+  }, [search, selectedCategory, selectedSede])
+
   const handleAddToCart = (productId: string) => {
     const product = products.find(p => p.id === productId)
     if (product) {
@@ -692,7 +707,7 @@ export function PointOfSale() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 sm:p-6 lg:p-6">
-              <div className="grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{availableProducts.map((product) => {
+              <div className="grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{posProducts.map((product) => {
                   const inCart = cart.find(item => item.product.id === product.id)
                   const stockPercentage = (product.stock / (product.stock + 10)) * 100
                   const noInsumos = product.isComposite && product.stock <= 0
@@ -782,10 +797,57 @@ export function PointOfSale() {
                   )
                 })}
               </div>
+
+              {/* Pagination */}
+              {posTotalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Página {posPage} de {posTotalPages} · {availableProducts.length} productos
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setPosPage(p => Math.max(1, p - 1))}
+                      disabled={posPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: Math.min(5, posTotalPages) }, (_, i) => {
+                      let page: number
+                      if (posTotalPages <= 5) page = i + 1
+                      else if (posPage <= 3) page = i + 1
+                      else if (posPage >= posTotalPages - 2) page = posTotalPages - 4 + i
+                      else page = posPage - 2 + i
+                      return (
+                        <Button
+                          key={page}
+                          variant={posPage === page ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setPosPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      )
+                    })}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setPosPage(p => Math.min(posTotalPages, p + 1))}
+                      disabled={posPage === posTotalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
-        
+
         {/* Empty state */}
         {availableProducts.length === 0 && (
           <Card className="border-border bg-card">
