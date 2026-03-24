@@ -360,7 +360,7 @@ async function pullFromCloud(): Promise<number> {
       creditPayments?: any[];
       categories?: any[];
       storeInfo?: any;
-      recipes?: any[];        recipeItems?: any[];
+      productRecipes?: any[];
     };
 
     let applied = 0;
@@ -568,32 +568,18 @@ async function pullFromCloud(): Promise<number> {
     }
     advanceCursor('creditPayments', data.creditPayments||[], 200, 'created_at');
 
-    // ── Recetas (BOM) ───────────────────────────────────────────────────────
-    try {
-      for (const r of (data.recipes || [])) {
-        await db.execute(
-          `INSERT INTO recipes
-             (id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?)
-           ON DUPLICATE KEY UPDATE
-             name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
-             output_quantity=IF(VALUES(updated_at)>updated_at,VALUES(output_quantity),output_quantity),
-             updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
-          [r.id, r.tenant_id, r.name, r.description||null, r.output_product_id||null,
-           r.output_quantity||1, r.unit||null, r.notes||null, toMysqlDatetime(r.updated_at)]
-        );
-        applied++;
-      }
-      for (const ri of (data.recipeItems || [])) {
-        await db.execute(
-          `INSERT IGNORE INTO recipe_items
-             (id, recipe_id, tenant_id, component_product_id, quantity, unit, notes)
-           VALUES (?,?,?,?,?,?,?)`,
-          [ri.id, ri.recipe_id, ri.tenant_id, ri.component_product_id,
-           ri.quantity, ri.unit||null, ri.notes||null]
-        );
-      }
-    } catch { /* tabla recipes puede no existir */ }
+    // ── Recetas BOM (product_recipes) ──────────────────────────────────────
+    for (const pr of (data.productRecipes || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO product_recipes
+           (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost)
+         VALUES (?,?,?,?,?,?)`,
+        [pr.id, pr.tenant_id, pr.product_id, pr.ingredient_id,
+         pr.quantity, pr.include_in_cost ?? 1]
+      );
+      applied++;
+    }
+    advanceCursor('recipes', data.productRecipes||[], 500, 'created_at');
 
     // ── Log de progreso ─────────────────────────────────────────────────────
     const anyPageFull = Object.entries(pullCursors).some(([, c]) => c.afterId !== '');
@@ -772,29 +758,15 @@ export async function getChangesSince(
     [tenantId, ccp.since]
   );
 
-  // ── Recetas ───────────────────────────────────────────────────────────────
-  let recipes: any[] = [];
-  let recipeItems: any[] = [];
-  try {
-    const cr = c('recipes') ?? { since: EPOCH, afterId: '' };
-    const [recipeRows] = await db.execute<RowDataPacket[]>(
-      `SELECT id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at
-       FROM recipes WHERE tenant_id = ? AND updated_at > ?
-       ORDER BY updated_at ASC LIMIT 200`,
-      [tenantId, cr.since]
-    );
-    recipes = recipeRows as any[];
-    if (recipes.length > 0) {
-      const ids = recipes.map((r: any) => r.id);
-      const ph = ids.map(() => '?').join(',');
-      const [rows] = await db.execute<RowDataPacket[]>(
-        `SELECT id, recipe_id, tenant_id, component_product_id, quantity, unit, notes
-         FROM recipe_items WHERE recipe_id IN (${ph})`,
-        ids
-      );
-      recipeItems = rows as any[];
-    }
-  } catch { /* tabla recipes puede no existir */ }
+  // ── Recetas BOM (product_recipes) ─────────────────────────────────────────
+  // El módulo de recetas usa product_recipes (product_id, ingredient_id, quantity)
+  const cr = c('recipes') ?? { since: EPOCH, afterId: '' };
+  const [productRecipes] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
+     FROM product_recipes WHERE tenant_id = ? AND created_at > ?
+     ORDER BY created_at ASC, id ASC LIMIT 500`,
+    [tenantId, cr.since]
+  );
 
   return {
     tenant: (tenantRows as any[])[0] || null,
@@ -805,7 +777,7 @@ export async function getChangesSince(
     movements,
     cashSessions,
     creditPayments,
-    recipes, recipeItems,
+    productRecipes,
   };
 }
 
