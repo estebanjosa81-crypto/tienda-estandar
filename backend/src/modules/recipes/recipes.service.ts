@@ -160,31 +160,40 @@ class RecipesService {
       }
     }
 
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const connection = await db.getConnection();
+      try {
+        await connection.beginTransaction();
 
-      // Delete existing recipe
-      await connection.execute(
-        'DELETE FROM product_recipes WHERE product_id = ? AND tenant_id = ?',
-        [productId, tenantId]
-      );
-
-      // Insert new ingredients
-      for (const ing of ingredients) {
-        const includeInCost = ing.includeInCost !== false ? 1 : 0;
+        // Delete existing recipe
         await connection.execute(
-          'INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES (?, ?, ?, ?, ?, ?)',
-          [uuidv4(), tenantId, productId, ing.ingredientId, ing.quantity, includeInCost]
+          'DELETE FROM product_recipes WHERE product_id = ? AND tenant_id = ?',
+          [productId, tenantId]
         );
-      }
 
-      await connection.commit();
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+        // Insert new ingredients
+        for (const ing of ingredients) {
+          const includeInCost = ing.includeInCost !== false ? 1 : 0;
+          await connection.execute(
+            'INSERT INTO product_recipes (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost) VALUES (?, ?, ?, ?, ?, ?)',
+            [uuidv4(), tenantId, productId, ing.ingredientId, ing.quantity, includeInCost]
+          );
+        }
+
+        await connection.commit();
+        break; // success — exit retry loop
+      } catch (error: any) {
+        await connection.rollback();
+        if (error?.code === 'ER_LOCK_DEADLOCK' && attempt < MAX_RETRIES) {
+          // Wait a bit before retrying to let the other transaction finish
+          await new Promise(resolve => setTimeout(resolve, attempt * 100));
+          continue;
+        }
+        throw error;
+      } finally {
+        connection.release();
+      }
     }
 
     const recipe = await this.findByProductId(productId, tenantId);

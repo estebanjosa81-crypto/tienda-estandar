@@ -619,18 +619,19 @@ export function Recipes() {
     if (!toSave.length) return
     setIsSavingExtracto(true)
     try {
-      const results = await Promise.all(
-        toSave.map((s) =>
-          api.saveRecipe(
-            s.productId,
-            s.valid.map((i) => ({
-              ingredientId: i.ingredientId,
-              quantity: parseFloat(i.quantity),
-              includeInCost: i.includeInCost,
-            }))
-          )
+      // Sequential to avoid MySQL deadlocks from concurrent transactions
+      const results: Awaited<ReturnType<typeof api.saveRecipe>>[] = []
+      for (const s of toSave) {
+        const result = await api.saveRecipe(
+          s.productId,
+          s.valid.map((i) => ({
+            ingredientId: i.ingredientId,
+            quantity: parseFloat(i.quantity),
+            includeInCost: i.includeInCost,
+          }))
         )
-      )
+        results.push(result)
+      }
       const errors = results.filter((r) => !r.success)
       if (errors.length) {
         alert(`Se guardaron ${results.length - errors.length} de ${results.length} recetas. Algunos errores ocurrieron.`)
