@@ -40,6 +40,10 @@ import { syncRoutes, startSyncScheduler } from './modules/sync';
 
 const app = express();
 
+// Trust reverse proxy (nginx/traefik in production, or Docker network in local)
+// Required so express-rate-limit can read the real client IP from X-Forwarded-For
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images from Cloudinary etc.
