@@ -46,6 +46,8 @@ import {
   X,
   DollarSign,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Layers,
   Sparkles,
@@ -474,6 +476,8 @@ export function Recipes() {
     )
   )
   const [isSavingExtracto, setIsSavingExtracto] = useState(false)
+  const [recipePage, setRecipePage] = useState(1)
+  const RECIPE_PAGE_SIZE = 50
   const [activeTab, setActiveTab] = useState('30ml')
 
   // Delete dialog
@@ -516,6 +520,14 @@ export function Recipes() {
       (r) => r.productName.toLowerCase().includes(q) || r.productSku.toLowerCase().includes(q)
     )
   }, [recipes, search])
+
+  const recipeTotalPages = Math.ceil(filteredRecipes.length / RECIPE_PAGE_SIZE)
+  const pagedRecipes = filteredRecipes.slice(
+    (recipePage - 1) * RECIPE_PAGE_SIZE,
+    recipePage * RECIPE_PAGE_SIZE
+  )
+
+  useEffect(() => { setRecipePage(1) }, [search])
 
   // ── Single recipe handlers ──
   const openCreate = () => {
@@ -744,7 +756,7 @@ export function Recipes() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRecipes.map((recipe) => (
+                  {pagedRecipes.map((recipe) => (
                     <TableRow key={recipe.productId} className="hover:bg-muted/30">
                       <TableCell>
                         <span className="font-medium line-clamp-2 leading-snug">
@@ -792,6 +804,51 @@ export function Recipes() {
                   ))}
                 </TableBody>
               </Table>
+              {recipeTotalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    Página {recipePage} de {recipeTotalPages} · {filteredRecipes.length} recetas
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setRecipePage(p => Math.max(1, p - 1))}
+                      disabled={recipePage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: Math.min(5, recipeTotalPages) }, (_, i) => {
+                      let page: number
+                      if (recipeTotalPages <= 5) page = i + 1
+                      else if (recipePage <= 3) page = i + 1
+                      else if (recipePage >= recipeTotalPages - 2) page = recipeTotalPages - 4 + i
+                      else page = recipePage - 2 + i
+                      return (
+                        <Button
+                          key={page}
+                          variant={recipePage === page ? 'default' : 'outline'}
+                          size="icon"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setRecipePage(page)}
+                        >
+                          {page}
+                        </Button>
+                      )
+                    })}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setRecipePage(p => Math.min(recipeTotalPages, p + 1))}
+                      disabled={recipePage === recipeTotalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
