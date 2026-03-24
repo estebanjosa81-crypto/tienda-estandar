@@ -72,21 +72,35 @@ export async function getChanges(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { since, tenantId } = req.query as { since?: string; tenantId?: string };
-  if (!since || !tenantId) {
-    res.status(400).json({ success: false, error: 'Parámetros since y tenantId requeridos' });
+  const { tenantId, cursors: cursorsRaw, since } = req.query as {
+    tenantId?: string; cursors?: string; since?: string;
+  };
+  if (!tenantId) {
+    res.status(400).json({ success: false, error: 'Parámetro tenantId requerido' });
     return;
   }
 
-  const sinceDate = new Date(since);
-  if (isNaN(sinceDate.getTime())) {
-    res.status(400).json({ success: false, error: 'Formato de since inválido (usar ISO 8601)' });
+  // Compatibilidad: si viene el formato viejo (since=...) lo convertimos
+  let parsedCursors: Record<string, { since: string; afterId: string }> = {};
+  if (cursorsRaw) {
+    try { parsedCursors = JSON.parse(cursorsRaw); } catch {
+      res.status(400).json({ success: false, error: 'Formato de cursors inválido (JSON)' });
+      return;
+    }
+  } else if (since) {
+    // Formato legado: un solo cursor para todos
+    parsedCursors = Object.fromEntries(
+      ['products','customers','sales','purchases','movements','cashSessions','creditPayments','categories']
+        .map((e) => [e, { since, afterId: '' }])
+    );
+  } else {
+    res.status(400).json({ success: false, error: 'Se requiere cursors o since' });
     return;
   }
 
   try {
-    const data = await getChangesSince(tenantId, sinceDate);
-    res.json({ success: true, tenant: data.tenant, products: data.products, customers: data.customers });
+    const data = await getChangesSince(tenantId, parsedCursors);
+    res.json({ success: true, ...data });
   } catch (err: any) {
     console.error('[Sync] Error en GET /changes:', err);
     res.status(500).json({ success: false, error: err.message });
