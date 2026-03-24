@@ -50,6 +50,9 @@ import {
   Phone,
   CreditCard,
   Info,
+  Share2,
+  Send,
+  MessageCircle,
 } from 'lucide-react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
@@ -186,6 +189,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
   const [activeImageIdx, setActiveImageIdx] = useState(0)
+
+  // ====== PRODUCT VIEWERS COUNTER ======
+  const [viewerCount, setViewerCount] = useState(() => Math.floor(Math.random() * 30) + 8)
+  useEffect(() => {
+    const tick = () => setViewerCount(Math.floor(Math.random() * 30) + 8)
+    const interval = setInterval(tick, Math.floor(Math.random() * 20000) + 20000)
+    return () => clearInterval(interval)
+  }, [])
 
   // ====== PRODUCT REVIEWS STATE ======
   const [productReviews, setProductReviews] = useState<any[]>([])
@@ -2388,45 +2399,73 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* ════ RIGHT — Purchase zone ════ */}
                 <div className="lg:col-span-5">
-                  <div className="lg:sticky lg:top-24 space-y-6">
+                  <div className="lg:sticky lg:top-24 space-y-5">
 
-                    {/* Brand + category tags */}
+                    {/* Breadcrumb */}
+                    <nav className={`flex items-center gap-1.5 text-xs ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                      <button onClick={closeProductModal} className="hover:underline">Inicio</button>
+                      <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                      <span className="capitalize">{selectedProduct.category}</span>
+                      <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                      <span className={`truncate max-w-[160px] font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.name}</span>
+                    </nav>
+
+                    {/* Category tag */}
                     <div className="flex flex-wrap items-center gap-2">
-                      {selectedProduct.brand && (
-                        <p className="text-amber-400 uppercase tracking-[0.25em] text-[11px] font-medium">{selectedProduct.brand}</p>
-                      )}
-                      <span className="text-[10px] text-white/40 uppercase tracking-widest border border-white/10 px-2 py-0.5">{selectedProduct.category}</span>
-                      {selectedProduct.gender && (
-                        <span className="text-[10px] text-white/40 uppercase tracking-widest border border-white/10 px-2 py-0.5">{selectedProduct.gender}</span>
-                      )}
+                      <span className={`text-[10px] uppercase tracking-widest border px-2 py-0.5 ${isLightBg ? 'border-black/15 text-black/50' : 'border-white/10 text-white/40'}`}>
+                        {selectedProduct.gender || selectedProduct.category}
+                      </span>
                     </div>
 
                     {/* Product name */}
-                    <h1 className="text-3xl sm:text-4xl font-light text-white leading-tight">{selectedProduct.name}</h1>
+                    <h1 className={`text-3xl sm:text-4xl font-light leading-tight ${isLightBg ? 'text-black' : 'text-white'}`}>{selectedProduct.name}</h1>
 
                     {/* Price */}
                     <div className="space-y-2">
                       {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <div className="flex items-end gap-3 flex-wrap">
-                            <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
-                            <span className="text-xl text-white/30 line-through pb-0.5">{formatCOP(selectedProduct.salePrice)}</span>
-                            <span className="bg-red-600/20 text-red-400 text-xs font-bold px-2 py-1 border border-red-600/30 self-center">
+                            <span className={`text-4xl font-semibold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                            <span className={`text-xl line-through pb-0.5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                            <span className={`text-xs font-bold px-2 py-1 border self-center ${isLightBg ? 'border-red-500/30 text-red-600 bg-red-50' : 'border-red-600/30 text-red-400 bg-red-600/10'}`}>
                               -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
                             </span>
                           </div>
-                          <p className="text-sm text-white/60 flex items-center gap-1.5">
-                            <Tag className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />
+                          <p className={`text-sm flex items-center gap-1.5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                            <Tag className="w-3.5 h-3.5 flex-shrink-0" />
                             Ahorras {formatCOP(selectedProduct.salePrice - selectedProduct.offerPrice)}
-                            {selectedProduct.offerLabel && (
-                              <span className="text-white/40 ml-1">· {selectedProduct.offerLabel}</span>
-                            )}
+                            {selectedProduct.offerLabel && <span className="opacity-70 ml-1">· {selectedProduct.offerLabel}</span>}
                           </p>
                         </div>
                       ) : (
-                        <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                        <span className={`text-4xl font-semibold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
                       )}
                     </div>
+
+                    {/* Payment options — only when configured */}
+                    {(paymentConfig.sistecredito || paymentConfig.addi) && (
+                      <div className="space-y-2">
+                        {paymentConfig.sistecredito && (
+                          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm ${isLightBg ? 'border-green-200 bg-green-50' : 'border-green-800/40 bg-green-900/10'}`}>
+                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                              <CreditCard className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className={isLightBg ? 'text-green-800' : 'text-green-400'}>
+                              Compra con <strong>sistecrédito</strong> en 6 cuotas de{' '}
+                              <strong>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mes</strong>
+                            </span>
+                          </div>
+                        )}
+                        {paymentConfig.addi && (
+                          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm ${isLightBg ? 'border-blue-200 bg-blue-50' : 'border-blue-800/40 bg-blue-900/10'}`}>
+                            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">A</div>
+                            <span className={isLightBg ? 'text-blue-800' : 'text-blue-400'}>
+                              Paga con <strong>Addi</strong> en hasta <strong>6 cuotas</strong>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Stock status */}
                     <div>
@@ -2538,6 +2577,56 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Devoluciones fáciles</p>
                       </div>
                     </div>
+
+                    {/* Personas viendo */}
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isLightBg ? 'bg-black/5 text-black/60' : 'bg-white/5 text-white/50'}`}>
+                      <Eye className="w-4 h-4 flex-shrink-0" />
+                      <span><strong className={isLightBg ? 'text-black/80' : 'text-white/80'}>{viewerCount}</strong> personas viendo este producto ahora</span>
+                    </div>
+
+                    {/* Share buttons */}
+                    <div className={`pt-3 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                      <p className={`text-[10px] uppercase tracking-widest mb-2.5 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
+                      <div className="flex items-center gap-2">
+                        {/* Facebook */}
+                        <a
+                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-blue-600 hover:text-white hover:border-blue-600' : 'border-white/10 text-white/50 hover:bg-blue-600 hover:text-white hover:border-blue-600'}`}
+                        >
+                          <Facebook className="w-3.5 h-3.5" />
+                          Facebook
+                        </a>
+                        {/* WhatsApp */}
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(selectedProduct.name + ' — ' + formatCOP(selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) + '\n' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]' : 'border-white/10 text-white/50 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]'}`}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          WhatsApp
+                        </a>
+                        {/* Telegram */}
+                        <a
+                          href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}&text=${encodeURIComponent(selectedProduct.name)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]' : 'border-white/10 text-white/50 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]'}`}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Telegram
+                        </a>
+                        {/* Instagram — link to profile */}
+                        <a
+                          href="https://www.instagram.com"
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-gradient-to-r hover:from-[#833ab4] hover:to-[#fd1d1d] hover:text-white hover:border-transparent' : 'border-white/10 text-white/50 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]'}`}
+                        >
+                          <Instagram className="w-3.5 h-3.5" />
+                          Instagram
+                        </a>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
