@@ -84,16 +84,9 @@ services:
       - "3001:3001"
 
   # ── Frontend Next.js local ────────────────────────────────
-  # El frontend se construye localmente para que NEXT_PUBLIC_API_URL
-  # apunte al backend local (http://localhost:3001/api) y no a la nube.
+  # Imagen pre-construida con NEXT_PUBLIC_API_URL=http://localhost:3001/api
+  # Para regenerarla: docker build --build-arg NEXT_PUBLIC_API_URL=http://localhost:3001/api ... -t 1006946898/lopbuk-frontend:local
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:3001/api
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
-        NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${CLOUDINARY_UPLOAD_PRESET:-}
     image: 1006946898/lopbuk-frontend:local
     container_name: lopbuk_frontend_local
     restart: unless-stopped

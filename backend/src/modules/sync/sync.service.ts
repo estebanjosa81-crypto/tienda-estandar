@@ -37,8 +37,11 @@ const state: SyncStatus = {
 };
 
 // Cursor para pull incremental: última vez que descargamos cambios de la nube.
-// Se inicializa a 24h atrás para cubrir el primer arranque.
-let lastPullCursor: Date = new Date(Date.now() - 24 * 60 * 60 * 1000);
+// Se inicializa en 2020 para que el primer arranque traiga TODO el historial.
+let lastPullCursor: Date = new Date('2020-01-01T00:00:00.000Z');
+// Cuando el pull devuelve una página completa (LIMIT registros) el cursor avanza
+// al updated_at del último registro recibido para continuar la paginación en el
+// siguiente ciclo. Solo se mueve a "ahora" cuando la página está incompleta.
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -308,7 +311,7 @@ async function pullFromCloud(): Promise<number> {
     clearTimeout(timer);
 
     if (!res.ok) return 0;
-    const data = await res.json() as { tenant?: any; products?: any[]; customers?: any[] };
+    const data = await res.json() as { tenant?: any; products?: any[]; customers?: any[]; recipes?: any[]; recipeItems?: any[] };
 
     let applied = 0;
 
@@ -379,9 +382,54 @@ async function pullFromCloud(): Promise<number> {
       applied++;
     }
 
-    lastPullCursor = new Date();
-    state.lastPullAt = lastPullCursor;
-    console.log(`[Sync] PULL: ${applied} registros aplicados desde la nube`);
+    // Aplicar recetas (BOM)
+    try {
+      for (const r of (data.recipes || [])) {
+        await db.execute(
+          `INSERT INTO recipes (id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE
+             name               = IF(VALUES(updated_at) > updated_at, VALUES(name),               name),
+             description        = IF(VALUES(updated_at) > updated_at, VALUES(description),        description),
+             output_quantity    = IF(VALUES(updated_at) > updated_at, VALUES(output_quantity),    output_quantity),
+             updated_at         = IF(VALUES(updated_at) > updated_at, VALUES(updated_at),         updated_at)`,
+          [r.id, r.tenant_id, r.name, r.description || null, r.output_product_id || null,
+           r.output_quantity || 1, r.unit || null, r.notes || null, toMysqlDatetime(r.updated_at)]
+        );
+        applied++;
+      }
+      for (const ri of (data.recipeItems || [])) {
+        await db.execute(
+          `INSERT IGNORE INTO recipe_items (id, recipe_id, tenant_id, component_product_id, quantity, unit, notes)
+           VALUES (?,?,?,?,?,?,?)`,
+          [ri.id, ri.recipe_id, ri.tenant_id, ri.component_product_id,
+           ri.quantity, ri.unit || null, ri.notes || null]
+        );
+      }
+    } catch { /* tabla recipes puede no existir en instancias antiguas */ }
+
+    const PAGE_LIMIT = 500;
+    const totalReceived = (data.products || []).length + (data.customers || []).length;
+
+    if ((data.products || []).length >= PAGE_LIMIT) {
+      // Página completa: avanza cursor al updated_at más reciente del lote
+      // para que el próximo ciclo traiga la siguiente página
+      const allDates = [
+        ...(data.products || []).map((p: any) => new Date(p.updated_at)),
+        ...(data.customers || []).map((c: any) => new Date(c.updated_at)),
+      ].filter((d) => !isNaN(d.getTime()));
+      if (allDates.length > 0) {
+        lastPullCursor = new Date(Math.max(...allDates.map((d) => d.getTime())));
+      }
+      console.log(`[Sync] PULL: ${applied} registros aplicados (página completa, continúa en próximo ciclo)`);
+    } else {
+      // Página incompleta: ya no hay más datos históricos, mueve cursor a ahora
+      lastPullCursor = new Date();
+      state.lastPullAt = new Date();
+      console.log(`[Sync] PULL: ${applied} registros aplicados desde la nube`);
+    }
+
+    state.lastPullAt = state.lastPullAt ?? new Date();
     return applied;
   } catch (err) {
     console.error('[Sync] Error en pull:', err);
@@ -398,7 +446,7 @@ async function pullFromCloud(): Promise<number> {
 export async function getChangesSince(
   tenantId: string,
   since: Date
-): Promise<{ tenant: any | null; products: any[]; customers: any[] }> {
+): Promise<{ tenant: any | null; products: any[]; customers: any[]; recipes: any[]; recipeItems: any[] }> {
   const [tenantRows] = await db.execute<RowDataPacket[]>(
     `SELECT id, name, slug, business_type, status, plan, max_users, max_products, bg_color
      FROM tenants WHERE id = ? LIMIT 1`,
@@ -426,10 +474,38 @@ export async function getChangesSince(
     [tenantId, since]
   );
 
+  // Recetas (BOM): se sincronizan completas cuando tienen cambios
+  let recipes: any[] = [];
+  let recipeItems: any[] = [];
+  try {
+    const [recipeRows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, tenant_id, name, description, output_product_id, output_quantity, unit, notes, updated_at
+       FROM recipes
+       WHERE tenant_id = ? AND updated_at > ?
+       ORDER BY updated_at ASC
+       LIMIT 200`,
+      [tenantId, since]
+    );
+    recipes = recipeRows as any[];
+
+    if (recipes.length > 0) {
+      const recipeIds = recipes.map((r: any) => r.id);
+      const placeholders = recipeIds.map(() => '?').join(',');
+      const [itemRows] = await db.execute<RowDataPacket[]>(
+        `SELECT id, recipe_id, tenant_id, component_product_id, quantity, unit, notes
+         FROM recipe_items WHERE recipe_id IN (${placeholders})`,
+        recipeIds
+      );
+      recipeItems = itemRows as any[];
+    }
+  } catch { /* tabla recipes puede no existir en instancias antiguas */ }
+
   return {
     tenant: (tenantRows as any[])[0] || null,
     products: products as any[],
     customers: customers as any[],
+    recipes,
+    recipeItems,
   };
 }
 
