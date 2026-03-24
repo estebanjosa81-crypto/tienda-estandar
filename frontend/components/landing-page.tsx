@@ -6646,28 +6646,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       {/* ========== LOCATION MODAL ========== */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-blue-500/15 flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-blue-500" />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-background border border-border rounded-2xl shadow-xl p-6 w-full max-w-xs">
+            {/* Icon + title */}
+            <div className="flex flex-col items-center text-center gap-3 mb-6">
+              <div className="h-11 w-11 rounded-full border border-border flex items-center justify-center">
+                <MapPin className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h2 className="font-semibold text-base">¿Dónde estás?</h2>
-                <p className="text-xs text-muted-foreground">Para mostrarte tiendas y domicilios disponibles en tu zona.</p>
+                <h2 className="font-semibold text-base text-foreground">¿Dónde estás?</h2>
+                <p className="text-xs text-foreground/50 mt-0.5 leading-relaxed">
+                  Para mostrarte tiendas y domicilios disponibles en tu zona.
+                </p>
               </div>
             </div>
-            <div className="space-y-3 mb-5">
+
+            {/* Location action */}
+            <div className="mb-5">
               {detectedModalCity ? (
-                <div className="flex items-center justify-between px-4 py-3 border border-green-300 bg-green-50 rounded-lg">
+                <div className="flex items-center justify-between px-4 py-3 border border-border rounded-xl bg-foreground/5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <MapPin className="h-4 w-4 text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-green-800 truncate">{detectedModalCity}</span>
+                    <MapPin className="h-4 w-4 text-foreground/60 flex-shrink-0" />
+                    <span className="text-sm text-foreground font-medium truncate">{detectedModalCity}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setDetectedModalCity(''); setLocationMun(''); setLocationDept('') }}
-                    className="ml-3 text-xs text-green-600 hover:text-red-500 transition-colors flex-shrink-0"
+                    className="ml-3 text-xs text-foreground/40 hover:text-foreground transition-colors flex-shrink-0"
                   >
                     Cambiar
                   </button>
@@ -6677,27 +6682,40 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   type="button"
                   onClick={handleModalLocation}
                   disabled={isLocatingModal}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-foreground bg-background hover:bg-foreground/5 disabled:opacity-40 transition-colors"
                 >
                   {isLocatingModal ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Navigation className="h-5 w-5" />
+                    <Navigation className="h-4 w-4" />
                   )}
                   <span className="font-medium text-sm">
-                    {isLocatingModal ? 'Detectando ubicación...' : 'Usar mi ubicación'}
+                    {isLocatingModal ? 'Detectando...' : 'Usar mi ubicación'}
                   </span>
                 </button>
               )}
-              {locationModalError && <p className="text-xs text-red-500">{locationModalError}</p>}
+              {locationModalError && (
+                <p className="text-xs text-foreground/50 mt-2 text-center">{locationModalError}</p>
+              )}
             </div>
+
+            {/* Actions */}
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={skipClientLocation}>
-                Continuar sin ubicación
-              </Button>
-              <Button size="sm" className="flex-1" disabled={!locationMun} onClick={saveClientLocation}>
+              <button
+                type="button"
+                onClick={skipClientLocation}
+                className="flex-1 px-3 py-2 rounded-xl border border-border text-xs text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                Sin ubicación
+              </button>
+              <button
+                type="button"
+                disabled={!locationMun}
+                onClick={saveClientLocation}
+                className="flex-1 px-3 py-2 rounded-xl bg-foreground text-background text-xs font-semibold hover:opacity-90 disabled:opacity-30 transition-opacity"
+              >
                 Confirmar
-              </Button>
+              </button>
             </div>
           </div>
         </div>
