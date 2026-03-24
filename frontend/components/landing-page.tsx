@@ -414,7 +414,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [clientLoginError, setClientLoginError] = useState('')
   const [clientLoginLoading, setClientLoginLoading] = useState(false)
   const clientGoogleBtnRef = useRef<HTMLDivElement>(null)
-  const [clientGoogleBtnWidth, setClientGoogleBtnWidth] = useState(340)
+  const [clientGoogleBtnWidth, setClientGoogleBtnWidth] = useState(260)
   useEffect(() => {
     const el = clientGoogleBtnRef.current
     if (!el) return
@@ -5603,41 +5603,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="w-11 h-11 rounded-full border border-border flex items-center justify-center mx-auto mb-3">
                   <User className="w-5 h-5 text-foreground" />
                 </div>
-                <h2 className="text-base font-semibold text-foreground tracking-tight">
-                  {clientLoginTab === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
-                </h2>
-                <p className="text-xs text-foreground/50 mt-1">
-                  {clientLoginTab === 'login' ? 'Accede a tus pedidos y perfil' : 'Regístrate para comprar fácil'}
-                </p>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-border">
-                <button
-                  onClick={() => { setClientLoginTab('login'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'login' ? 'text-foreground border-b-2 border-foreground -mb-px' : 'text-foreground/40 hover:text-foreground/70'}`}
-                >
-                  Ingresar
-                </button>
-                <button
-                  onClick={() => { setClientLoginTab('register'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'register' ? 'text-foreground border-b-2 border-foreground -mb-px' : 'text-foreground/40 hover:text-foreground/70'}`}
-                >
-                  Registrarse
-                </button>
+                <h2 className="text-base font-semibold text-foreground tracking-tight">Inicia sesión</h2>
+                <p className="text-xs text-foreground/50 mt-1">Accede a tus pedidos y perfil</p>
               </div>
 
               {/* Form */}
               <div className="px-6 py-5">
                 {/* Google login */}
-                <div ref={clientGoogleBtnRef} className="mb-4 w-full">
+                <div ref={clientGoogleBtnRef} className="mb-4 w-full overflow-hidden">
                   <GoogleLogin
                     onSuccess={handleClientGoogleLogin}
                     onError={() => setClientLoginError('Error al conectar con Google')}
                     theme="filled_black"
                     size="large"
                     width={clientGoogleBtnWidth}
-                    text={clientLoginTab === 'login' ? 'signin_with' : 'signup_with'}
+                    text="signin_with"
                     shape="pill"
                   />
                 </div>
@@ -5649,33 +5629,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="flex-1 h-px bg-border" />
                 </div>
 
-                <form onSubmit={clientLoginTab === 'login' ? handleClientLogin : handleClientRegister} className="space-y-3">
-                  {clientLoginTab === 'register' && (
-                    <>
-                      <div>
-                        <label className="block text-xs text-foreground/60 font-medium mb-1.5">Nombre completo <span className="text-foreground">*</span></label>
-                        <input
-                          type="text"
-                          placeholder="Tu nombre"
-                          value={clientLoginForm.name}
-                          onChange={e => setClientLoginForm(p => ({ ...p, name: e.target.value }))}
-                          className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-foreground/60 font-medium mb-1.5">Cédula / Documento <span className="text-foreground">*</span></label>
-                        <input
-                          type="text"
-                          placeholder="Número de documento"
-                          value={clientLoginForm.cedula}
-                          onChange={e => setClientLoginForm(p => ({ ...p, cedula: e.target.value }))}
-                          className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
-                          required
-                        />
-                      </div>
-                    </>
-                  )}
+                <form onSubmit={handleClientLogin} className="space-y-3">
                   <div>
                     <label className="block text-xs text-foreground/60 font-medium mb-1.5">Correo electrónico <span className="text-foreground">*</span></label>
                     <input
