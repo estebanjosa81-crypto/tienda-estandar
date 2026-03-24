@@ -4206,14 +4206,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       muted
                       loop
                       playsInline
-                      className={isMobile ? 'w-full h-auto block object-cover' : 'absolute inset-0 w-full h-full object-cover object-center'}
+                      className={isMobile ? 'w-full h-auto block' : 'absolute inset-0 w-full h-full object-contain object-center'}
                     />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={hero4.imageUrl}
                       alt={hero4.title || 'Banner'}
-                      className={isMobile ? 'w-full h-auto block object-cover' : 'absolute inset-0 w-full h-full object-cover object-center'}
+                      className={isMobile ? 'w-full h-auto block' : 'absolute inset-0 w-full h-full object-contain object-center'}
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
@@ -5584,44 +5584,44 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {showClientLogin && !isAuthenticated && (
         <>
           <div
-            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md"
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
             onClick={() => setShowClientLogin(false)}
           />
           <div className="fixed inset-0 z-[81] flex items-center justify-center p-4 pointer-events-none">
             <div
-              className="w-full max-w-sm bg-[#141414] border border-white/15 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
+              className="w-full max-w-xs bg-background border border-border rounded-2xl shadow-xl overflow-hidden pointer-events-auto"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="relative px-6 pt-7 pb-5 text-center border-b border-white/10">
+              <div className="relative px-6 pt-7 pb-5 text-center border-b border-border">
                 <button
                   onClick={() => setShowClientLogin(false)}
-                  className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 text-foreground/40 hover:text-foreground transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto mb-3">
-                  <User className="w-6 h-6 text-amber-400" />
+                <div className="w-11 h-11 rounded-full border border-border flex items-center justify-center mx-auto mb-3">
+                  <User className="w-5 h-5 text-foreground" />
                 </div>
-                <h2 className="text-lg font-semibold text-white tracking-tight">
+                <h2 className="text-base font-semibold text-foreground tracking-tight">
                   {clientLoginTab === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
                 </h2>
-                <p className="text-sm text-white/60 mt-1">
+                <p className="text-xs text-foreground/50 mt-1">
                   {clientLoginTab === 'login' ? 'Accede a tus pedidos y perfil' : 'Regístrate para comprar fácil'}
                 </p>
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-white/10">
+              <div className="flex border-b border-border">
                 <button
                   onClick={() => { setClientLoginTab('login'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'login' ? 'text-amber-400 border-b-2 border-amber-400 -mb-px' : 'text-white/50 hover:text-white/80'}`}
+                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'login' ? 'text-foreground border-b-2 border-foreground -mb-px' : 'text-foreground/40 hover:text-foreground/70'}`}
                 >
                   Ingresar
                 </button>
                 <button
                   onClick={() => { setClientLoginTab('register'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'register' ? 'text-amber-400 border-b-2 border-amber-400 -mb-px' : 'text-white/50 hover:text-white/80'}`}
+                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'register' ? 'text-foreground border-b-2 border-foreground -mb-px' : 'text-foreground/40 hover:text-foreground/70'}`}
                 >
                   Registrarse
                 </button>
@@ -5644,64 +5644,64 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-white/15" />
-                  <span className="text-[11px] text-white/50 uppercase tracking-widest">o continúa con correo</span>
-                  <div className="flex-1 h-px bg-white/15" />
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] text-foreground/40 uppercase tracking-widest">o continúa con correo</span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
 
                 <form onSubmit={clientLoginTab === 'login' ? handleClientLogin : handleClientRegister} className="space-y-3">
                   {clientLoginTab === 'register' && (
                     <>
                       <div>
-                        <label className="block text-xs text-white/70 font-medium mb-1.5">Nombre completo <span className="text-amber-400">*</span></label>
+                        <label className="block text-xs text-foreground/60 font-medium mb-1.5">Nombre completo <span className="text-foreground">*</span></label>
                         <input
                           type="text"
                           placeholder="Tu nombre"
                           value={clientLoginForm.name}
                           onChange={e => setClientLoginForm(p => ({ ...p, name: e.target.value }))}
-                          className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                          className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-white/70 font-medium mb-1.5">Cédula / Documento <span className="text-amber-400">*</span></label>
+                        <label className="block text-xs text-foreground/60 font-medium mb-1.5">Cédula / Documento <span className="text-foreground">*</span></label>
                         <input
                           type="text"
                           placeholder="Número de documento"
                           value={clientLoginForm.cedula}
                           onChange={e => setClientLoginForm(p => ({ ...p, cedula: e.target.value }))}
-                          className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                          className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
                           required
                         />
                       </div>
                     </>
                   )}
                   <div>
-                    <label className="block text-xs text-white/70 font-medium mb-1.5">Correo electrónico <span className="text-amber-400">*</span></label>
+                    <label className="block text-xs text-foreground/60 font-medium mb-1.5">Correo electrónico <span className="text-foreground">*</span></label>
                     <input
                       type="email"
                       placeholder="correo@ejemplo.com"
                       value={clientLoginForm.email}
                       onChange={e => setClientLoginForm(p => ({ ...p, email: e.target.value }))}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                      className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 font-medium mb-1.5">Contraseña <span className="text-amber-400">*</span></label>
+                    <label className="block text-xs text-foreground/60 font-medium mb-1.5">Contraseña <span className="text-foreground">*</span></label>
                     <input
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
                       value={clientLoginForm.password}
                       onChange={e => setClientLoginForm(p => ({ ...p, password: e.target.value }))}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                      className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all"
                       required
                     />
                   </div>
 
                   {clientLoginError && (
-                    <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                    <p className="text-xs text-foreground/70 bg-foreground/5 border border-border rounded-lg px-3 py-2">
                       {clientLoginError}
                     </p>
                   )}
@@ -5709,10 +5709,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <button
                     type="submit"
                     disabled={clientLoginLoading}
-                    className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-black text-sm font-bold tracking-wide transition-all duration-200 mt-1 flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity mt-1 flex items-center justify-center gap-2"
                   >
                     {clientLoginLoading ? (
-                      <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" />
                     ) : (
                       clientLoginTab === 'login' ? 'Entrar' : 'Crear cuenta'
                     )}
@@ -5720,13 +5720,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </form>
 
                 {/* ¿Eres comerciante? */}
-                <div className="mt-5 pt-4 border-t border-white/10 text-center">
+                <div className="mt-5 pt-4 border-t border-border text-center">
                   <button
                     onClick={() => { setShowClientLogin(false); onGoToLogin() }}
-                    className="text-xs text-white/50 hover:text-white/80 transition-colors"
+                    className="text-xs text-foreground/40 hover:text-foreground/70 transition-colors"
                   >
                     ¿Eres comerciante?{' '}
-                    <span className="text-amber-400 hover:text-amber-300 underline underline-offset-2">
+                    <span className="text-foreground underline underline-offset-2">
                       Accede al panel
                     </span>
                   </button>
