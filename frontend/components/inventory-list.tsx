@@ -901,7 +901,7 @@ function ProductFormDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="purchasePrice">Precio de compra (COP) *</Label>
+                <Label htmlFor="purchasePrice">Precio de compra (COP)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                   <Input
@@ -911,14 +911,13 @@ function ProductFormDialog({
                     step="0.01"
                     placeholder="50000"
                     value={formData.purchasePrice || ''}
-                    onChange={(e) => updateField('purchasePrice', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => updateField('purchasePrice', e.target.value === '' ? '' : parseFloat(e.target.value))}
                     className="pl-7"
-                    required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="salePrice">Precio de venta (COP) {formData.category !== 'insumos' && '*'}</Label>
+                <Label htmlFor="salePrice">Precio de venta (COP)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                   <Input
@@ -928,7 +927,7 @@ function ProductFormDialog({
                     step="0.01"
                     placeholder={formData.category === 'insumos' ? '0' : '249999'}
                     value={formData.salePrice || ''}
-                    onChange={(e) => updateField('salePrice', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => updateField('salePrice', e.target.value === '' ? '' : parseFloat(e.target.value))}
                     className="pl-7"
                   />
                 </div>
