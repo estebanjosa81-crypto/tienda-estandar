@@ -2540,14 +2540,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="flex gap-3">
                         <button
                           onClick={addFromModal}
-                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
+                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 border ${
                             isLightBg
-                              ? 'bg-black/80 text-white hover:bg-black'
-                              : 'bg-white/80 text-black hover:bg-white'
+                              ? 'border-black text-black bg-transparent hover:bg-black hover:text-white'
+                              : 'border-white text-white bg-transparent hover:bg-white hover:text-black'
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          Agregar
+                          Agregar al carrito
                         </button>
                         <button
                           onClick={() => { addFromModal(); setShowCheckout(true) }}
@@ -2557,7 +2557,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               : 'bg-white text-black hover:bg-white/90'
                           }`}
                         >
-                          Comprar
+                          Comprar ahora
                         </button>
                       </div>
                     )}
@@ -2954,9 +2954,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {sedesViewMode && !activeSede ? (
                   <div className="space-y-8">
                     <div className="flex items-center gap-3">
-                      <div className="h-px flex-1 bg-white/5" />
-                      <p className="text-white/30 text-xs font-light tracking-[0.2em] uppercase">Selecciona una sede</p>
-                      <div className="h-px flex-1 bg-white/5" />
+                      <div className={`h-px flex-1 ${isLightBg ? 'bg-black/10' : 'bg-white/5'}`} />
+                      <p className={`text-xs font-light tracking-[0.2em] uppercase ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Selecciona una sede</p>
+                      <div className={`h-px flex-1 ${isLightBg ? 'bg-black/10' : 'bg-white/5'}`} />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {storeSedes.map((sede, idx) => {
@@ -2966,48 +2966,64 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <button
                             key={sede.id}
                             onClick={() => setActiveSede(sede.id)}
-                            className="group relative flex flex-col gap-5 p-6 bg-white/[0.03] border border-white/8 hover:border-amber-500/40 hover:bg-white/[0.06] transition-all duration-300 text-left rounded-2xl overflow-hidden"
+                            className={`group relative flex flex-col gap-5 p-6 border transition-all duration-300 text-left rounded-2xl overflow-hidden ${
+                              isLightBg
+                                ? 'bg-black/[0.02] border-black/10 hover:border-black hover:bg-black/[0.05]'
+                                : 'bg-white/[0.03] border-white/8 hover:border-white/40 hover:bg-white/[0.06]'
+                            }`}
                           >
-                            {/* Ambient glow on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 group-hover:from-amber-500/5 group-hover:to-transparent transition-all duration-500 rounded-2xl pointer-events-none" />
                             {/* Corner number */}
-                            <span className="absolute top-4 right-5 text-[40px] font-bold text-white/[0.04] leading-none select-none group-hover:text-amber-500/10 transition-colors">
+                            <span className={`absolute top-4 right-5 text-[40px] font-bold leading-none select-none transition-colors ${
+                              isLightBg ? 'text-black/[0.04] group-hover:text-black/[0.08]' : 'text-white/[0.04] group-hover:text-white/[0.08]'
+                            }`}>
                               {String(idx + 1).padStart(2, '0')}
                             </span>
 
                             {/* Icon + arrow row */}
                             <div className="flex items-center justify-between w-full">
-                              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all duration-300">
-                                <MapPin className="w-5 h-5 text-amber-400" />
+                              <div className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-all duration-300 ${
+                                isLightBg
+                                  ? 'bg-black/5 border-black/10 group-hover:bg-black group-hover:border-black'
+                                  : 'bg-white/5 border-white/10 group-hover:bg-white group-hover:border-white'
+                              }`}>
+                                <MapPin className={`w-5 h-5 transition-colors ${
+                                  isLightBg ? 'text-black/50 group-hover:text-white' : 'text-white/50 group-hover:text-black'
+                                }`} />
                               </div>
-                              <div className="w-8 h-8 rounded-full border border-white/8 flex items-center justify-center group-hover:border-amber-500/40 group-hover:bg-amber-500/10 transition-all duration-300">
-                                <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                              <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 ${
+                                isLightBg
+                                  ? 'border-black/10 group-hover:border-black group-hover:bg-black'
+                                  : 'border-white/8 group-hover:border-white group-hover:bg-white'
+                              }`}>
+                                <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-all ${
+                                  isLightBg ? 'text-black/25 group-hover:text-white' : 'text-white/20 group-hover:text-black'
+                                }`} />
                               </div>
                             </div>
 
                             {/* Name & address */}
                             <div className="flex-1">
-                              <p className="text-white font-semibold tracking-wide uppercase text-sm leading-tight">{sede.name}</p>
+                              <p className={`font-semibold tracking-wide uppercase text-sm leading-tight ${isLightBg ? 'text-black' : 'text-white'}`}>{sede.name}</p>
                               {sede.address && (
-                                <p className="text-white/35 text-xs mt-1.5 leading-relaxed">{sede.address}</p>
+                                <p className={`text-xs mt-1.5 leading-relaxed ${isLightBg ? 'text-black/40' : 'text-white/35'}`}>{sede.address}</p>
                               )}
                             </div>
 
                             {/* Stats divider */}
-                            <div className="flex items-center gap-0 border-t border-white/5 pt-4 w-full">
+                            <div className={`flex items-center gap-0 border-t pt-4 w-full ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
                               <div className="flex-1 text-center">
-                                <p className="text-amber-400 font-bold text-lg leading-none">{exclusiveCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Exclusivos</p>
+                                <p className={`font-bold text-lg leading-none ${isLightBg ? 'text-black' : 'text-white'}`}>{exclusiveCount}</p>
+                                <p className={`text-[10px] mt-1 uppercase tracking-wider ${isLightBg ? 'text-black/35' : 'text-white/25'}`}>Exclusivos</p>
                               </div>
-                              <div className="w-px h-8 bg-white/8 mx-2" />
+                              <div className={`w-px h-8 mx-2 ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`} />
                               <div className="flex-1 text-center">
-                                <p className="text-white/50 font-bold text-lg leading-none">{sharedCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Compartidos</p>
+                                <p className={`font-bold text-lg leading-none ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>{sharedCount}</p>
+                                <p className={`text-[10px] mt-1 uppercase tracking-wider ${isLightBg ? 'text-black/35' : 'text-white/25'}`}>Compartidos</p>
                               </div>
-                              <div className="w-px h-8 bg-white/8 mx-2" />
+                              <div className={`w-px h-8 mx-2 ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`} />
                               <div className="flex-1 text-center">
-                                <p className="text-white/70 font-bold text-lg leading-none">{exclusiveCount + sharedCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Total</p>
+                                <p className={`font-bold text-lg leading-none ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{exclusiveCount + sharedCount}</p>
+                                <p className={`text-[10px] mt-1 uppercase tracking-wider ${isLightBg ? 'text-black/35' : 'text-white/25'}`}>Total</p>
                               </div>
                             </div>
                           </button>
@@ -3016,15 +3032,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                     {/* General products banner */}
                     {products.filter(p => !p.sedeId).length > 0 && (
-                      <div className="flex items-center gap-4 px-5 py-4 rounded-xl bg-white/[0.02] border border-white/5">
-                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                          <Store className="w-4 h-4 text-white/30" />
+                      <div className={`flex items-center gap-4 px-5 py-4 rounded-xl border ${isLightBg ? 'bg-black/[0.02] border-black/8' : 'bg-white/[0.02] border-white/5'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`}>
+                          <Store className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-white/40 text-xs uppercase tracking-wider">Disponibles en todas las sedes</span>
-                          <p className="text-white/20 text-[11px] mt-0.5">Estos productos están disponibles sin importar qué sede selecciones.</p>
+                          <span className={`text-xs uppercase tracking-wider ${isLightBg ? 'text-black/50' : 'text-white/40'}`}>Disponibles en todas las sedes</span>
+                          <p className={`text-[11px] mt-0.5 ${isLightBg ? 'text-black/30' : 'text-white/20'}`}>Estos productos están disponibles sin importar qué sede selecciones.</p>
                         </div>
-                        <span className="text-white/30 text-sm font-semibold flex-shrink-0">{products.filter(p => !p.sedeId).length}</span>
+                        <span className={`text-sm font-semibold flex-shrink-0 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>{products.filter(p => !p.sedeId).length}</span>
                       </div>
                     )}
                   </div>
