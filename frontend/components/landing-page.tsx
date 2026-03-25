@@ -2551,11 +2551,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </button>
                         <button
                           onClick={() => { addFromModal(); setShowCheckout(true) }}
-                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
-                            isLightBg
-                              ? 'bg-black text-white hover:bg-black/80'
-                              : 'bg-white text-black hover:bg-white/90'
-                          }`}
+                          style={{ color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' }}
+                          className="flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 opacity-100 hover:opacity-80"
                         >
                           Comprar ahora
                         </button>
