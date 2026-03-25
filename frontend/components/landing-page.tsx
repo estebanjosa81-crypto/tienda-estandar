@@ -2540,14 +2540,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="flex gap-3">
                         <button
                           onClick={addFromModal}
-                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
+                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 border ${
                             isLightBg
-                              ? 'bg-black/80 text-white hover:bg-black'
-                              : 'bg-white/80 text-black hover:bg-white'
+                              ? 'border-black text-black bg-transparent hover:bg-black hover:text-white'
+                              : 'border-white text-white bg-transparent hover:bg-white hover:text-black'
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          Agregar
+                          Agregar al carrito
                         </button>
                         <button
                           onClick={() => { addFromModal(); setShowCheckout(true) }}
@@ -2557,7 +2557,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               : 'bg-white text-black hover:bg-white/90'
                           }`}
                         >
-                          Comprar
+                          Comprar ahora
                         </button>
                       </div>
                     )}
