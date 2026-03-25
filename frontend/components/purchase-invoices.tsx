@@ -668,343 +668,354 @@ export function PurchaseInvoices() {
 
       {/* ===== New Invoice Dialog ===== */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!submitting) { setShowForm(open); if (!open) { setSelectedSupplier(null); setSupplierStats(null); setShowQuickSupplier(false) } } }}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] md:max-w-[92vw] h-[95vh] flex flex-col gap-0 p-0 overflow-hidden">
+          {/* Header */}
+          <DialogHeader className="px-5 py-4 border-b shrink-0">
             <DialogTitle>Registrar Factura de Compra</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
+          {/* Body: two columns on desktop, single column on mobile */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2">
 
-            {/* Row 1: Invoice #, Date, Document type */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label>N° Factura <span className="text-destructive">*</span></Label>
-                <div className="flex gap-1.5">
-                  <Input
-                    placeholder="FC-2026-0001"
-                    value={loadingInvoiceNumber ? '' : form.invoiceNumber}
-                    disabled={loadingInvoiceNumber}
-                    onChange={(e) => setForm(p => ({ ...p, invoiceNumber: e.target.value }))}
-                    className="flex-1"
-                  />
-                  <Button type="button" variant="outline" size="icon" title="Generar automático" onClick={generateInvoiceNumber} disabled={loadingInvoiceNumber}>
-                    {loadingInvoiceNumber ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Fecha <span className="text-destructive">*</span></Label>
-                <Input type="date" value={form.purchaseDate} onChange={(e) => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tipo de documento</Label>
-                <Select value={form.documentType} onValueChange={(v) => setForm(p => ({ ...p, documentType: v as any }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="factura">Factura</SelectItem>
-                    <SelectItem value="remision">Remisión</SelectItem>
-                    <SelectItem value="orden_compra">Orden de compra</SelectItem>
-                    <SelectItem value="nota_credito">Nota crédito proveedor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* ── Left column: datos generales ── */}
+            <div className="overflow-y-auto px-5 py-4 space-y-5 md:border-r">
 
-            {/* Row 2: Supplier selector */}
-            <div className="space-y-2">
-              <Label>Proveedor <span className="text-destructive">*</span></Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Select value={form.supplierId || '__manual__'} onValueChange={handleSupplierSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar proveedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__manual__">-- Ingresar manualmente --</SelectItem>
-                    <SelectItem value="__new__" className="text-primary font-medium">
-                      + Crear proveedor nuevo
-                    </SelectItem>
-                    {suppliers.map(s => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}{s.city ? ` (${s.city})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  placeholder="Nombre del proveedor"
-                  value={form.supplierName}
-                  onChange={(e) => setForm(p => ({ ...p, supplierName: e.target.value, supplierId: '' }))}
-                  disabled={!!form.supplierId}
-                />
-              </div>
-
-              {/* Supplier info card */}
-              {selectedSupplier && !showQuickSupplier && (
-                loadingStats
-                  ? <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Cargando historial...</div>
-                  : <SupplierInfoCard supplier={selectedSupplier} stats={supplierStats} />
-              )}
-
-              {/* Quick-create supplier form inside dialog */}
-              {showQuickSupplier && (
-                <div className="rounded-lg border border-dashed p-4 space-y-3 bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Crear proveedor rápido</p>
-                    <button onClick={() => { setShowQuickSupplier(false); setQuickSupplierForm(emptySupplierForm()); setQuickSupplierError(null) }} className="text-muted-foreground hover:text-foreground">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs">Nombre <span className="text-destructive">*</span></Label>
-                      <Input placeholder="Ej: Distribuidora XYZ" value={quickSupplierForm.name} onChange={e => setQuickSupplierForm(p => ({ ...p, name: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Teléfono</Label>
-                      <Input placeholder="3001234567" value={quickSupplierForm.phone} onChange={e => setQuickSupplierForm(p => ({ ...p, phone: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Ciudad</Label>
-                      <Input placeholder="Bogotá..." value={quickSupplierForm.city} onChange={e => setQuickSupplierForm(p => ({ ...p, city: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">NIT</Label>
-                      <Input placeholder="NIT / RUT" value={quickSupplierForm.taxId} onChange={e => setQuickSupplierForm(p => ({ ...p, taxId: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Condiciones de pago</Label>
-                      <Input placeholder="30 días, contado..." value={quickSupplierForm.paymentTerms} onChange={e => setQuickSupplierForm(p => ({ ...p, paymentTerms: e.target.value }))} />
-                    </div>
-                  </div>
-                  {quickSupplierError && <p className="text-xs text-destructive">{quickSupplierError}</p>}
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveQuickSupplier} disabled={savingQuickSupplier}>
-                      {savingQuickSupplier ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Guardando...</> : <><UserPlus className="h-3.5 w-3.5 mr-1.5" />Guardar proveedor</>}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => { setShowQuickSupplier(false); setQuickSupplierForm(emptySupplierForm()) }}>Cancelar</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Row 3: Payment */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label>Método de pago</Label>
-                <Select value={form.paymentMethod} onValueChange={handlePaymentMethodChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="efectivo">Efectivo</SelectItem>
-                    <SelectItem value="transferencia">Transferencia</SelectItem>
-                    <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                    <SelectItem value="nequi">Nequi</SelectItem>
-                    <SelectItem value="daviplata">Daviplata</SelectItem>
-                    <SelectItem value="credito_proveedor">Crédito proveedor</SelectItem>
-                    <SelectItem value="mixto">Mixto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Estado de pago</Label>
-                <Select value={form.paymentStatus} onValueChange={(v) => setForm(p => ({ ...p, paymentStatus: v as any }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pagado">Pagado</SelectItem>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="parcial">Parcial</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {CREDIT_METHODS.includes(form.paymentMethod) && (
+              {/* Row 1: Invoice #, Date, Document type */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Fecha de vencimiento <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={form.dueDate} onChange={(e) => setForm(p => ({ ...p, dueDate: e.target.value }))} />
-                </div>
-              )}
-            </div>
-
-            {/* Products section */}
-            <div className="space-y-3">
-              <Label>Productos comprados <span className="text-destructive">*</span></Label>
-
-              <div className="flex gap-2">
-                <div ref={searchContainerRef} className="flex-1 space-y-1">
-                  <div className="relative">
-                    {searchLoading
-                      ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-                      : <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    }
+                  <Label>N° Factura <span className="text-destructive">*</span></Label>
+                  <div className="flex gap-1.5">
                     <Input
-                      className="pl-9"
-                      placeholder="Buscar por nombre, SKU o código de barras..."
-                      value={productSearch}
-                      onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true) }}
-                      onFocus={() => { if (productSearch.trim()) setShowProductDropdown(true) }}
+                      placeholder="FC-2026-0001"
+                      value={loadingInvoiceNumber ? '' : form.invoiceNumber}
+                      disabled={loadingInvoiceNumber}
+                      onChange={(e) => setForm(p => ({ ...p, invoiceNumber: e.target.value }))}
+                      className="flex-1"
                     />
-                    {productSearch.trim() && (
-                      <button
-                        onClick={() => { setProductSearch(''); setProductSearchResults([]); setShowProductDropdown(false) }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
+                    <Button type="button" variant="outline" size="icon" title="Generar automático" onClick={generateInvoiceNumber} disabled={loadingInvoiceNumber}>
+                      {loadingInvoiceNumber ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fecha <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={form.purchaseDate} onChange={(e) => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Tipo de documento</Label>
+                  <Select value={form.documentType} onValueChange={(v) => setForm(p => ({ ...p, documentType: v as any }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="factura">Factura</SelectItem>
+                      <SelectItem value="remision">Remisión</SelectItem>
+                      <SelectItem value="orden_compra">Orden de compra</SelectItem>
+                      <SelectItem value="nota_credito">Nota crédito proveedor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Row 2: Supplier selector */}
+              <div className="space-y-2">
+                <Label>Proveedor <span className="text-destructive">*</span></Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select value={form.supplierId || '__manual__'} onValueChange={handleSupplierSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__manual__">-- Ingresar manualmente --</SelectItem>
+                      <SelectItem value="__new__" className="text-primary font-medium">
+                        + Crear proveedor nuevo
+                      </SelectItem>
+                      {suppliers.map(s => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}{s.city ? ` (${s.city})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Nombre del proveedor"
+                    value={form.supplierName}
+                    onChange={(e) => setForm(p => ({ ...p, supplierName: e.target.value, supplierId: '' }))}
+                    disabled={!!form.supplierId}
+                  />
+                </div>
+
+                {/* Supplier info card */}
+                {selectedSupplier && !showQuickSupplier && (
+                  loadingStats
+                    ? <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Cargando historial...</div>
+                    : <SupplierInfoCard supplier={selectedSupplier} stats={supplierStats} />
+                )}
+
+                {/* Quick-create supplier form inside dialog */}
+                {showQuickSupplier && (
+                  <div className="rounded-lg border border-dashed p-4 space-y-3 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold">Crear proveedor rápido</p>
+                      <button onClick={() => { setShowQuickSupplier(false); setQuickSupplierForm(emptySupplierForm()); setQuickSupplierError(null) }} className="text-muted-foreground hover:text-foreground">
                         <X className="h-4 w-4" />
                       </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Nombre <span className="text-destructive">*</span></Label>
+                        <Input placeholder="Ej: Distribuidora XYZ" value={quickSupplierForm.name} onChange={e => setQuickSupplierForm(p => ({ ...p, name: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Teléfono</Label>
+                        <Input placeholder="3001234567" value={quickSupplierForm.phone} onChange={e => setQuickSupplierForm(p => ({ ...p, phone: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Ciudad</Label>
+                        <Input placeholder="Bogotá..." value={quickSupplierForm.city} onChange={e => setQuickSupplierForm(p => ({ ...p, city: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">NIT</Label>
+                        <Input placeholder="NIT / RUT" value={quickSupplierForm.taxId} onChange={e => setQuickSupplierForm(p => ({ ...p, taxId: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Condiciones de pago</Label>
+                        <Input placeholder="30 días, contado..." value={quickSupplierForm.paymentTerms} onChange={e => setQuickSupplierForm(p => ({ ...p, paymentTerms: e.target.value }))} />
+                      </div>
+                    </div>
+                    {quickSupplierError && <p className="text-xs text-destructive">{quickSupplierError}</p>}
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleSaveQuickSupplier} disabled={savingQuickSupplier}>
+                        {savingQuickSupplier ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Guardando...</> : <><UserPlus className="h-3.5 w-3.5 mr-1.5" />Guardar proveedor</>}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setShowQuickSupplier(false); setQuickSupplierForm(emptySupplierForm()) }}>Cancelar</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 3: Payment */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Método de pago</Label>
+                  <Select value={form.paymentMethod} onValueChange={handlePaymentMethodChange}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="efectivo">Efectivo</SelectItem>
+                      <SelectItem value="transferencia">Transferencia</SelectItem>
+                      <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                      <SelectItem value="nequi">Nequi</SelectItem>
+                      <SelectItem value="daviplata">Daviplata</SelectItem>
+                      <SelectItem value="credito_proveedor">Crédito proveedor</SelectItem>
+                      <SelectItem value="mixto">Mixto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado de pago</Label>
+                  <Select value={form.paymentStatus} onValueChange={(v) => setForm(p => ({ ...p, paymentStatus: v as any }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pagado">Pagado</SelectItem>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="parcial">Parcial</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {CREDIT_METHODS.includes(form.paymentMethod) && (
+                  <div className="space-y-1.5">
+                    <Label>Fecha de vencimiento <span className="text-destructive">*</span></Label>
+                    <Input type="date" value={form.dueDate} onChange={(e) => setForm(p => ({ ...p, dueDate: e.target.value }))} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Right column: productos + adjunto + notas ── */}
+            <div className="overflow-y-auto px-5 py-4 space-y-5">
+
+              {/* Products section */}
+              <div className="space-y-3">
+                <Label>Productos comprados <span className="text-destructive">*</span></Label>
+
+                <div className="flex gap-2">
+                  <div ref={searchContainerRef} className="flex-1 space-y-1">
+                    <div className="relative">
+                      {searchLoading
+                        ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                        : <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      }
+                      <Input
+                        className="pl-9"
+                        placeholder="Buscar por nombre, SKU o código de barras..."
+                        value={productSearch}
+                        onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true) }}
+                        onFocus={() => { if (productSearch.trim()) setShowProductDropdown(true) }}
+                      />
+                      {productSearch.trim() && (
+                        <button
+                          onClick={() => { setProductSearch(''); setProductSearchResults([]); setShowProductDropdown(false) }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {showProductDropdown && productSearch.trim() && (
+                      <div className="rounded-md border bg-popover shadow-sm max-h-52 overflow-y-auto">
+                        {searchLoading ? (
+                          <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+                          </div>
+                        ) : productSearchResults.length === 0 ? (
+                          <div className="px-3 py-3 text-sm text-muted-foreground">Sin resultados para &quot;{productSearch}&quot;</div>
+                        ) : (
+                          productSearchResults.map((p) => {
+                            const alreadyAdded = form.items.some(i => i.productId === p.id)
+                            return (
+                              <button
+                                key={p.id}
+                                className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${alreadyAdded ? 'opacity-50 cursor-default bg-muted/30' : 'hover:bg-accent'}`}
+                                onClick={() => { if (!alreadyAdded) addProductToInvoice(p) }}
+                                disabled={alreadyAdded}
+                              >
+                                <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{p.name}</p>
+                                  <p className="text-xs text-muted-foreground">{p.sku}</p>
+                                </div>
+                                <div className="text-right shrink-0 space-y-0.5">
+                                  <p className="text-xs text-muted-foreground">Stock: {p.stock}</p>
+                                  {p.purchasePrice ? <p className="text-xs text-blue-600">Últ. costo: {formatCOP(p.purchasePrice)}</p> : null}
+                                  {alreadyAdded && <p className="text-xs text-green-600">Agregado</p>}
+                                </div>
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {showProductDropdown && productSearch.trim() && (
-                    <div className="rounded-md border bg-popover shadow-sm max-h-52 overflow-y-auto">
-                      {searchLoading ? (
-                        <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
-                        </div>
-                      ) : productSearchResults.length === 0 ? (
-                        <div className="px-3 py-3 text-sm text-muted-foreground">Sin resultados para &quot;{productSearch}&quot;</div>
-                      ) : (
-                        productSearchResults.map((p) => {
-                          const alreadyAdded = form.items.some(i => i.productId === p.id)
-                          return (
-                            <button
-                              key={p.id}
-                              className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${alreadyAdded ? 'opacity-50 cursor-default bg-muted/30' : 'hover:bg-accent'}`}
-                              onClick={() => { if (!alreadyAdded) addProductToInvoice(p) }}
-                              disabled={alreadyAdded}
-                            >
-                              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{p.name}</p>
-                                <p className="text-xs text-muted-foreground">{p.sku}</p>
-                              </div>
-                              <div className="text-right shrink-0 space-y-0.5">
-                                <p className="text-xs text-muted-foreground">Stock: {p.stock}</p>
-                                {p.purchasePrice ? <p className="text-xs text-blue-600">Últ. costo: {formatCOP(p.purchasePrice)}</p> : null}
-                                {alreadyAdded && <p className="text-xs text-green-600">Agregado</p>}
-                              </div>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-                  )}
+                  <Button type="button" variant="outline" size="icon" title="Escanear con DroidCam" onClick={() => setShowRemoteScanner(true)} className="self-start">
+                    <Smartphone className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                <Button type="button" variant="outline" size="icon" title="Escanear con DroidCam" onClick={() => setShowRemoteScanner(true)} className="self-start">
-                  <Smartphone className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Items table */}
-              {form.items.length > 0 && (
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead className="w-28">Cantidad</TableHead>
-                        <TableHead className="w-36">Costo unit.</TableHead>
-                        <TableHead className="text-right w-32">Subtotal</TableHead>
-                        <TableHead className="w-10" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {form.items.map((item) => (
-                        <TableRow key={item.productId}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-sm">{item.productName}</p>
-                              <p className="text-xs text-muted-foreground">{item.productSku}</p>
-                              {item.lastPurchasePrice ? (
-                                <p className="text-xs text-blue-500">Últ. precio: {formatCOP(item.lastPurchasePrice)}</p>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" min="0.001" step="0.001"
-                              value={item.quantity}
-                              onChange={(e) => updateItem(item.productId, 'quantity', parseFloat(e.target.value) || 0)}
-                              className="h-8 w-24"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" min="0" step="0.01"
-                              value={item.unitCost}
-                              onChange={(e) => updateItem(item.productId, 'unitCost', parseFloat(e.target.value) || 0)}
-                              className="h-8 w-32"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {formatCOP(item.quantity * item.unitCost)}
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(item.productId)}>
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
+                {/* Items table */}
+                {form.items.length > 0 && (
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Producto</TableHead>
+                          <TableHead className="w-28">Cantidad</TableHead>
+                          <TableHead className="w-36">Costo unit.</TableHead>
+                          <TableHead className="text-right w-32">Subtotal</TableHead>
+                          <TableHead className="w-10" />
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {form.items.map((item) => (
+                          <TableRow key={item.productId}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{item.productName}</p>
+                                <p className="text-xs text-muted-foreground">{item.productSku}</p>
+                                {item.lastPurchasePrice ? (
+                                  <p className="text-xs text-blue-500">Últ. precio: {formatCOP(item.lastPurchasePrice)}</p>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" min="0.001" step="0.001"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(item.productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                className="h-8 w-24"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" min="0" step="0.01"
+                                value={item.unitCost}
+                                onChange={(e) => updateItem(item.productId, 'unitCost', parseFloat(e.target.value) || 0)}
+                                className="h-8 w-32"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCOP(item.quantity * item.unitCost)}
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(item.productId)}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
 
-                  {/* Totals section */}
-                  <div className="border-t bg-muted/20 px-4 py-3 space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span>{formatCOP(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm items-center">
-                      <span className="text-muted-foreground">Descuento</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">$</span>
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={form.discount}
-                          onChange={e => setForm(p => ({ ...p, discount: e.target.value }))}
-                          className="h-7 w-28 text-right"
-                        />
+                    {/* Totals section */}
+                    <div className="border-t bg-muted/20 px-4 py-3 space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>{formatCOP(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-muted-foreground">Descuento</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">$</span>
+                          <Input
+                            type="number" min="0" step="0.01"
+                            value={form.discount}
+                            onChange={e => setForm(p => ({ ...p, discount: e.target.value }))}
+                            className="h-7 w-28 text-right"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between font-bold text-base border-t pt-1.5 mt-1">
+                        <span>TOTAL</span>
+                        <span className="text-primary">{formatCOP(total)}</span>
                       </div>
                     </div>
-                    <div className="flex justify-between font-bold text-base border-t pt-1.5 mt-1">
-                      <span>TOTAL</span>
-                      <span className="text-primary">{formatCOP(total)}</span>
-                    </div>
                   </div>
-                </div>
+                )}
+              </div>
+
+              {/* File attachment */}
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><Paperclip className="h-4 w-4" /> Adjuntar factura (PDF / Imagen)</Label>
+                <CloudinaryUpload
+                  value={form.fileUrl}
+                  onChange={(url) => setForm(p => ({ ...p, fileUrl: url || '' }))}
+                  label="Subir factura del proveedor"
+                />
+                {form.fileUrl && (
+                  <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                    <Paperclip className="h-3 w-3" /> Ver archivo adjunto
+                  </a>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label>Notas (opcional)</Label>
+                <Textarea
+                  placeholder="Observaciones adicionales..."
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm(p => ({ ...p, notes: e.target.value }))}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>
               )}
             </div>
-
-            {/* File attachment */}
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5"><Paperclip className="h-4 w-4" /> Adjuntar factura (PDF / Imagen)</Label>
-              <CloudinaryUpload
-                value={form.fileUrl}
-                onChange={(url) => setForm(p => ({ ...p, fileUrl: url || '' }))}
-                label="Subir factura del proveedor"
-              />
-              {form.fileUrl && (
-                <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                  <Paperclip className="h-3 w-3" /> Ver archivo adjunto
-                </a>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-1.5">
-              <Label>Notas (opcional)</Label>
-              <Textarea
-                placeholder="Observaciones adicionales..."
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setForm(p => ({ ...p, notes: e.target.value }))}
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>
-            )}
           </div>
 
-          <DialogFooter className="gap-2">
+          {/* Footer */}
+          <DialogFooter className="px-5 py-3 border-t shrink-0 gap-2">
             <Button variant="outline" onClick={() => setShowForm(false)} disabled={submitting}>Cancelar</Button>
             <Button variant="outline" onClick={() => { setError(null); if (!form.invoiceNumber.trim()) { setError('Ingresa el número de factura'); return } if (!form.supplierName.trim()) { setError('Ingresa el nombre del proveedor'); return } if (form.items.length === 0) { setError('Agrega al menos un producto'); return } setShowPreview(true) }} disabled={submitting}>
               <Eye className="mr-2 h-4 w-4" /> Vista previa
