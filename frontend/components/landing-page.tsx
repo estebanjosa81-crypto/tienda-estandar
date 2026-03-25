@@ -727,6 +727,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     fetchSedes()
   }, [selectedStore, showStoresView, clientMunicipality, activeSede])
 
+  // ====== OPEN PRODUCT FROM URL PARAM (?product=<id>) ======
+  useEffect(() => {
+    if (products.length === 0) return
+    const params = new URLSearchParams(window.location.search)
+    const productId = params.get('product')
+    if (!productId) return
+    const match = products.find(p => String(p.id) === productId)
+    if (match) {
+      setShowCatalog(true)
+      openProductModal(match)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
+
   // ====== FETCH STORES ======
   useEffect(() => {
     const fetchStores = async () => {
@@ -1049,6 +1063,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowReviewForm(false)
     setReviewForm({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '' })
     setReviewError('')
+    // Update URL so the product link is shareable
+    window.history.pushState({}, '', `${window.location.pathname}?product=${product.id}`)
     // Load approved reviews for this product
     const tid = product.tenantId || stores.find(s => s.slug === selectedStore)?.id
     if (tid) {
@@ -1064,6 +1080,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
+    // Remove product param from URL
+    window.history.replaceState({}, '', window.location.pathname)
   }
 
   const addFromModal = () => {
@@ -2582,47 +2600,71 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
 
                     {/* Share buttons */}
-                    <div className={`pt-3 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                      <p className={`text-[10px] uppercase tracking-widest mb-2.5 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
-                      <div className="flex items-center gap-2">
-                        {/* Facebook */}
-                        <a
-                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-blue-600 hover:text-white hover:border-blue-600' : 'border-white/10 text-white/50 hover:bg-blue-600 hover:text-white hover:border-blue-600'}`}
-                        >
-                          <Facebook className="w-3.5 h-3.5" />
-                          Facebook
-                        </a>
-                        {/* WhatsApp */}
-                        <a
-                          href={`https://wa.me/?text=${encodeURIComponent(selectedProduct.name + ' — ' + formatCOP(selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) + '\n' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]' : 'border-white/10 text-white/50 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]'}`}
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          WhatsApp
-                        </a>
-                        {/* Telegram */}
-                        <a
-                          href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}&text=${encodeURIComponent(selectedProduct.name)}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]' : 'border-white/10 text-white/50 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]'}`}
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Telegram
-                        </a>
-                        {/* Instagram — link to profile */}
-                        <a
-                          href="https://www.instagram.com"
-                          target="_blank" rel="noopener noreferrer"
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-gradient-to-r hover:from-[#833ab4] hover:to-[#fd1d1d] hover:text-white hover:border-transparent' : 'border-white/10 text-white/50 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]'}`}
-                        >
-                          <Instagram className="w-3.5 h-3.5" />
-                          Instagram
-                        </a>
-                      </div>
-                    </div>
+                    {(() => {
+                      const productUrl = typeof window !== 'undefined'
+                        ? `${window.location.origin}${window.location.pathname}?product=${selectedProduct.id}`
+                        : ''
+                      const shareText = `${selectedProduct.name} — ${formatCOP(selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)}`
+                      const btnClass = (hoverColor: string) =>
+                        `flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors whitespace-nowrap ${
+                          isLightBg
+                            ? `border-black/15 text-black/60 hover:text-white hover:border-transparent ${hoverColor}`
+                            : `border-white/10 text-white/50 hover:text-white hover:border-transparent ${hoverColor}`
+                        }`
+                      return (
+                        <div className={`pt-3 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                          <div className="flex items-center justify-between mb-2.5">
+                            <p className={`text-[10px] uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
+                            {/* Copy link button */}
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(productUrl); }}
+                              className={`flex items-center gap-1 text-[10px] transition-colors ${isLightBg ? 'text-black/40 hover:text-black' : 'text-white/30 hover:text-white'}`}
+                            >
+                              <Share2 className="w-3 h-3" />
+                              Copiar enlace
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Facebook */}
+                            <a
+                              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className={btnClass('hover:bg-blue-600')}
+                            >
+                              <Facebook className="w-3.5 h-3.5 shrink-0" />
+                              Facebook
+                            </a>
+                            {/* WhatsApp */}
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + productUrl)}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className={btnClass('hover:bg-[#25D366]')}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                              WhatsApp
+                            </a>
+                            {/* Telegram */}
+                            <a
+                              href={`https://t.me/share/url?url=${encodeURIComponent(productUrl)}&text=${encodeURIComponent(shareText)}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className={btnClass('hover:bg-[#229ED9]')}
+                            >
+                              <Send className="w-3.5 h-3.5 shrink-0" />
+                              Telegram
+                            </a>
+                            {/* Instagram — link to profile */}
+                            <a
+                              href="https://www.instagram.com"
+                              target="_blank" rel="noopener noreferrer"
+                              className={btnClass('hover:bg-[#E1306C]')}
+                            >
+                              <Instagram className="w-3.5 h-3.5 shrink-0" />
+                              Instagram
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                   </div>
                 </div>
