@@ -506,7 +506,7 @@ export function Recipes() {
     loadData()
   }, [])
 
-  const finishedProducts = useMemo(() => products.filter((p) => p.salePrice > 0), [products])
+  const finishedProducts = useMemo(() => products.filter((p) => p.category !== 'insumos'), [products])
   const usedProductIds = useMemo(() => new Set(recipes.map((r) => r.productId)), [recipes])
   const availableFinishedProducts = useMemo(
     () => (editingRecipe ? finishedProducts : finishedProducts.filter((p) => !usedProductIds.has(p.id))),

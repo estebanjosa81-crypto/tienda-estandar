@@ -54,6 +54,8 @@ const pullCursors: Record<string, EntityCursor> = {
   cashSessions:   { since: EPOCH, afterId: '' },
   creditPayments: { since: EPOCH, afterId: '' },
   categories:     { since: EPOCH, afterId: '' },
+  orders:         { since: EPOCH, afterId: '' },
+  recipes:        { since: EPOCH, afterId: '' },
 };
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
@@ -361,6 +363,7 @@ async function pullFromCloud(): Promise<number> {
       categories?: any[];
       storeInfo?: any;
       productRecipes?: any[];
+      orders?: any[];         orderItems?: any[];
     };
 
     let applied = 0;
@@ -581,6 +584,41 @@ async function pullFromCloud(): Promise<number> {
     }
     advanceCursor('recipes', data.productRecipes||[], 500, 'created_at');
 
+    // ── Pedidos del storefront ──────────────────────────────────────────────
+    for (const o of (data.orders || [])) {
+      await db.execute(
+        `INSERT INTO storefront_orders
+           (id, tenant_id, order_number, customer_name, customer_phone, customer_email,
+            customer_cedula, department, municipality, address, neighborhood,
+            subtotal, shipping_cost, discount, total, status, payment_method,
+            delivery_status, notes, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           status=IF(VALUES(updated_at)>updated_at,VALUES(status),status),
+           delivery_status=IF(VALUES(updated_at)>updated_at,VALUES(delivery_status),delivery_status),
+           updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+        [o.id, o.tenant_id, o.order_number, o.customer_name, o.customer_phone,
+         o.customer_email||null, o.customer_cedula||null, o.department||null,
+         o.municipality||null, o.address||null, o.neighborhood||null,
+         o.subtotal, o.shipping_cost||0, o.discount||0, o.total,
+         o.status, o.payment_method||null, o.delivery_status||'sin_asignar',
+         o.notes||null, o.created_at, o.updated_at]
+      );
+      applied++;
+    }
+    for (const oi of (data.orderItems || [])) {
+      await db.execute(
+        `INSERT IGNORE INTO storefront_order_items
+           (order_id, product_id, product_name, product_image,
+            quantity, unit_price, original_price, discount_percent, total_price, size, color)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [oi.order_id, oi.product_id||null, oi.product_name, oi.product_image||null,
+         oi.quantity, oi.unit_price, oi.original_price||null,
+         oi.discount_percent||0, oi.total_price, oi.size||null, oi.color||null]
+      );
+    }
+    advanceCursor('orders', data.orders||[], 200);
+
     // ── Log de progreso ─────────────────────────────────────────────────────
     const anyPageFull = Object.entries(pullCursors).some(([, c]) => c.afterId !== '');
     if (anyPageFull) {
@@ -759,7 +797,6 @@ export async function getChangesSince(
   );
 
   // ── Recetas BOM (product_recipes) ─────────────────────────────────────────
-  // El módulo de recetas usa product_recipes (product_id, ingredient_id, quantity)
   const cr = c('recipes') ?? { since: EPOCH, afterId: '' };
   const [productRecipes] = await db.execute<RowDataPacket[]>(
     `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
@@ -767,6 +804,31 @@ export async function getChangesSince(
      ORDER BY created_at ASC, id ASC LIMIT 500`,
     [tenantId, cr.since]
   );
+
+  // ── Pedidos del storefront ─────────────────────────────────────────────────
+  const co = c('orders');
+  const [orders] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, order_number, customer_name, customer_phone, customer_email,
+            customer_cedula, department, municipality, address, neighborhood,
+            subtotal, shipping_cost, discount, total, status, payment_method,
+            delivery_status, notes, created_at, updated_at
+     FROM storefront_orders WHERE tenant_id = ? AND updated_at > ?
+     ORDER BY updated_at ASC, id ASC LIMIT 200`,
+    [tenantId, co.since]
+  );
+  let orderItems: any[] = [];
+  if ((orders as any[]).length > 0) {
+    const ids = (orders as any[]).map((o: any) => o.id);
+    const ph = ids.map(() => '?').join(',');
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, order_id, product_id, product_name, product_image,
+              quantity, unit_price, original_price, discount_percent,
+              total_price, size, color
+       FROM storefront_order_items WHERE order_id IN (${ph})`,
+      ids
+    );
+    orderItems = rows as any[];
+  }
 
   return {
     tenant: (tenantRows as any[])[0] || null,
@@ -778,6 +840,7 @@ export async function getChangesSince(
     cashSessions,
     creditPayments,
     productRecipes,
+    orders, orderItems,
   };
 }
 
