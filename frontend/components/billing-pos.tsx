@@ -104,10 +104,11 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   useEffect(() => { fetchSedes() }, [fetchSedes])
 
   // ── Totals ──────────────────────────────────────────────────────────────────
+  // itemDiscounts almacena un VALOR FIJO en pesos por ítem (ej: 100 = $100 de descuento)
   const itemSubtotals = cart.map(item => {
     const price = itemPrices[item.product.id] ?? item.product.salePrice
-    const disc = itemDiscounts[item.product.id] ?? item.discount ?? 0
-    return price * item.quantity * (1 - disc / 100)
+    const discAmt = itemDiscounts[item.product.id] ?? 0
+    return Math.max(0, price * item.quantity - discAmt)
   })
   const subtotalBeforeGlobal = itemSubtotals.reduce((s, v) => s + v, 0)
   const globalDiscAmt = subtotalBeforeGlobal * ((Number(globalDiscountPct) || 0) / 100)
@@ -247,18 +248,16 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     setIsProcessing(true)
 
-    const saleItems = cart.map((item, idx) => {
-      const overridePrice = itemPrices[item.product.id]
-      const itemDisc = itemDiscounts[item.product.id] ?? item.discount ?? 0
-      let finalDiscount = itemDisc
-      if (overridePrice !== undefined && item.product.salePrice > 0 && overridePrice < item.product.salePrice) {
-        const priceDisc = Math.round((1 - overridePrice / item.product.salePrice) * 100)
-        finalDiscount = Math.max(itemDisc, priceDisc)
-      }
+    const saleItems = cart.map((item) => {
+      const effectivePrice = itemPrices[item.product.id] ?? item.product.salePrice
+      const discAmt = itemDiscounts[item.product.id] ?? 0
+      const lineTotal = effectivePrice * item.quantity
+      // Convertir descuento fijo a porcentaje para el backend
+      const finalDiscountPct = lineTotal > 0 ? Math.min(100, Math.round((discAmt / lineTotal) * 100)) : 0
       return {
         productId: item.product.id,
         quantity: item.quantity,
-        discount: finalDiscount,
+        discount: finalDiscountPct,
       }
     })
 
@@ -358,7 +357,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
           <thead>
             <tr>
               <th>#</th><th>Código</th><th>Descripción</th><th>Cant.</th>
-              <th class="text-right">Dto%</th>
+              <th class="text-right">Dto $</th>
               <th class="text-right">V.Unit</th>
               ${applyIva ? '<th class="text-right">IVA</th>' : ''}
               <th class="text-right">Subtotal</th>
@@ -367,11 +366,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
           </thead>
           <tbody>
             ${sale.items.map((item, idx) => {
-              const cartItem = cart.find(c => c.product.id === item.productId)
               const overridePrice = itemPrices[item.productId]
-              const disc = itemDiscounts[item.productId] ?? item.discount ?? 0
+              const discAmt = itemDiscounts[item.productId] ?? 0
               const unitPrice = overridePrice ?? item.unitPrice
-              const itemSub = unitPrice * item.quantity * (1 - disc / 100)
+              const itemSub = Math.max(0, unitPrice * item.quantity - discAmt)
               const itemIva = applyIva ? itemSub * TAX_RATE : 0
               const itemTotal = itemSub + itemIva
               const noteText = itemNotes[item.productId]
@@ -381,7 +379,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                   <td>${item.sku || item.productSku || '-'}</td>
                   <td>${item.productName}${noteText ? `<br><small style="color:#888">${noteText}</small>` : ''}</td>
                   <td>${item.quantity}</td>
-                  <td class="text-right">${disc > 0 ? `${disc}%` : '-'}</td>
+                  <td class="text-right">${discAmt > 0 ? `$${Math.round(discAmt).toLocaleString('es-CO')}` : '-'}</td>
                   <td class="text-right">$${Math.round(unitPrice).toLocaleString('es-CO')}</td>
                   ${applyIva ? `<td class="text-right">$${Math.round(itemIva).toLocaleString('es-CO')}</td>` : ''}
                   <td class="text-right">$${Math.round(itemSub).toLocaleString('es-CO')}</td>
@@ -832,7 +830,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                   <th className="w-16 px-2 py-2 text-left font-semibold text-foreground/60">Código</th>
                   <th className="px-2 py-2 text-left font-semibold text-foreground/60">Descripción</th>
                   <th className="w-20 px-1 py-2 text-center font-semibold text-foreground/60">Cant.</th>
-                  <th className="w-16 px-1 py-2 text-center font-semibold text-foreground/60">Dto%</th>
+                  <th className="w-20 px-1 py-2 text-center font-semibold text-foreground/60">Dto $</th>
                   <th className="w-24 px-1 py-2 text-center font-semibold text-foreground/60">V. Unitario</th>
                   {applyIva && <th className="w-16 px-2 py-2 text-right font-semibold text-foreground/60">IVA</th>}
                   <th className="w-20 px-2 py-2 text-right font-semibold text-foreground/60">Subtotal</th>
@@ -843,8 +841,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               <tbody>
                 {cart.map((item, idx) => {
                   const effectivePrice = itemPrices[item.product.id] ?? item.product.salePrice
-                  const itemDisc = itemDiscounts[item.product.id] ?? item.discount ?? 0
-                  const itemSub = effectivePrice * item.quantity * (1 - itemDisc / 100)
+                  const discAmt = itemDiscounts[item.product.id] ?? 0
+                  const itemSub = Math.max(0, effectivePrice * item.quantity - discAmt)
                   const itemIva = applyIva ? itemSub * TAX_RATE : 0
                   const itemTotal = itemSub + itemIva
                   const isEditingNote = editingNoteId === item.product.id
@@ -884,17 +882,20 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                             className="w-full h-7 px-1 text-center text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c]"
                           />
                         </td>
-                        {/* Descuento % */}
+                        {/* Descuento fijo $ */}
                         <td className="px-1 py-1">
                           <input
                             type="number"
                             min={0}
-                            max={100}
-                            value={itemDisc || ''}
-                            onChange={(e) => setItemDiscounts(prev => ({ ...prev, [item.product.id]: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)) }))}
+                            value={discAmt || ''}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value) || 0
+                              const maxDisc = effectivePrice * item.quantity
+                              setItemDiscounts(prev => ({ ...prev, [item.product.id]: Math.min(maxDisc, Math.max(0, v)) }))
+                            }}
                             onFocus={(e) => e.target.select()}
-                            placeholder="0"
-                            className="w-full h-7 px-1 text-center text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c]"
+                            placeholder="$0"
+                            className="w-full h-7 px-1 text-right text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c]"
                           />
                         </td>
                         {/* Valor Unitario */}
@@ -979,8 +980,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                     <td className="px-2 py-1.5 text-right text-xs font-bold">
                       ${Math.round(cart.reduce((s, item) => {
                         const p = itemPrices[item.product.id] ?? item.product.salePrice
-                        const d = itemDiscounts[item.product.id] ?? item.discount ?? 0
-                        return s + p * item.quantity * (1 - d / 100) * TAX_RATE
+                        const da = itemDiscounts[item.product.id] ?? 0
+                        return s + Math.max(0, p * item.quantity - da) * TAX_RATE
                       }, 0)).toLocaleString('es-CO')}
                     </td>
                   )}

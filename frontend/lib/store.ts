@@ -293,22 +293,34 @@ export const useStore = create<AppState>()(
       cancelSale: async (id, reason) => {
         const result = await api.cancelSale(id, reason)
         if (result.success) {
+          // Optimistic update: marcar venta como anulada en memoria
           const sale = get().sales.find(s => s.id === id)
           if (sale) {
             set(state => ({
               sales: state.sales.map(s =>
                 s.id === id ? { ...s, status: 'anulada' as const, notes: reason } : s
               ),
-              // Restaurar stock
+              // Restaurar stock optimistamente si tenemos los items en memoria
               products: state.products.map(product => {
-                const saleItem = sale.items.find(item => item.productId === product.id)
+                const saleItem = sale.items?.find(item => item.productId === product.id)
                 if (saleItem) {
                   return { ...product, stock: product.stock + saleItem.quantity }
                 }
                 return product
               })
             }))
+          } else {
+            // Si la venta no está en memoria, solo marcar como anulada en el listado
+            set(state => ({
+              sales: state.sales.map(s =>
+                s.id === id ? { ...s, status: 'anulada' as const } : s
+              ),
+            }))
           }
+          // Siempre re-sincronizar el stock desde la DB para garantizar consistencia.
+          // El backend ya restauró el stock — esto asegura que el frontend refleje el valor real
+          // incluso si la venta no estaba en memoria o sus items estaban incompletos.
+          get().fetchProducts()
           return { success: true }
         }
         return { success: false, error: result.error || 'Error al anular venta' }
