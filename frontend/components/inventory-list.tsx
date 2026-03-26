@@ -59,6 +59,7 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -80,6 +81,7 @@ export function InventoryList() {
   const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 100
 
@@ -106,6 +108,442 @@ export function InventoryList() {
       setIsExporting(false)
     }
   }
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true)
+    try {
+      const ExcelJS = (await import('exceljs')).default
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Sistema de Inventario'
+      workbook.created = new Date()
+
+      const dateStr = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })
+      const dateFile = new Date().toISOString().split('T')[0]
+
+      // ── COLORS ────────────────────────────────────────────────────────────
+      const TEAL       = '2d9e8c'
+      const TEAL_LIGHT = 'e6f4f2'
+      const RED        = 'dc2626'
+      const RED_LIGHT  = 'fef2f2'
+      const AMBER      = 'd97706'
+      const AMBER_LIGHT= 'fffbeb'
+      const GREEN      = '16a34a'
+      const GREEN_LIGHT= 'f0fdf4'
+      const GRAY_HEADER= 'f1f5f9'
+      const GRAY_ROW   = 'f8fafc'
+
+      const headerFont   = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+      const titleFont    = { bold: true, size: 13, color: { argb: 'FF' + TEAL } }
+      const subTitleFont = { bold: true, size: 11 }
+      const borderStyle = 'thin' as const
+      const allBorders = {
+        top:    { style: borderStyle },
+        left:   { style: borderStyle },
+        bottom: { style: borderStyle },
+        right:  { style: borderStyle },
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // HOJA 1 — RESUMEN
+      // ═══════════════════════════════════════════════════════════════
+      const ws1 = workbook.addWorksheet('Resumen', {
+        properties: { tabColor: { argb: 'FF' + TEAL } },
+      })
+      ws1.columns = [
+        { width: 28 }, { width: 22 }, { width: 22 }, { width: 22 }, { width: 22 },
+      ]
+
+      // Title block
+      ws1.mergeCells('A1:E1')
+      const titleCell = ws1.getCell('A1')
+      titleCell.value = '📦 INFORME DE INVENTARIO'
+      titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } }
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + TEAL } }
+      ws1.getRow(1).height = 36
+
+      ws1.mergeCells('A2:E2')
+      const subCell = ws1.getCell('A2')
+      subCell.value = `Generado el ${dateStr}`
+      subCell.font = { italic: true, size: 10, color: { argb: 'FF64748b' } }
+      subCell.alignment = { horizontal: 'center' }
+      subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + TEAL_LIGHT } }
+      ws1.getRow(2).height = 20
+
+      ws1.getRow(3).height = 14
+
+      // KPI Cards row
+      const totalProducts = products.length
+      const totalStock = products.reduce((s, p) => s + p.stock, 0)
+      const totalValue = products.reduce((s, p) => s + p.purchasePrice * p.stock, 0)
+      const totalSaleValue = products.reduce((s, p) => s + p.salePrice * p.stock, 0)
+      const agotados = products.filter(p => p.stock === 0).length
+      const bajoStock = products.filter(p => p.stock > 0 && p.stock <= p.reorderPoint).length
+      const suficiente = products.filter(p => p.stock > p.reorderPoint).length
+
+      const kpiHeaders = ['TOTAL PRODUCTOS', 'TOTAL UNIDADES', 'VALOR COSTO', 'VALOR VENTA', 'MARGEN BRUTO']
+      const kpiValues  = [
+        totalProducts,
+        totalStock,
+        `$${totalValue.toLocaleString('es-CO')}`,
+        `$${totalSaleValue.toLocaleString('es-CO')}`,
+        `$${(totalSaleValue - totalValue).toLocaleString('es-CO')}`,
+      ]
+
+      const kpiRow4 = ws1.getRow(4)
+      const kpiRow5 = ws1.getRow(5)
+      kpiRow4.height = 18
+      kpiRow5.height = 28
+
+      kpiHeaders.forEach((h, i) => {
+        const col = String.fromCharCode(65 + i)
+        const cellH = ws1.getCell(`${col}4`)
+        cellH.value = h
+        cellH.font = { bold: true, size: 9, color: { argb: 'FF64748b' } }
+        cellH.alignment = { horizontal: 'center' }
+        cellH.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + GRAY_HEADER } }
+        cellH.border = allBorders
+
+        const cellV = ws1.getCell(`${col}5`)
+        cellV.value = kpiValues[i]
+        cellV.font = { bold: true, size: 13, color: { argb: 'FF' + TEAL } }
+        cellV.alignment = { horizontal: 'center', vertical: 'middle' }
+        cellV.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + TEAL_LIGHT } }
+        cellV.border = allBorders
+      })
+
+      ws1.getRow(6).height = 14
+
+      // Stock status summary
+      const stockRow = 7
+      ;['Estado Stock', 'Cantidad', 'Porcentaje'].forEach((h, i) => {
+        const cell = ws1.getCell(stockRow, i + 1)
+        cell.value = h
+        cell.font = { ...subTitleFont, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }
+        cell.alignment = { horizontal: 'center' }
+        cell.border = allBorders
+      })
+      const stockRows = [
+        { label: '✅ Suficiente', count: suficiente, color: GREEN_LIGHT, textColor: GREEN },
+        { label: '⚠️  Bajo stock', count: bajoStock,  color: AMBER_LIGHT, textColor: AMBER },
+        { label: '❌ Agotado',    count: agotados,   color: RED_LIGHT,   textColor: RED },
+      ]
+      stockRows.forEach(({ label, count, color, textColor }, i) => {
+        const r = stockRow + 1 + i
+        ;[
+          { col: 1, val: label,                                           align: 'left'   },
+          { col: 2, val: count,                                           align: 'center' },
+          { col: 3, val: totalProducts ? `${((count / totalProducts) * 100).toFixed(1)}%` : '0%', align: 'center' },
+        ].forEach(({ col, val, align }) => {
+          const cell = ws1.getCell(r, col)
+          cell.value = val
+          cell.font = { bold: col === 1, color: { argb: 'FF' + textColor } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + color } }
+          cell.alignment = { horizontal: align as 'left' | 'center' | 'right' }
+          cell.border = allBorders
+        })
+      })
+
+      ws1.getRow(stockRow + 4).height = 14
+
+      // Category summary table
+      const catHeaderRow = stockRow + 5
+      ;['Categoría', 'Productos', 'Unidades', 'Valor Costo', 'Valor Venta'].forEach((h, i) => {
+        const cell = ws1.getCell(catHeaderRow, i + 1)
+        cell.value = h
+        cell.font = headerFont
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + TEAL } }
+        cell.alignment = { horizontal: 'center' }
+        cell.border = allBorders
+      })
+
+      const categoryGroups: Record<string, { count: number; units: number; cost: number; sale: number }> = {}
+      products.forEach(p => {
+        const catName = getCategoryName(p.category)
+        if (!categoryGroups[catName]) categoryGroups[catName] = { count: 0, units: 0, cost: 0, sale: 0 }
+        categoryGroups[catName].count++
+        categoryGroups[catName].units += p.stock
+        categoryGroups[catName].cost  += p.purchasePrice * p.stock
+        categoryGroups[catName].sale  += p.salePrice * p.stock
+      })
+
+      const sortedCats = Object.entries(categoryGroups).sort((a, b) => b[1].sale - a[1].sale)
+      sortedCats.forEach(([catName, data], i) => {
+        const r = catHeaderRow + 1 + i
+        const isOdd = i % 2 === 0
+        ;[
+          { val: catName,                                  align: 'left',   fmt: undefined },
+          { val: data.count,                               align: 'center', fmt: undefined },
+          { val: data.units,                               align: 'center', fmt: undefined },
+          { val: `$${data.cost.toLocaleString('es-CO')}`, align: 'right',  fmt: undefined },
+          { val: `$${data.sale.toLocaleString('es-CO')}`, align: 'right',  fmt: undefined },
+        ].forEach(({ val, align }, ci) => {
+          const cell = ws1.getCell(r, ci + 1)
+          cell.value = val
+          cell.alignment = { horizontal: align as 'left' | 'center' | 'right' }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isOdd ? 'FFFFFFFF' : 'FF' + GRAY_ROW } }
+          cell.border = allBorders
+        })
+      })
+
+      // Totals row for categories
+      const catTotalRow = catHeaderRow + 1 + sortedCats.length
+      const totCost = sortedCats.reduce((s, [, d]) => s + d.cost, 0)
+      const totSale = sortedCats.reduce((s, [, d]) => s + d.sale, 0)
+      ;[
+        { val: 'TOTAL', align: 'left' },
+        { val: sortedCats.reduce((s, [, d]) => s + d.count, 0), align: 'center' },
+        { val: sortedCats.reduce((s, [, d]) => s + d.units, 0), align: 'center' },
+        { val: `$${totCost.toLocaleString('es-CO')}`, align: 'right' },
+        { val: `$${totSale.toLocaleString('es-CO')}`, align: 'right' },
+      ].forEach(({ val, align }, ci) => {
+        const cell = ws1.getCell(catTotalRow, ci + 1)
+        cell.value = val
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }
+        cell.alignment = { horizontal: align as 'left' | 'center' | 'right' }
+        cell.border = allBorders
+      })
+
+      // ═══════════════════════════════════════════════════════════════
+      // HOJA 2 — INVENTARIO COMPLETO
+      // ═══════════════════════════════════════════════════════════════
+      const ws2 = workbook.addWorksheet('Inventario', {
+        properties: { tabColor: { argb: 'FF' + TEAL } },
+        views: [{ state: 'frozen', xSplit: 0, ySplit: 2 }],
+      })
+
+      ws2.columns = [
+        { key: 'num',          width: 5,  header: '#' },
+        { key: 'sku',          width: 14, header: 'SKU' },
+        { key: 'articulo',     width: 14, header: 'Código/Artículo' },
+        { key: 'barcode',      width: 16, header: 'Código de Barras' },
+        { key: 'name',         width: 36, header: 'Nombre del Producto' },
+        { key: 'category',     width: 18, header: 'Categoría' },
+        { key: 'productType',  width: 16, header: 'Tipo' },
+        { key: 'brand',        width: 16, header: 'Marca' },
+        { key: 'purchasePrice',width: 16, header: 'Precio Costo' },
+        { key: 'salePrice',    width: 16, header: 'Precio Venta' },
+        { key: 'margin',       width: 12, header: 'Margen %' },
+        { key: 'stock',        width: 10, header: 'Stock' },
+        { key: 'reorderPoint', width: 14, header: 'Punto Reorden' },
+        { key: 'stockStatus',  width: 14, header: 'Estado Stock' },
+        { key: 'stockValue',   width: 18, header: 'Valor Inventario' },
+        { key: 'supplier',     width: 20, header: 'Proveedor' },
+        { key: 'sede',         width: 14, header: 'Sede' },
+        { key: 'location',     width: 18, header: 'Ubicación' },
+        { key: 'entryDate',    width: 14, header: 'Fecha Ingreso' },
+        { key: 'notes',        width: 28, header: 'Notas' },
+      ]
+
+      // Title row
+      ws2.mergeCells('A1:T1')
+      const ws2Title = ws2.getCell('A1')
+      ws2Title.value = `INVENTARIO COMPLETO — ${dateStr}`
+      ws2Title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+      ws2Title.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws2Title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + TEAL } }
+      ws2.getRow(1).height = 28
+
+      // Header row (row 2)
+      const headerRow = ws2.getRow(2)
+      headerRow.height = 22
+      ws2.columns.forEach((col, i) => {
+        const cell = headerRow.getCell(i + 1)
+        cell.value = Array.isArray(col.header) ? col.header.join(' ') : (col.header ?? '')
+        cell.font = headerFont
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: false }
+        cell.border = allBorders
+      })
+
+      // Data rows
+      const allProducts = [...products].sort((a, b) => {
+        const catA = getCategoryName(a.category)
+        const catB = getCategoryName(b.category)
+        return catA.localeCompare(catB) || a.name.localeCompare(b.name)
+      })
+
+      allProducts.forEach((p, i) => {
+        const status = getStockStatus(p)
+        const margin = p.salePrice > 0
+          ? Math.round(((p.salePrice - p.purchasePrice) / p.salePrice) * 100)
+          : 0
+        const sedeName = sedes.find(s => s.id === p.sedeId)?.name ?? ''
+        const isOdd = i % 2 === 0
+
+        let rowBg = isOdd ? 'FFFFFFFF' : 'FF' + GRAY_ROW
+        let stockColor: string | null = null
+        if (status === 'agotado') stockColor = RED
+        else if (status === 'bajo') stockColor = AMBER
+        else stockColor = GREEN
+
+        const row = ws2.addRow({
+          num:           i + 1,
+          sku:           p.sku,
+          articulo:      p.articulo ?? '',
+          barcode:       p.barcode ?? '',
+          name:          p.name,
+          category:      getCategoryName(p.category),
+          productType:   p.productType ?? '',
+          brand:         p.brand ?? '',
+          purchasePrice: p.purchasePrice,
+          salePrice:     p.salePrice,
+          margin:        margin / 100,
+          stock:         p.stock,
+          reorderPoint:  p.reorderPoint,
+          stockStatus:   status === 'agotado' ? 'Agotado' : status === 'bajo' ? 'Bajo stock' : 'Suficiente',
+          stockValue:    p.purchasePrice * p.stock,
+          supplier:      p.supplier ?? '',
+          sede:          sedeName,
+          location:      p.locationInStore ?? '',
+          entryDate:     p.entryDate ? new Date(p.entryDate).toLocaleDateString('es-CO') : '',
+          notes:         p.notes ?? '',
+        })
+        row.height = 18
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = allBorders
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } }
+
+          // Number formatting
+          if (colNum === 9 || colNum === 10 || colNum === 15) {
+            cell.numFmt = '"$"#,##0'
+          }
+          if (colNum === 11) {
+            cell.numFmt = '0%'
+          }
+
+          // Stock status cell color
+          if (colNum === 14 && stockColor) {
+            const bg = status === 'agotado' ? RED_LIGHT : status === 'bajo' ? AMBER_LIGHT : GREEN_LIGHT
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bg } }
+            cell.font = { bold: true, color: { argb: 'FF' + stockColor } }
+          }
+
+          // Alignment
+          if ([1, 12, 13].includes(colNum)) cell.alignment = { horizontal: 'center' }
+          else if ([9, 10, 11, 15].includes(colNum)) cell.alignment = { horizontal: 'right' }
+        })
+      })
+
+      // Summary/totals row
+      const summaryRow = ws2.addRow({
+        num: '',
+        sku: '',
+        articulo: '',
+        barcode: '',
+        name: `TOTAL — ${allProducts.length} productos`,
+        category: '',
+        productType: '',
+        brand: '',
+        purchasePrice: '',
+        salePrice: '',
+        margin: '',
+        stock: allProducts.reduce((s, p) => s + p.stock, 0),
+        reorderPoint: '',
+        stockStatus: '',
+        stockValue: allProducts.reduce((s, p) => s + p.purchasePrice * p.stock, 0),
+        supplier: '',
+        sede: '',
+        location: '',
+        entryDate: '',
+        notes: '',
+      })
+      summaryRow.height = 22
+      summaryRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }
+        cell.border = allBorders
+        if (colNum === 9 || colNum === 10 || colNum === 15) cell.numFmt = '"$"#,##0'
+        if ([1, 12, 13].includes(colNum)) cell.alignment = { horizontal: 'center' }
+        else if ([9, 10, 11, 15].includes(colNum)) cell.alignment = { horizontal: 'right' }
+      })
+
+      // ═══════════════════════════════════════════════════════════════
+      // HOJA 3 — ALERTAS DE STOCK
+      // ═══════════════════════════════════════════════════════════════
+      const alertProducts = allProducts.filter(p => p.stock === 0 || p.stock <= p.reorderPoint)
+      if (alertProducts.length > 0) {
+        const ws3 = workbook.addWorksheet('⚠ Alertas Stock', {
+          properties: { tabColor: { argb: 'FFDC2626' } },
+          views: [{ state: 'frozen', xSplit: 0, ySplit: 2 }],
+        })
+        ws3.columns = [
+          { width: 5 }, { width: 14 }, { width: 36 }, { width: 18 }, { width: 14 },
+          { width: 12 }, { width: 14 }, { width: 16 }, { width: 20 }, { width: 14 },
+        ]
+
+        ws3.mergeCells('A1:J1')
+        const alertTitle = ws3.getCell('A1')
+        alertTitle.value = `⚠️  PRODUCTOS CON ALERTA DE STOCK — ${alertProducts.length} productos`
+        alertTitle.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } }
+        alertTitle.alignment = { horizontal: 'center', vertical: 'middle' }
+        alertTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } }
+        ws3.getRow(1).height = 28
+
+        const alertHeaders = ['#', 'SKU', 'Nombre', 'Categoría', 'Stock Actual', 'Punto Reorden', 'Faltante', 'Precio Costo', 'Proveedor', 'Estado']
+        const alertHRow = ws3.getRow(2)
+        alertHRow.height = 20
+        alertHeaders.forEach((h, i) => {
+          const cell = alertHRow.getCell(i + 1)
+          cell.value = h
+          cell.font = headerFont
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
+          cell.border = allBorders
+        })
+
+        alertProducts.forEach((p, i) => {
+          const status = getStockStatus(p)
+          const faltante = Math.max(0, p.reorderPoint - p.stock)
+          const isAgotado = status === 'agotado'
+          const rowBg = isAgotado ? RED_LIGHT : AMBER_LIGHT
+          const textColor = isAgotado ? RED : AMBER
+
+          const row = ws3.addRow([
+            i + 1,
+            p.sku,
+            p.name,
+            getCategoryName(p.category),
+            p.stock,
+            p.reorderPoint,
+            faltante,
+            p.purchasePrice,
+            p.supplier ?? '',
+            isAgotado ? '🔴 Agotado' : '🟡 Bajo stock',
+          ])
+          row.height = 18
+          row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + rowBg } }
+            cell.border = allBorders
+            if (colNum === 10) cell.font = { bold: true, color: { argb: 'FF' + textColor } }
+            if (colNum === 8) cell.numFmt = '"$"#,##0'
+            if ([1, 5, 6, 7].includes(colNum)) cell.alignment = { horizontal: 'center' }
+            if (colNum === 8) cell.alignment = { horizontal: 'right' }
+          })
+        })
+      }
+
+      // ── DOWNLOAD ────────────────────────────────────────────────────────────
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Informe_Inventario_${dateFile}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Informe Excel generado correctamente')
+    } catch (err) {
+      console.error(err)
+      toast.error('Error al generar el informe Excel')
+    } finally {
+      setIsExportingExcel(false)
+    }
+  }
+
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' })
   const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; description: string } | null>(null)
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
@@ -278,6 +716,10 @@ export function InventoryList() {
           <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <FileDown className="h-4 w-4 lg:h-5 lg:w-5" />
             {isExporting ? 'Exportando...' : 'Exportar CSV'}
+          </Button>
+          <Button variant="outline" onClick={handleExportExcel} disabled={isExportingExcel} className="gap-2 h-10 lg:h-11 text-sm lg:text-base border-green-600 text-green-700 hover:bg-green-50 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-950/30">
+            <FileSpreadsheet className="h-4 w-4 lg:h-5 lg:w-5" />
+            {isExportingExcel ? 'Generando...' : 'Exportar Excel'}
           </Button>
           <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
