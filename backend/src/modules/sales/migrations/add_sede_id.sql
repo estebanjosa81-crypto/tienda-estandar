@@ -1,0 +1,2 @@
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS sede_id VARCHAR(36) NULL DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_sede_id ON sales(sede_id);

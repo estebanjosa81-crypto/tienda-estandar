@@ -408,6 +408,7 @@ class ApiService {
     customerName?: string
     customerPhone?: string
     customerEmail?: string
+    sedeId?: string
     creditDays?: number
     applyTax?: boolean
   }) {
@@ -415,6 +416,10 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(sale),
     })
+  }
+
+  async getDailyReport(date: string) {
+    return this.request<any>(`/sales/daily-report?date=${encodeURIComponent(date)}`)
   }
 
   async cancelSale(id: string, reason: string) {

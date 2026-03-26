@@ -508,6 +508,7 @@ export function PointOfSale() {
       customerId: selectedCustomer?.id,
       customerName: customer.name || selectedCustomer?.name || undefined,
       customerPhone: customer.phone || selectedCustomer?.phone || undefined,
+      sedeId: selectedSede || undefined,
       applyTax: applyIva,
     })
 

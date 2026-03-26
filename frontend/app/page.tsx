@@ -28,6 +28,7 @@ import { ServicesManagement } from '@/components/services-management'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
 import { ReviewsPanel } from '@/components/reviews-panel'
+import { DailyClosingReport } from '@/components/daily-closing-report'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
@@ -136,6 +137,8 @@ export default function Home() {
         return <ServicesManagement />
       case 'analytics':
         return <Analytics />
+      case 'cierre-dia':
+        return <DailyClosingReport />
       case 'settings':
         return <Settings />
       case 'printers':

@@ -137,11 +137,41 @@ export interface Sale {
   customerPhone?: string
   seller?: string
   sellerName?: string
+  sedeId?: string
   createdAt: string
   status: 'completada' | 'anulada'
   creditStatus?: CreditStatus
   dueDate?: string
   notes?: string
+}
+
+export interface ProductReportItem {
+  productId: string
+  productName: string
+  productSku: string
+  quantity: number
+  subtotal: number
+}
+
+export interface SedeReportData {
+  sedeId: string | null
+  salesCount: number
+  subtotal: number
+  tax: number
+  discount: number
+  total: number
+  byPaymentMethod: Record<string, { count: number; total: number }>
+  products: ProductReportItem[]
+}
+
+export interface DailyReportData {
+  date: string
+  sedes: SedeReportData[]
+  totalSales: number
+  grandSubtotal: number
+  grandTax: number
+  grandDiscount: number
+  grandTotal: number
 }
 
 export interface Sede {

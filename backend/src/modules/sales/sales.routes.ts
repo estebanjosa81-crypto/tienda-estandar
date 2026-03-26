@@ -31,6 +31,14 @@ router.get(
 // GET /api/sales/recent
 router.get('/recent', salesController.getRecentSales.bind(salesController));
 
+// GET /api/sales/daily-report?date=YYYY-MM-DD
+router.get(
+  '/daily-report',
+  authorize('comerciante', 'superadmin'),
+  [query('date').optional().isDate().withMessage('Fecha inválida (YYYY-MM-DD)'), validateRequest],
+  salesController.getDailyReport.bind(salesController)
+);
+
 // GET /api/sales/vendedores-performance  (solo comerciante/superadmin)
 router.get(
   '/vendedores-performance',

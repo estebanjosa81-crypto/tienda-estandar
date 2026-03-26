@@ -31,6 +31,7 @@ import {
   Star,
   PanelLeftClose,
   PanelLeftOpen,
+  CalendarDays,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -58,6 +59,7 @@ const navigation = [
   // reports (merchant/vendedor only)
   { id: 'history', name: 'Historial', icon: History, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'reports' },
   { id: 'analytics', name: 'Análisis', icon: TrendingUp, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
+  { id: 'cierre-dia', name: 'Cierre del Día', icon: CalendarDays, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
   // config (merchant only)
   { id: 'printers', name: 'Impresoras', icon: Printer, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },
   { id: 'settings', name: 'Configuración', icon: Settings, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },

@@ -40,6 +40,7 @@ interface AppState {
     customerId?: string
     customerName?: string
     customerPhone?: string
+    sedeId?: string
     creditDays?: number
     applyTax?: boolean
   }) => Promise<{ success: boolean; error?: string; data?: Sale }>
