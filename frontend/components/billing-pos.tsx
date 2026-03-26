@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useStore } from '@/lib/store'
 import { api } from '@/lib/api'
-import { TAX_RATE, type PaymentMethod, type CustomerFull, type Sale } from '@/lib/types'
+import { TAX_RATE, type PaymentMethod, type CustomerFull, type Sale, type Product } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,12 @@ import { BarcodeScanner } from '@/components/barcode-scanner'
 
 interface BillingPOSProps {
   onToggleMode: () => void
+}
+
+interface BillingLine {
+  lineId: string
+  product: Product
+  quantity: number
 }
 
 const PM_LABELS: Record<string, string> = {
@@ -47,11 +53,13 @@ const MIXTO_OPTIONS: { value: PaymentMethod; label: string }[] = [
 export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const {
     products, fetchProducts,
-    cart, addToCart, removeFromCart, updateCartQuantity, clearCart,
     addSale, cancelSale, storeInfo,
     selectedCustomer, setSelectedCustomer,
     categories, sedes, fetchSedes,
   } = useStore()
+
+  // Local billing lines — allows same product on multiple rows
+  const [billingLines, setBillingLines] = useState<BillingLine[]>([])
 
   const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
 
@@ -104,10 +112,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   useEffect(() => { fetchSedes() }, [fetchSedes])
 
   // ── Totals ──────────────────────────────────────────────────────────────────
-  // itemDiscounts almacena un VALOR FIJO en pesos por ítem (ej: 100 = $100 de descuento)
-  const itemSubtotals = cart.map(item => {
-    const price = itemPrices[item.product.id] ?? item.product.salePrice
-    const discAmt = itemDiscounts[item.product.id] ?? 0
+  // itemDiscounts almacena un VALOR FIJO en pesos por línea (ej: 100 = $100 de descuento)
+  const itemSubtotals = billingLines.map(item => {
+    const price = itemPrices[item.lineId] ?? item.product.salePrice
+    const discAmt = itemDiscounts[item.lineId] ?? 0
     return Math.max(0, price * item.quantity - discAmt)
   })
   const subtotalBeforeGlobal = itemSubtotals.reduce((s, v) => s + v, 0)
@@ -144,12 +152,12 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F4') { e.preventDefault(); productSearchRef.current?.focus(); productSearchRef.current?.select() }
       if (e.key === 'F11') { e.preventDefault(); cashInputRef.current?.focus(); cashInputRef.current?.select() }
-      if (e.key === 'F12') { e.preventDefault(); completedSale ? handlePrint(completedSale) : (cart.length > 0 && handleCompleteSale()) }
+      if (e.key === 'F12') { e.preventDefault(); completedSale ? handlePrint(completedSale) : (billingLines.length > 0 && handleCompleteSale()) }
       if (e.key === 'F3') { e.preventDefault(); handleNewInvoice() }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [completedSale, cart.length])
+  }, [completedSale, billingLines.length])
 
   // Close customer dropdown on outside click
   useEffect(() => {
@@ -187,18 +195,20 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     if (!product) return
 
     const qty = Math.max(1, productQty)
-    const existingQty = cart.find(i => i.product.id === productId)?.quantity ?? 0
+    const existingQty = billingLines.filter(l => l.product.id === productId).reduce((s, l) => s + l.quantity, 0)
 
     // Stock warning
     if (!product.isComposite && product.stock > 0 && existingQty + qty > product.stock) {
       toast.warning(`Stock insuficiente — disponible: ${product.stock} u.`, { duration: 3000 })
     }
 
-    for (let i = 0; i < qty; i++) addToCart(product)
+    // Each add creates a new line (allows same product multiple times)
+    const lineId = `${productId}-${Date.now()}`
+    setBillingLines(prev => [...prev, { lineId, product, quantity: qty }])
 
     // Apply price override if set and different from default
     if (productPrice !== '' && Number(productPrice) !== product.salePrice) {
-      setItemPrices(prev => ({ ...prev, [productId]: Number(productPrice) }))
+      setItemPrices(prev => ({ ...prev, [lineId]: Number(productPrice) }))
     }
 
     setProductSearch('')
@@ -211,7 +221,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const handleBarcodeScan = (barcode: string) => {
     const product = products.find(p => p.barcode === barcode || p.sku === barcode)
     if (product) {
-      addToCart(product)
+      const lineId = `${product.id}-${Date.now()}`
+      setBillingLines(prev => [...prev, { lineId, product, quantity: 1 }])
       toast.success(`${product.name} agregado`)
     } else {
       toast.error(`Producto no encontrado: ${barcode}`)
@@ -225,17 +236,17 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     if (e.key === 'Escape') { setShowProductDropdown(false); setProductSearch('') }
   }
 
-  const removeItem = (productId: string) => {
-    removeFromCart(productId)
-    setItemPrices(prev => { const n = { ...prev }; delete n[productId]; return n })
-    setItemDiscounts(prev => { const n = { ...prev }; delete n[productId]; return n })
-    setItemNotes(prev => { const n = { ...prev }; delete n[productId]; return n })
-    if (editingNoteId === productId) setEditingNoteId(null)
+  const removeItem = (lineId: string) => {
+    setBillingLines(prev => prev.filter(l => l.lineId !== lineId))
+    setItemPrices(prev => { const n = { ...prev }; delete n[lineId]; return n })
+    setItemDiscounts(prev => { const n = { ...prev }; delete n[lineId]; return n })
+    setItemNotes(prev => { const n = { ...prev }; delete n[lineId]; return n })
+    if (editingNoteId === lineId) setEditingNoteId(null)
   }
 
   // ── Sale handlers ───────────────────────────────────────────────────────────
   const handleCompleteSale = async () => {
-    if (cart.length === 0) { toast.error('Agrega al menos un producto'); return }
+    if (billingLines.length === 0) { toast.error('Agrega al menos un producto'); return }
 
     if (paymentMethod === 'mixto') {
       const m1 = parseFloat(mixtoAmount1) || 0
@@ -248,15 +259,16 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     setIsProcessing(true)
 
-    const saleItems = cart.map((item) => {
-      const effectivePrice = itemPrices[item.product.id] ?? item.product.salePrice
-      const discAmt = itemDiscounts[item.product.id] ?? 0
+    const saleItems = billingLines.map((item) => {
+      const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
+      const discAmt = itemDiscounts[item.lineId] ?? 0
       const lineTotal = effectivePrice * item.quantity
-      // Convertir descuento fijo a porcentaje para el backend
+      // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
       const finalDiscountPct = lineTotal > 0 ? Math.min(100, Math.round((discAmt / lineTotal) * 100)) : 0
       return {
         productId: item.product.id,
         quantity: item.quantity,
+        unitPrice: effectivePrice,   // precio real que ve el cliente (override o precio por defecto)
         discount: finalDiscountPct,
       }
     })
@@ -288,7 +300,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   }
 
   const handleNewInvoice = () => {
-    clearCart()
+    setBillingLines([])
     setSelectedCustomer(null)
     setCustomerSearch('')
     setAmountPaid('')
@@ -366,13 +378,14 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
           </thead>
           <tbody>
             ${sale.items.map((item, idx) => {
-              const overridePrice = itemPrices[item.productId]
-              const discAmt = itemDiscounts[item.productId] ?? 0
-              const unitPrice = overridePrice ?? item.unitPrice
+              const unitPrice = item.unitPrice
+              // discount is stored as % in backend — convert back to $ for display
+              const discAmt = Math.round((item.discount / 100) * unitPrice * item.quantity)
               const itemSub = Math.max(0, unitPrice * item.quantity - discAmt)
               const itemIva = applyIva ? itemSub * TAX_RATE : 0
               const itemTotal = itemSub + itemIva
-              const noteText = itemNotes[item.productId]
+              // match note by productId (best effort for print)
+              const noteText = Object.entries(itemNotes).find(([k]) => k.startsWith(item.productId))?.[1]
               return `
                 <tr>
                   <td>${idx + 1}</td>
@@ -839,20 +852,20 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                 </tr>
               </thead>
               <tbody>
-                {cart.map((item, idx) => {
-                  const effectivePrice = itemPrices[item.product.id] ?? item.product.salePrice
-                  const discAmt = itemDiscounts[item.product.id] ?? 0
+                {billingLines.map((item, idx) => {
+                  const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
+                  const discAmt = itemDiscounts[item.lineId] ?? 0
                   const itemSub = Math.max(0, effectivePrice * item.quantity - discAmt)
                   const itemIva = applyIva ? itemSub * TAX_RATE : 0
                   const itemTotal = itemSub + itemIva
-                  const isEditingNote = editingNoteId === item.product.id
+                  const isEditingNote = editingNoteId === item.lineId
                   return (
                     <>
-                      <tr key={item.product.id} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
+                      <tr key={item.lineId} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
                         {/* Delete */}
                         <td className="px-1.5 py-1">
                           <button
-                            onClick={() => removeItem(item.product.id)}
+                            onClick={() => removeItem(item.lineId)}
                             className="flex items-center justify-center w-6 h-6 rounded bg-red-500 hover:bg-red-600 text-white transition-colors"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -867,8 +880,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                         {/* Descripción */}
                         <td className="px-2 py-1 max-w-[140px]">
                           <div className="truncate font-medium">{item.product.name}</div>
-                          {itemNotes[item.product.id] && !isEditingNote && (
-                            <div className="text-[10px] text-muted-foreground truncate italic">{itemNotes[item.product.id]}</div>
+                          {itemNotes[item.lineId] && !isEditingNote && (
+                            <div className="text-[10px] text-muted-foreground truncate italic">{itemNotes[item.lineId]}</div>
                           )}
                         </td>
                         {/* Cantidad */}
@@ -877,7 +890,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                             type="number"
                             min={1}
                             value={item.quantity}
-                            onChange={(e) => updateCartQuantity(item.product.id, Math.max(1, parseInt(e.target.value) || 1))}
+                            onChange={(e) => setBillingLines(prev => prev.map(l => l.lineId === item.lineId ? { ...l, quantity: Math.max(1, parseInt(e.target.value) || 1) } : l))}
                             onFocus={(e) => e.target.select()}
                             className="w-full h-7 px-1 text-center text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c]"
                           />
@@ -891,7 +904,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                             onChange={(e) => {
                               const v = parseFloat(e.target.value) || 0
                               const maxDisc = effectivePrice * item.quantity
-                              setItemDiscounts(prev => ({ ...prev, [item.product.id]: Math.min(maxDisc, Math.max(0, v)) }))
+                              setItemDiscounts(prev => ({ ...prev, [item.lineId]: Math.min(maxDisc, Math.max(0, v)) }))
                             }}
                             onFocus={(e) => e.target.select()}
                             placeholder="$0"
@@ -904,7 +917,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                             type="number"
                             min={0}
                             value={effectivePrice || ''}
-                            onChange={(e) => setItemPrices(prev => ({ ...prev, [item.product.id]: parseFloat(e.target.value) || 0 }))}
+                            onChange={(e) => setItemPrices(prev => ({ ...prev, [item.lineId]: parseFloat(e.target.value) || 0 }))}
                             onFocus={(e) => e.target.select()}
                             className="w-full h-7 px-1 text-right text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c]"
                           />
@@ -922,7 +935,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                         {/* Ref/Nota */}
                         <td className="px-1 py-1 text-center">
                           <button
-                            onClick={() => setEditingNoteId(isEditingNote ? null : item.product.id)}
+                            onClick={() => setEditingNoteId(isEditingNote ? null : item.lineId)}
                             title="Agregar nota/referencia"
                           >
                             <Pencil className={`h-3.5 w-3.5 mx-auto transition-colors ${isEditingNote ? 'text-[#2d9e8c]' : 'text-blue-400 hover:text-blue-600'}`} />
@@ -931,15 +944,15 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                       </tr>
                       {/* Note row */}
                       {isEditingNote && (
-                        <tr key={`${item.product.id}-note`} className="bg-blue-50/50 dark:bg-blue-950/20">
+                        <tr key={`${item.lineId}-note`} className="bg-blue-50/50 dark:bg-blue-950/20">
                           <td colSpan={applyIva ? 11 : 10} className="px-3 py-1.5">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-muted-foreground shrink-0">Ref / Nota:</span>
                               <input
                                 autoFocus
                                 type="text"
-                                value={itemNotes[item.product.id] ?? ''}
-                                onChange={(e) => setItemNotes(prev => ({ ...prev, [item.product.id]: e.target.value }))}
+                                value={itemNotes[item.lineId] ?? ''}
+                                onChange={(e) => setItemNotes(prev => ({ ...prev, [item.lineId]: e.target.value }))}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null) }}
                                 placeholder="Número de referencia, descripción adicional..."
                                 className="flex-1 h-6 px-2 text-xs border border-blue-300 dark:border-blue-700 rounded bg-background focus:outline-none focus:ring-1 focus:ring-blue-400"
@@ -957,7 +970,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                     </>
                   )
                 })}
-                {cart.length === 0 && (
+                {billingLines.length === 0 && (
                   <tr>
                     <td colSpan={applyIva ? 11 : 10} className="px-4 py-10 text-center text-muted-foreground text-xs">
                       Busque o escanee un producto para comenzar la factura
@@ -969,18 +982,18 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                 <tr className="border-t-2 border-border bg-muted/40">
                   <td />
                   <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                    {cart.length} ítem{cart.length !== 1 ? 's' : ''}
+                    {billingLines.length} ítem{billingLines.length !== 1 ? 's' : ''}
                   </td>
                   <td className="px-1 py-1.5 text-center text-xs font-bold">
-                    {cart.reduce((s, i) => s + i.quantity, 0)}
+                    {billingLines.reduce((s, i) => s + i.quantity, 0)}
                   </td>
                   <td />
                   <td className="px-1 py-1.5 text-right text-xs font-semibold text-muted-foreground">Totales →</td>
                   {applyIva && (
                     <td className="px-2 py-1.5 text-right text-xs font-bold">
-                      ${Math.round(cart.reduce((s, item) => {
-                        const p = itemPrices[item.product.id] ?? item.product.salePrice
-                        const da = itemDiscounts[item.product.id] ?? 0
+                      ${Math.round(billingLines.reduce((s, item) => {
+                        const p = itemPrices[item.lineId] ?? item.product.salePrice
+                        const da = itemDiscounts[item.lineId] ?? 0
                         return s + Math.max(0, p * item.quantity - da) * TAX_RATE
                       }, 0)).toLocaleString('es-CO')}
                     </td>
@@ -1116,7 +1129,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               <Button
                 size="sm"
                 onClick={() => completedSale ? handlePrint(completedSale) : handleCompleteSale()}
-                disabled={isProcessing || cart.length === 0}
+                disabled={isProcessing || billingLines.length === 0}
                 className="h-9 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 whitespace-nowrap"
               >
                 <Printer className="h-3.5 w-3.5" />
