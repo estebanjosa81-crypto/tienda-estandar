@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { salesService, SaleFilters } from './sales.service';
+import { salesService, SaleFilters, DailyReportData } from './sales.service';
 import { AuthRequest } from '../../common/middleware';
 import { PaymentMethod, SaleStatus } from '../../common/types';
 
@@ -153,6 +153,17 @@ export class SalesController {
         limit
       );
       res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getDailyReport(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+      const report: DailyReportData = await salesService.getDailyReport(tenantId, date);
+      res.json({ success: true, data: report });
     } catch (error) {
       next(error);
     }

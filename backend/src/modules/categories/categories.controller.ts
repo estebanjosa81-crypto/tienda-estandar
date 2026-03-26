@@ -7,11 +7,7 @@ export class CategoriesController {
     try {
       const tenantId = req.user!.tenantId!;
       const categories = await categoriesService.findAll(tenantId);
-
-      res.json({
-        success: true,
-        data: categories,
-      });
+      res.json({ success: true, data: categories });
     } catch (error) {
       next(error);
     }
@@ -21,12 +17,17 @@ export class CategoriesController {
     try {
       const tenantId = req.user!.tenantId!;
       const category = await categoriesService.create(tenantId, req.body);
+      res.status(201).json({ success: true, data: category, message: 'Categoría creada exitosamente' });
+    } catch (error) {
+      next(error);
+    }
+  }
 
-      res.status(201).json({
-        success: true,
-        data: category,
-        message: 'Categoría creada exitosamente',
-      });
+  async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const category = await categoriesService.update(tenantId, req.params.id, req.body);
+      res.json({ success: true, data: category, message: 'Categoría actualizada exitosamente' });
     } catch (error) {
       next(error);
     }
@@ -36,11 +37,7 @@ export class CategoriesController {
     try {
       const tenantId = req.user!.tenantId!;
       await categoriesService.delete(tenantId, req.params.id);
-
-      res.json({
-        success: true,
-        message: 'Categoría eliminada exitosamente',
-      });
+      res.json({ success: true, message: 'Categoría eliminada exitosamente' });
     } catch (error) {
       next(error);
     }

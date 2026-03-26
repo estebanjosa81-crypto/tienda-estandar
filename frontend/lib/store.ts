@@ -40,6 +40,7 @@ interface AppState {
     customerId?: string
     customerName?: string
     customerPhone?: string
+    sedeId?: string
     creditDays?: number
     applyTax?: boolean
   }) => Promise<{ success: boolean; error?: string; data?: Sale }>
@@ -60,6 +61,8 @@ interface AppState {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
+  sidebarCollapsed: boolean
+  setSidebarCollapsed: (collapsed: boolean) => void
 
   // Customer Selection for POS
   selectedCustomer: CustomerFull | null
@@ -70,6 +73,7 @@ interface AppState {
   isLoadingCategories: boolean
   fetchCategories: () => Promise<void>
   addCategory: (data: { id: string; name: string; description?: string }) => Promise<{ success: boolean; error?: string }>
+  updateCategory: (id: string, data: { name?: string; description?: string; isHidden?: boolean }) => Promise<{ success: boolean; error?: string }>
   deleteCategory: (id: string) => Promise<{ success: boolean; error?: string }>
 
   // Camera preference
@@ -344,6 +348,8 @@ export const useStore = create<AppState>()(
       setActiveSection: (section) => set({ activeSection: section, sidebarOpen: false }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      sidebarCollapsed: false,
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
       // Customer Selection
       setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
@@ -369,6 +375,17 @@ export const useStore = create<AppState>()(
           return { success: true }
         }
         return { success: false, error: result.error || 'Error al crear categoría' }
+      },
+
+      updateCategory: async (id, data) => {
+        const result = await api.updateCategory(id, data)
+        if (result.success && result.data) {
+          set(state => ({
+            categories: state.categories.map(c => c.id === id ? result.data : c)
+          }))
+          return { success: true }
+        }
+        return { success: false, error: result.error || 'Error al actualizar categoría' }
       },
 
       deleteCategory: async (id) => {

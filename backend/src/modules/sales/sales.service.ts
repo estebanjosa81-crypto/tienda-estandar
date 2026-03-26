@@ -21,6 +21,7 @@ interface SaleRow extends RowDataPacket {
   change_amount: number;
   seller_id: string | null;
   seller_name: string;
+  sede_id: string | null;
   status: SaleStatus;
   credit_status: 'pendiente' | 'parcial' | 'pagado' | null;
   due_date: Date | null;
@@ -63,7 +64,37 @@ export interface SaleFilters {
   endDate?: Date;
   search?: string;
   sellerId?: string;
+  sedeId?: string;
   todayOnly?: boolean;
+}
+
+export interface ProductReportItem {
+  productId: string;
+  productName: string;
+  productSku: string;
+  quantity: number;
+  subtotal: number;
+}
+
+export interface SedeReportData {
+  sedeId: string | null;
+  salesCount: number;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  byPaymentMethod: Record<string, { count: number; total: number }>;
+  products: ProductReportItem[];
+}
+
+export interface DailyReportData {
+  date: string;
+  sedes: SedeReportData[];
+  totalSales: number;
+  grandSubtotal: number;
+  grandTax: number;
+  grandDiscount: number;
+  grandTotal: number;
 }
 
 export interface CreateSaleItem {
@@ -84,9 +115,10 @@ export interface CreateSaleData {
   customerEmail?: string;
   sellerId: string;
   sellerName: string;
+  sedeId?: string;
   creditDays?: number;
   notes?: string;
-  applyTax?: boolean; // true = aplica IVA 19% (factura electrónica solicitada)
+  applyTax?: boolean;
 }
 
 export class SalesService {
@@ -108,6 +140,7 @@ export class SalesService {
       change: Number(row.change_amount),
       sellerId: row.seller_id || undefined,
       sellerName: row.seller_name,
+      sedeId: row.sede_id || undefined,
       status: row.status,
       creditStatus: row.credit_status || undefined,
       dueDate: row.due_date || undefined,
@@ -193,6 +226,11 @@ export class SalesService {
     if (filters?.sellerId) {
       conditions.push('seller_id = ?');
       values.push(filters.sellerId);
+    }
+
+    if (filters?.sedeId) {
+      conditions.push('sede_id = ?');
+      values.push(filters.sedeId);
     }
 
     if (filters?.todayOnly) {
@@ -547,8 +585,8 @@ export class SalesService {
       // Insertar venta
       await connection.execute<ResultSetHeader>(
         `INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, customer_phone, customer_email,
-          subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, cash_session_id, credit_status, due_date, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, sede_id, cash_session_id, credit_status, due_date, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           saleId,
           tenantId,
@@ -566,6 +604,7 @@ export class SalesService {
           change,
           data.sellerId,
           data.sellerName,
+          data.sedeId || null,
           cashSessionId,
           creditStatus,
           dueDate,
@@ -757,6 +796,98 @@ export class SalesService {
     return {
       data: rows.map((r) => this.mapSale(r)),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getDailyReport(tenantId: string, date: string): Promise<DailyReportData> {
+    // Fetch all completed sales for the given date
+    const [salesRows] = await db.execute<SaleRow[]>(
+      `SELECT * FROM sales WHERE tenant_id = ? AND DATE(created_at) = ? AND status = 'completada' ORDER BY created_at ASC`,
+      [tenantId, date]
+    );
+
+    // Load all items for these sales in one batch query
+    const allItems: SaleItemRow[] = [];
+    if (salesRows.length > 0) {
+      const saleIds = salesRows.map(s => s.id);
+      const placeholders = saleIds.map(() => '?').join(',');
+      const [itemRows] = await db.execute<SaleItemRow[]>(
+        `SELECT * FROM sale_items WHERE sale_id IN (${placeholders})`,
+        saleIds
+      );
+      allItems.push(...itemRows);
+    }
+
+    // Index items by sale_id
+    const itemsBySale = new Map<string, SaleItemRow[]>();
+    for (const item of allItems) {
+      if (!itemsBySale.has(item.sale_id)) itemsBySale.set(item.sale_id, []);
+      itemsBySale.get(item.sale_id)!.push(item);
+    }
+
+    // Group sales by sede_id (null = no sede)
+    const sedeGroups = new Map<string, SaleRow[]>();
+    for (const sale of salesRows) {
+      const key = sale.sede_id || '__none__';
+      if (!sedeGroups.has(key)) sedeGroups.set(key, []);
+      sedeGroups.get(key)!.push(sale);
+    }
+
+    // Build report per sede
+    const sedeReports: SedeReportData[] = [];
+    for (const [sedeKey, sales] of sedeGroups.entries()) {
+      const byPaymentMethod: Record<string, { count: number; total: number }> = {};
+      const productMap = new Map<string, ProductReportItem>();
+      let subtotal = 0, tax = 0, discount = 0, total = 0;
+
+      for (const sale of sales) {
+        subtotal += Number(sale.subtotal);
+        tax += Number(sale.tax);
+        discount += Number(sale.discount);
+        total += Number(sale.total);
+
+        const pm = sale.payment_method;
+        if (!byPaymentMethod[pm]) byPaymentMethod[pm] = { count: 0, total: 0 };
+        byPaymentMethod[pm].count++;
+        byPaymentMethod[pm].total += Number(sale.total);
+
+        const items = itemsBySale.get(sale.id) || [];
+        for (const item of items) {
+          if (!productMap.has(item.product_id)) {
+            productMap.set(item.product_id, {
+              productId: item.product_id,
+              productName: item.product_name,
+              productSku: item.product_sku,
+              quantity: 0,
+              subtotal: 0,
+            });
+          }
+          const p = productMap.get(item.product_id)!;
+          p.quantity += item.quantity;
+          p.subtotal += Number(item.subtotal);
+        }
+      }
+
+      sedeReports.push({
+        sedeId: sedeKey === '__none__' ? null : sedeKey,
+        salesCount: sales.length,
+        subtotal: Math.round(subtotal * 100) / 100,
+        tax: Math.round(tax * 100) / 100,
+        discount: Math.round(discount * 100) / 100,
+        total: Math.round(total * 100) / 100,
+        byPaymentMethod,
+        products: Array.from(productMap.values()).sort((a, b) => b.subtotal - a.subtotal),
+      });
+    }
+
+    return {
+      date,
+      sedes: sedeReports,
+      totalSales: salesRows.length,
+      grandSubtotal: Math.round(sedeReports.reduce((s, x) => s + x.subtotal, 0) * 100) / 100,
+      grandTax: Math.round(sedeReports.reduce((s, x) => s + x.tax, 0) * 100) / 100,
+      grandDiscount: Math.round(sedeReports.reduce((s, x) => s + x.discount, 0) * 100) / 100,
+      grandTotal: Math.round(sedeReports.reduce((s, x) => s + x.total, 0) * 100) / 100,
     };
   }
 }

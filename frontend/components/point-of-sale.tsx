@@ -187,9 +187,13 @@ export function PointOfSale() {
       ? Math.max(0, mixedCash - finalTotal)
       : 0
   
-  // Filter products available for sale (exclude raw materials/insumos)
+  // Hidden category IDs
+  const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
+
+  // Filter products available for sale (exclude raw materials/insumos and hidden categories)
   const availableProducts = products.filter(p => {
     if (p.category === 'insumos') return false
+    if (hiddenCategoryIds.has(p.category)) return false
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.articulo && p.articulo.toLowerCase().includes(search.toLowerCase())) ||
@@ -504,6 +508,7 @@ export function PointOfSale() {
       customerId: selectedCustomer?.id,
       customerName: customer.name || selectedCustomer?.name || undefined,
       customerPhone: customer.phone || selectedCustomer?.phone || undefined,
+      sedeId: selectedSede || undefined,
       applyTax: applyIva,
     })
 
@@ -592,8 +597,22 @@ export function PointOfSale() {
   return (
     <div className="space-y-4">
     <SyncStatusBar />
-    {/* Mode toggle */}
-    <div className="flex justify-end">
+    {/* Mode toggle + Sede indicator */}
+    <div className="flex items-center justify-between">
+      {/* Sede indicator */}
+      <div className="flex items-center gap-2">
+        {selectedSede ? (
+          <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-primary text-primary-foreground shadow-sm">
+            <Building className="h-3.5 w-3.5" />
+            {sedes.find(s => s.id === selectedSede)?.name ?? 'Sede'}
+          </span>
+        ) : sedes.length > 0 ? (
+          <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
+            <Building className="h-3.5 w-3.5" />
+            Todas las sedes
+          </span>
+        ) : null}
+      </div>
       <button
         onClick={() => setBillingMode(true)}
         className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border border-[#2d9e8c] text-[#2d9e8c] hover:bg-[#2d9e8c] hover:text-white transition-colors"
