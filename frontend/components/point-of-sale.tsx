@@ -62,9 +62,11 @@ import type { Sale } from '@/lib/types'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
 import { SyncStatusBar } from '@/components/sync-status-bar'
+import { BillingPOS } from '@/components/billing-pos'
 
 export function PointOfSale() {
   const { products, fetchProducts, cart, addToCart, removeFromCart, updateCartQuantity, applyItemDiscount, setCustomAmount, clearCart, addSale, storeInfo, selectedCustomer, setSelectedCustomer, categories, fetchCategories, sedes, fetchSedes } = useStore()
+  const [billingMode, setBillingMode] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedSede, setSelectedSede] = useState<string | null>(null)
@@ -578,9 +580,29 @@ export function PointOfSale() {
     return () => window.removeEventListener('keydown', handleGlobalKey)
   }, [isCheckoutOpen, isFiadoOpen, showScanner, showRemoteScanner])
 
+  if (billingMode) {
+    return (
+      <div className="space-y-4">
+        <SyncStatusBar />
+        <BillingPOS onToggleMode={() => setBillingMode(false)} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
     <SyncStatusBar />
+    {/* Mode toggle */}
+    <div className="flex justify-end">
+      <button
+        onClick={() => setBillingMode(true)}
+        className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border border-[#2d9e8c] text-[#2d9e8c] hover:bg-[#2d9e8c] hover:text-white transition-colors"
+        title="Cambiar a modo facturación"
+      >
+        <Receipt className="h-3.5 w-3.5" />
+        Modo Facturación
+      </button>
+    </div>
     <div className="grid gap-6 lg:gap-8 lg:grid-cols-3 xl:gap-10">
       {/* Product Selection */}
       <div className="lg:col-span-2 space-y-4 lg:space-y-6">{/* Search */}
