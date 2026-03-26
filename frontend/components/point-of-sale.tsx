@@ -187,9 +187,13 @@ export function PointOfSale() {
       ? Math.max(0, mixedCash - finalTotal)
       : 0
   
-  // Filter products available for sale (exclude raw materials/insumos)
+  // Hidden category IDs
+  const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
+
+  // Filter products available for sale (exclude raw materials/insumos and hidden categories)
   const availableProducts = products.filter(p => {
     if (p.category === 'insumos') return false
+    if (hiddenCategoryIds.has(p.category)) return false
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.articulo && p.articulo.toLowerCase().includes(search.toLowerCase())) ||

@@ -25,9 +25,12 @@ import {
   Scissors,
   LogOut,
   ChevronRight,
+  ChevronLeft,
   LayoutTemplate,
   Printer,
   Star,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -69,7 +72,7 @@ const groups = [
 ]
 
 export function Sidebar() {
-  const { activeSection, setActiveSection, sidebarOpen, setSidebarOpen } = useStore()
+  const { activeSection, setActiveSection, sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed } = useStore()
   const { user, logout } = useAuthStore()
   const isSuperadmin = user?.role === 'superadmin'
   const isAdmin = user?.role === 'comerciante' || isSuperadmin
@@ -88,6 +91,8 @@ export function Sidebar() {
     ? 'text-blue-400 bg-blue-400/10 border-blue-400/20'
     : 'text-green-400 bg-green-400/10 border-green-400/20'
 
+  const collapsed = sidebarCollapsed
+
   return (
     <>
       {/* Overlay móvil */}
@@ -99,21 +104,44 @@ export function Sidebar() {
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 z-50 flex h-screen w-60 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-in-out",
+        "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out",
+        // desktop: always visible, width depends on collapsed
+        collapsed ? "md:w-14" : "md:w-60",
         "md:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        // mobile: overlay behavior
+        sidebarOpen ? "translate-x-0 w-60" : "-translate-x-full w-60"
       )}>
 
-        {/* ── Logo ── */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-4">
-          <div className="flex items-center gap-2.5">
+        {/* ── Logo / Toggle ── */}
+        <div className={cn(
+          "flex h-14 shrink-0 items-center border-b border-sidebar-border transition-all duration-300",
+          collapsed ? "justify-center px-0" : "justify-between px-4"
+        )}>
+          {/* Logo area */}
+          <div className={cn("flex items-center gap-2.5 overflow-hidden", collapsed && "hidden md:flex md:justify-center")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={32} height={32} className="rounded-md" />
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">Lopbuk</span>
-              <span className="text-[10px] text-muted-foreground">Gestión de Inventario</span>
-            </div>
+            <img src="/image/lopbukicon.png" alt="Lopbuk" width={32} height={32} className="rounded-md shrink-0" />
+            {!collapsed && (
+              <div className="flex flex-col leading-none">
+                <span className="text-sm font-bold text-sidebar-foreground tracking-tight">Lopbuk</span>
+                <span className="text-[10px] text-muted-foreground">Gestión de Inventario</span>
+              </div>
+            )}
           </div>
+
+          {/* Desktop collapse toggle */}
+          <button
+            onClick={() => setSidebarCollapsed(!collapsed)}
+            className={cn(
+              "hidden md:flex items-center justify-center rounded-md h-7 w-7 text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
+              collapsed && "mx-auto"
+            )}
+            title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+
+          {/* Mobile close button */}
           <Button
             variant="ghost"
             size="icon"
@@ -125,43 +153,66 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent">
+        <nav className={cn(
+          "flex-1 overflow-y-auto py-3 space-y-0.5 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent",
+          collapsed ? "px-1" : "px-2"
+        )}>
           {groups.map(group => {
             const items = filteredNavigation.filter(i => i.group === group.key)
             if (items.length === 0) return null
             return (
               <div key={group.key} className="mb-1">
-                {group.label && (
+                {/* Group label — hidden when collapsed */}
+                {group.label && !collapsed && (
                   <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
                     {group.label}
                   </p>
                 )}
+                {/* Divider when collapsed (replaces label) */}
+                {group.label && collapsed && (
+                  <div className="mx-1 my-1.5 border-t border-sidebar-border/40" />
+                )}
+
                 {items.map(item => {
                   const isActive = activeSection === item.id
                   return (
                     <button
                       key={item.id}
                       onClick={() => { setActiveSection(item.id); setSidebarOpen(false) }}
+                      title={collapsed ? item.name : undefined}
                       className={cn(
-                        "group relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+                        "group relative flex w-full items-center rounded-md text-sm font-medium transition-all duration-150",
+                        collapsed
+                          ? "justify-center px-0 py-2.5"
+                          : "gap-2.5 px-3 py-2",
                         isActive
                           ? "bg-primary/10 text-primary shadow-sm"
                           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                       )}
                     >
+                      {/* Active indicator */}
                       {isActive && (
                         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
                       )}
+
                       <item.icon className={cn(
-                        "h-4 w-4 shrink-0 transition-colors",
+                        "shrink-0 transition-colors",
+                        collapsed ? "h-5 w-5" : "h-4 w-4",
                         isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-sidebar-foreground"
                       )} />
-                      <span className="truncate">{item.name}</span>
-                      {isActive && <ChevronRight className="ml-auto h-3 w-3 text-primary/60" />}
+
+                      {/* Label — hidden when collapsed */}
+                      {!collapsed && (
+                        <>
+                          <span className="truncate">{item.name}</span>
+                          {isActive && <ChevronRight className="ml-auto h-3 w-3 text-primary/60" />}
+                        </>
+                      )}
                     </button>
                   )
                 })}
-                {group.key !== 'config' && items.length > 0 && (
+
+                {group.key !== 'config' && items.length > 0 && !collapsed && (
                   <div className="mx-3 mt-2 mb-1 border-t border-sidebar-border/40" />
                 )}
               </div>
@@ -170,30 +221,48 @@ export function Sidebar() {
         </nav>
 
         {/* ── Footer ── */}
-        <div className="shrink-0 border-t border-sidebar-border p-3 space-y-2">
-          {/* User info */}
-          <div className="flex items-center gap-2.5 px-1">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">
-              {user?.name?.charAt(0).toUpperCase() ?? '?'}
+        <div className={cn(
+          "shrink-0 border-t border-sidebar-border space-y-2",
+          collapsed ? "p-1.5" : "p-3"
+        )}>
+          {/* User avatar / info */}
+          {collapsed ? (
+            <div
+              className="flex justify-center py-1"
+              title={`${user?.name ?? ''} — ${roleLabel}`}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">
+                {user?.name?.charAt(0).toUpperCase() ?? '?'}
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-sidebar-foreground truncate">{user?.name ?? '—'}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{user?.email ?? ''}</p>
-            </div>
-          </div>
-
-          {/* Role badge */}
-          <div className={cn('mx-1 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-center', roleColor)}>
-            {roleLabel}
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2.5 px-1">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">
+                  {user?.name?.charAt(0).toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-sidebar-foreground truncate">{user?.name ?? '—'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email ?? ''}</p>
+                </div>
+              </div>
+              <div className={cn('mx-1 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-center', roleColor)}>
+                {roleLabel}
+              </div>
+            </>
+          )}
 
           {/* Logout */}
           <button
             onClick={logout}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-red-400 transition-colors"
+            title={collapsed ? 'Cerrar sesión' : undefined}
+            className={cn(
+              "flex w-full items-center rounded-md text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-red-400 transition-colors",
+              collapsed ? "justify-center py-2" : "gap-2 px-3 py-1.5"
+            )}
           >
-            <LogOut className="h-3.5 w-3.5" />
-            Cerrar sesión
+            <LogOut className={cn("shrink-0", collapsed ? "h-4 w-4" : "h-3.5 w-3.5")} />
+            {!collapsed && 'Cerrar sesión'}
           </button>
         </div>
       </aside>

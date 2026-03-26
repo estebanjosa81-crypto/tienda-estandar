@@ -17,10 +17,23 @@ router.post(
   [
     body('id').notEmpty().withMessage('El identificador es requerido'),
     body('name').notEmpty().withMessage('El nombre es requerido'),
-    body('description').optional().isString().withMessage('La descripción debe ser texto'),
+    body('description').optional().isString(),
     validateRequest,
   ],
   categoriesController.create.bind(categoriesController)
+);
+
+// PUT /api/categories/:id
+router.put(
+  '/:id',
+  [
+    param('id').notEmpty().withMessage('ID requerido'),
+    body('name').optional().isString().notEmpty().withMessage('El nombre no puede estar vacío'),
+    body('description').optional().isString(),
+    body('isHidden').optional().isBoolean(),
+    validateRequest,
+  ],
+  categoriesController.update.bind(categoriesController)
 );
 
 // DELETE /api/categories/:id

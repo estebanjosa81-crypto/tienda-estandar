@@ -56,6 +56,9 @@ import {
   ChevronRight,
   Settings2,
   FileDown,
+  Eye,
+  EyeOff,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -63,7 +66,7 @@ import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 
 export function InventoryList() {
-  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
+  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
@@ -104,6 +107,11 @@ export function InventoryList() {
     }
   }
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' })
+  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; description: string } | null>(null)
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
+
+  // Derived: set of hidden category IDs for fast lookup
+  const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
   const [sedeForm, setSedeForm] = useState({ name: '', address: '' })
   const [editingSede, setEditingSede] = useState<Sede | null>(null)
   const [highlightedProduct, setHighlightedProduct] = useState<string | null>(null)
@@ -148,8 +156,10 @@ export function InventoryList() {
   const usedTypes = new Set(products.map(p => p.productType).filter(Boolean))
   const usedCategories = new Set(products.map(p => p.category).filter(Boolean))
 
-  // Filter products
+  // Filter products (hidden categories are fully excluded)
   const filteredProducts = products.filter(product => {
+    if (hiddenCategoryIds.has(product.category)) return false
+
     const matchesSearch =
       product.name.toLowerCase().includes(search.toLowerCase()) ||
       (product.articulo && product.articulo.toLowerCase().includes(search.toLowerCase())) ||
@@ -310,7 +320,7 @@ export function InventoryList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {categories.filter(cat => usedCategories.has(cat.id)).map((cat) => (
+                  {categories.filter(cat => usedCategories.has(cat.id) && !cat.isHidden).map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
                     </SelectItem>
@@ -580,54 +590,180 @@ export function InventoryList() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Category Dialog */}
-      <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-        <DialogContent className="max-w-md">
+      {/* Category Management Dialog */}
+      <Dialog open={isCategoryDialogOpen} onOpenChange={(open) => {
+        setIsCategoryDialogOpen(open)
+        if (!open) { setEditingCategory(null); setDeletingCategoryId(null); setCategoryForm({ name: '', description: '' }) }
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Crear Categoria</DialogTitle>
-            <DialogDescription>
-              Agregue una nueva categoria para organizar sus productos
-            </DialogDescription>
+            <DialogTitle>Gestionar Categorías</DialogTitle>
+            <DialogDescription>Agrega, edita, oculta o elimina categorías de productos.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={async (e) => {
-            e.preventDefault()
-            const id = categoryForm.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-            const result = await addCategory({ id, name: categoryForm.name, description: categoryForm.description || undefined })
-            if (result.success) {
-              setCategoryForm({ name: '', description: '' })
-              setIsCategoryDialogOpen(false)
-            }
-          }}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="categoryName">Nombre de la categoria</Label>
+
+          <div className="space-y-4 py-2">
+            {/* Category list */}
+            <div className="border border-border rounded-lg overflow-hidden">
+              {categories.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">No hay categorías aún.</p>
+              )}
+              {categories.map((cat, idx) => (
+                <div
+                  key={cat.id}
+                  className={`flex items-center gap-2 px-3 py-2.5 text-sm border-b border-border/50 last:border-b-0 ${cat.isHidden ? 'bg-muted/40 opacity-60' : 'bg-card'}`}
+                >
+                  {/* Edit inline form or display */}
+                  {editingCategory?.id === cat.id ? (
+                    <form
+                      className="flex flex-1 items-center gap-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        if (!editingCategory.name.trim()) return
+                        const result = await updateCategory(cat.id, {
+                          name: editingCategory.name,
+                          description: editingCategory.description || undefined,
+                        })
+                        if (result.success) {
+                          toast.success('Categoría actualizada')
+                          setEditingCategory(null)
+                        } else {
+                          toast.error(result.error || 'Error al actualizar')
+                        }
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        value={editingCategory.name}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                        className="h-7 text-xs flex-1"
+                        placeholder="Nombre"
+                      />
+                      <Input
+                        value={editingCategory.description}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                        className="h-7 text-xs w-32"
+                        placeholder="Descripción"
+                      />
+                      <Button type="submit" size="sm" className="h-7 px-2 text-xs">Guardar</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditingCategory(null)}>✕</Button>
+                    </form>
+                  ) : (
+                    <>
+                      <span className="flex-1 font-medium truncate">
+                        {cat.name}
+                        {cat.isHidden && <span className="ml-2 text-[10px] text-muted-foreground font-normal">(oculta)</span>}
+                      </span>
+                      {cat.description && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[120px]">{cat.description}</span>
+                      )}
+                      <span className="text-xs text-muted-foreground ml-1">
+                        {products.filter(p => p.category === cat.id).length} items
+                      </span>
+
+                      {/* Edit */}
+                      <button
+                        onClick={() => setEditingCategory({ id: cat.id, name: cat.name, description: cat.description || '' })}
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        title="Editar"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Toggle hide/show */}
+                      <button
+                        onClick={async () => {
+                          const result = await updateCategory(cat.id, { isHidden: !cat.isHidden })
+                          if (result.success) {
+                            toast.success(cat.isHidden ? `"${cat.name}" ahora es visible` : `"${cat.name}" oculta`)
+                          } else {
+                            toast.error(result.error || 'Error')
+                          }
+                        }}
+                        className={`p-1 rounded transition-colors ${cat.isHidden ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                        title={cat.isHidden ? 'Mostrar categoría' : 'Ocultar categoría'}
+                      >
+                        {cat.isHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+
+                      {/* Delete */}
+                      {deletingCategoryId === cat.id ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-red-500">¿Eliminar?</span>
+                          <button
+                            onClick={async () => {
+                              const result = await deleteCategory(cat.id)
+                              if (result.success) {
+                                toast.success('Categoría eliminada')
+                                setDeletingCategoryId(null)
+                              } else {
+                                toast.error(result.error || 'No se puede eliminar')
+                                setDeletingCategoryId(null)
+                              }
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 bg-red-500 text-white rounded hover:bg-red-600"
+                          >Sí</button>
+                          <button
+                            onClick={() => setDeletingCategoryId(null)}
+                            className="text-[10px] px-1.5 py-0.5 bg-muted rounded hover:bg-muted-foreground/20"
+                          >No</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingCategoryId(cat.id)}
+                          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 text-muted-foreground hover:text-red-500 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add new category form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!categoryForm.name.trim()) return
+                const id = categoryForm.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                const result = await addCategory({ id, name: categoryForm.name, description: categoryForm.description || undefined })
+                if (result.success) {
+                  toast.success('Categoría creada')
+                  setCategoryForm({ name: '', description: '' })
+                } else {
+                  toast.error(result.error || 'Error al crear')
+                }
+              }}
+              className="border border-dashed border-border rounded-lg p-3 space-y-2"
+            >
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nueva categoría</p>
+              <div className="flex gap-2">
                 <Input
-                  id="categoryName"
                   value={categoryForm.name}
                   onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                  placeholder="Ej: Ropa Casual"
+                  placeholder="Nombre de la categoría"
+                  className="h-8 text-sm flex-1"
                   required
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="categoryDesc">Descripcion (opcional)</Label>
                 <Input
-                  id="categoryDesc"
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                  placeholder="Breve descripcion de la categoria"
+                  placeholder="Descripción (opcional)"
+                  className="h-8 text-sm w-36"
                 />
+                <Button type="submit" size="sm" className="h-8 gap-1.5 px-3">
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar
+                </Button>
               </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Crear Categoria
-              </Button>
-            </DialogFooter>
-          </form>
+            </form>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCategoryDialogOpen(false)}>Cerrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

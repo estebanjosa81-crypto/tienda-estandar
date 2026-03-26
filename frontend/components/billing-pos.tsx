@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, X, Printer, FileText, Settings2, Trash2 } from 'lucide-react'
+import { Search, Plus, X, Printer, FileText, Settings2, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface BillingPOSProps {
@@ -27,7 +27,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     cart, addToCart, removeFromCart, updateCartQuantity, clearCart,
     addSale, cancelSale, storeInfo,
     selectedCustomer, setSelectedCustomer,
+    categories,
   } = useStore()
+
+  const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
 
   // Invoice form
   const [paymentMethodLabel, setPaymentMethodLabel] = useState('EFECTIVO')
@@ -49,6 +52,9 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [productPrice, setProductPrice] = useState(0)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
 
+  // Per-item price overrides (productId -> unit price)
+  const [itemPrices, setItemPrices] = useState<Record<string, number>>({})
+
   // Sale state
   const [isProcessing, setIsProcessing] = useState(false)
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
@@ -58,11 +64,13 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const cashInputRef = useRef<HTMLInputElement>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Totals
-  const cartTotals = calculateCartTotals(cart, applyIva)
-  const subtotal = cartTotals.subtotal
-  const tax = applyIva ? cartTotals.tax : 0
-  const total = applyIva ? cartTotals.total : cartTotals.subtotal
+  // Totals (use itemPrices overrides)
+  const subtotal = cart.reduce((sum, item) => {
+    const price = itemPrices[item.product.id] ?? item.product.salePrice
+    return sum + price * item.quantity * (1 - item.discount / 100)
+  }, 0)
+  const tax = applyIva ? subtotal * TAX_RATE : 0
+  const total = subtotal + tax
   const change = Math.max(0, parseFloat(amountPaid || '0') - total)
 
   const todayStr = new Date().toLocaleDateString('es-CO', {
@@ -73,9 +81,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     fetchProducts()
   }, [fetchProducts])
 
-  // Filtered products for search dropdown
+  // Filtered products for search dropdown (exclude insumos and hidden categories)
   const filteredProducts = products.filter(p => {
     if (p.category === 'insumos') return false
+    if (hiddenCategoryIds.has(p.category)) return false
     if (!productSearch.trim()) return false
     const q = productSearch.toLowerCase()
     return (
@@ -187,12 +196,21 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       return
     }
     setIsProcessing(true)
-    const saleItems = cart.map(item => ({
-      productId: item.product.id,
-      quantity: item.quantity,
-      discount: item.discount,
-      ...(item.customAmount ? { customAmount: item.customAmount } : {}),
-    }))
+    const saleItems = cart.map(item => {
+      const overridePrice = itemPrices[item.product.id]
+      const baseDiscount = item.discount
+      // If price was overridden downward, encode as discount %
+      let discount = baseDiscount
+      if (overridePrice !== undefined && overridePrice < item.product.salePrice && item.product.salePrice > 0) {
+        discount = Math.round((1 - overridePrice / item.product.salePrice) * 100)
+      }
+      return {
+        productId: item.product.id,
+        quantity: item.quantity,
+        discount,
+        ...(item.customAmount ? { customAmount: item.customAmount } : {}),
+      }
+    })
 
     const effectivePaymentMethod: PaymentMethod = formaPago === 'credito' ? 'fiado' : paymentMethod
     const effectiveAmountPaid = formaPago === 'credito' ? 0 : (parseFloat(amountPaid) || total)
@@ -231,6 +249,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     setProductSearch('')
     setProductQty(1)
     setProductPrice(0)
+    setItemPrices({})
     setTimeout(() => productSearchRef.current?.focus(), 50)
   }
 
@@ -697,111 +716,126 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-muted/50 border-b border-border">
-                  <th className="w-8 px-2 py-2 text-left font-medium text-muted-foreground">
-                    <input type="checkbox" className="rounded" />
-                  </th>
-                  <th className="w-8 px-2 py-2 text-left font-medium text-muted-foreground">#</th>
-                  <th className="px-2 py-2 text-left font-medium text-muted-foreground">Codigo</th>
-                  <th className="px-2 py-2 text-left font-medium text-muted-foreground">Descripción</th>
-                  <th className="w-20 px-2 py-2 text-center font-medium text-muted-foreground">Cantidad</th>
-                  <th className="w-20 px-2 py-2 text-right font-medium text-muted-foreground">IVA</th>
-                  <th className="w-24 px-2 py-2 text-right font-medium text-muted-foreground">ValorUnitario</th>
-                  <th className="w-24 px-2 py-2 text-right font-medium text-muted-foreground">Subtotal</th>
-                  <th className="w-24 px-2 py-2 text-right font-medium text-muted-foreground">Total</th>
-                  <th className="w-12 px-2 py-2 text-right font-medium text-muted-foreground">Ref</th>
-                  <th className="w-8 px-2 py-2" />
+                <tr className="bg-muted/40 border-b border-border">
+                  <th className="w-9 px-1.5 py-2" />
+                  <th className="w-8 px-1.5 py-2 text-center font-semibold text-foreground/70">#</th>
+                  <th className="w-16 px-2 py-2 text-left font-semibold text-foreground/70">Codigo</th>
+                  <th className="px-2 py-2 text-left font-semibold text-foreground/70">Descripción</th>
+                  <th className="w-24 px-2 py-2 text-center font-semibold text-foreground/70">Cantidad</th>
+                  <th className="w-16 px-2 py-2 text-right font-semibold text-foreground/70">IVA</th>
+                  <th className="w-28 px-2 py-2 text-center font-semibold text-foreground/70">ValorUnitario</th>
+                  <th className="w-20 px-2 py-2 text-right font-semibold text-foreground/70">Subtotal</th>
+                  <th className="w-20 px-2 py-2 text-right font-semibold text-foreground/70">Total</th>
+                  <th className="w-8 px-1.5 py-2 text-center font-semibold text-foreground/70">Ref</th>
                 </tr>
               </thead>
               <tbody>
                 {cart.map((item, idx) => {
-                  const itemSubtotal = item.product.salePrice * item.quantity * (1 - item.discount / 100)
+                  const effectivePrice = itemPrices[item.product.id] ?? item.product.salePrice
+                  const itemSubtotal = effectivePrice * item.quantity * (1 - item.discount / 100)
                   const itemIva = applyIva ? itemSubtotal * TAX_RATE : 0
                   const itemTotal = itemSubtotal + itemIva
                   return (
-                    <tr key={item.product.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                      <td className="px-2 py-1.5">
-                        <input type="checkbox" className="rounded" />
+                    <tr key={item.product.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                      {/* Delete */}
+                      <td className="px-1.5 py-1">
+                        <button
+                          onClick={() => {
+                            removeFromCart(item.product.id)
+                            setItemPrices(prev => { const n = { ...prev }; delete n[item.product.id]; return n })
+                          }}
+                          className="flex items-center justify-center w-6 h-6 rounded bg-red-500 hover:bg-red-600 text-white transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{idx + 1}</td>
-                      <td className="px-2 py-1.5 font-mono text-muted-foreground">
+                      {/* # */}
+                      <td className="px-1.5 py-1 text-center text-muted-foreground">{idx + 1}</td>
+                      {/* Código */}
+                      <td className="px-2 py-1 text-muted-foreground font-mono">
                         {item.product.articulo || item.product.sku}
                       </td>
-                      <td className="px-2 py-1.5 font-medium max-w-[180px] truncate">
+                      {/* Descripción */}
+                      <td className="px-2 py-1 font-medium max-w-[160px] truncate">
                         {item.product.name}
                       </td>
-                      <td className="px-2 py-1.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => updateCartQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                            className="w-5 h-5 rounded bg-muted hover:bg-muted-foreground/20 flex items-center justify-center text-muted-foreground"
-                          >
-                            −
-                          </button>
-                          <span className="w-6 text-center font-medium">{item.quantity}</span>
-                          <button
-                            onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                            className="w-5 h-5 rounded bg-muted hover:bg-muted-foreground/20 flex items-center justify-center text-muted-foreground"
-                          >
-                            +
-                          </button>
-                        </div>
+                      {/* Cantidad — editable input */}
+                      <td className="px-1.5 py-1">
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value) || 1
+                            updateCartQuantity(item.product.id, Math.max(1, v))
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full h-7 px-2 text-center text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c] focus:border-[#2d9e8c]"
+                        />
                       </td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">
-                        {formatCOP(itemIva)}
+                      {/* IVA — read only */}
+                      <td className="px-2 py-1 text-right text-muted-foreground">
+                        {applyIva ? Math.round(itemIva).toLocaleString('es-CO') : 0}
                       </td>
-                      <td className="px-2 py-1.5 text-right">
-                        {formatCOP(item.product.salePrice)}
+                      {/* ValorUnitario — editable input */}
+                      <td className="px-1.5 py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={effectivePrice || ''}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value) || 0
+                            setItemPrices(prev => ({ ...prev, [item.product.id]: v }))
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full h-7 px-2 text-right text-xs border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-[#2d9e8c] focus:border-[#2d9e8c]"
+                        />
                       </td>
-                      <td className="px-2 py-1.5 text-right">
-                        {formatCOP(itemSubtotal)}
+                      {/* Subtotal */}
+                      <td className="px-2 py-1 text-right">
+                        {Math.round(itemSubtotal).toLocaleString('es-CO')}
                       </td>
-                      <td className="px-2 py-1.5 text-right font-medium">
-                        {formatCOP(itemTotal)}
+                      {/* Total */}
+                      <td className="px-2 py-1 text-right font-medium">
+                        {Math.round(itemTotal).toLocaleString('es-CO')}
                       </td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground text-xs">
-                        {item.product.barcode ? item.product.barcode.slice(-4) : '-'}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <button
-                          onClick={() => removeFromCart(item.product.id)}
-                          className="text-muted-foreground hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      {/* Ref — pencil icon */}
+                      <td className="px-1.5 py-1 text-center">
+                        <Pencil className="h-3.5 w-3.5 text-blue-500 mx-auto cursor-pointer hover:text-blue-700" />
                       </td>
                     </tr>
                   )
                 })}
                 {cart.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-6 text-center text-muted-foreground text-xs">
+                    <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground text-xs">
                       Agregue productos para comenzar la factura
                     </td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border bg-muted/30">
-                  <td className="px-2 py-1.5">
-                    <input type="checkbox" className="rounded" title="Tabulación (F2)" />
+                <tr className="border-t-2 border-border bg-muted/30">
+                  <td className="px-1.5 py-1.5">
+                    <input type="checkbox" defaultChecked className="rounded" />
                   </td>
-                  <td colSpan={3} className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold">
                     Tabulación (F2)
                   </td>
-                  <td className="px-2 py-1.5 text-center text-xs font-semibold">
-                    {cart.reduce((sum, i) => sum + i.quantity, 0)}
+                  <td className="px-2 py-1.5 text-center text-xs font-bold">
+                    {cart.reduce((s, i) => s + i.quantity, 0)}
                   </td>
-                  <td colSpan={2} className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                  <td className="px-2 py-1.5" />
+                  <td className="px-2 py-1.5 text-right text-xs font-semibold text-muted-foreground">
                     Totales
                   </td>
-                  <td className="px-2 py-1.5 text-right text-xs font-semibold">
-                    {formatCOP(subtotal)}
+                  <td className="px-2 py-1.5 text-right text-xs font-bold">
+                    {cart.length > 0 ? `$${Math.round(subtotal).toLocaleString('es-CO')}` : '$0'}
                   </td>
-                  <td className="px-2 py-1.5 text-right text-xs font-semibold">
-                    {formatCOP(total)}
+                  <td className="px-2 py-1.5 text-right text-xs font-bold">
+                    {cart.length > 0 ? `$${Math.round(total).toLocaleString('es-CO')}` : '$0'}
                   </td>
-                  <td colSpan={2} />
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -809,62 +843,52 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
         </div>
 
         {/* Totals + payment + actions */}
-        <div className="border border-border rounded-lg bg-card p-3 space-y-2">
-          {/* Subtotal / IVA / Total */}
-          <div className="space-y-1">
+        <div className="border border-border rounded-lg bg-card p-4">
+          {/* Subtotal / IVA / Total — right-aligned like the image */}
+          <div className="space-y-1 mb-3">
             <div className="flex justify-between text-sm">
-              <span className="font-medium">Subtotal:</span>
-              <span>{formatCOP(subtotal)}</span>
+              <span className="font-semibold text-right flex-1">Subtotal:</span>
+              <span className="w-28 text-right">${Math.round(subtotal).toLocaleString('es-CO')}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="font-medium">IVA:</span>
-              <span>{formatCOP(tax)}</span>
+              <span className="font-semibold text-right flex-1">IVA:</span>
+              <span className="w-28 text-right">${Math.round(tax).toLocaleString('es-CO')}</span>
             </div>
-            <div className="flex justify-between text-base font-bold border-t border-border pt-1.5 mt-1">
-              <span>Total:</span>
-              <span className="text-lg">{formatCOP(total)}</span>
+            <div className="flex justify-between text-sm font-bold mt-1">
+              <span className="text-right flex-1">Total:</span>
+              <span className="w-28 text-right text-xl">${Math.round(total).toLocaleString('es-CO')}</span>
             </div>
           </div>
 
           {/* Efectivo input */}
-          <div className="flex items-center justify-between gap-3">
-            <label className="text-sm font-medium whitespace-nowrap">Efectivo (F11):</label>
-            <Input
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <span className="text-sm font-semibold flex-1 text-right">Efectivo (F11):</span>
+            <input
               ref={cashInputRef}
               type="number"
               value={amountPaid}
               onChange={(e) => setAmountPaid(e.target.value)}
+              onFocus={(e) => e.target.select()}
               placeholder="$0"
-              className="h-9 text-sm text-right bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 w-40"
               disabled={formaPago === 'credito'}
+              className="w-28 h-9 px-3 text-right text-sm border border-green-200 dark:border-green-800 rounded-md bg-green-50 dark:bg-green-950/30 focus:outline-none focus:ring-1 focus:ring-[#2d9e8c] focus:border-[#2d9e8c] disabled:opacity-50"
             />
           </div>
 
           {/* Cambio */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Cambio:</span>
-            <span className={`text-base font-bold ${change > 0 ? 'text-[#2d9e8c]' : 'text-muted-foreground'}`}>
-              {formatCOP(change)}
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold flex-1 text-right">Cambio:</span>
+            <span className={`w-28 text-right text-xl font-bold ${change > 0 ? 'text-[#2d9e8c]' : 'text-[#2d9e8c]'}`}>
+              ${Math.round(change).toLocaleString('es-CO')}
             </span>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex gap-2 pt-1">
+          {/* Action buttons — 2 buttons matching the image */}
+          <div className="flex gap-2 justify-end">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAnular}
-              disabled={!completedSale}
-              className="flex-1 h-9 text-xs border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 gap-1.5"
-            >
-              <X className="h-3.5 w-3.5" />
-              Anular Factura
-            </Button>
-            <Button
-              variant="outline"
               size="sm"
               onClick={handleNewInvoice}
-              className="flex-1 h-9 text-xs gap-1.5 bg-slate-700 text-white hover:bg-slate-800 border-slate-700"
+              className="h-9 text-xs gap-1.5 bg-slate-600 hover:bg-slate-700 text-white px-4"
             >
               <FileText className="h-3.5 w-3.5" />
               Nueva Factura (F3)
@@ -873,10 +897,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               size="sm"
               onClick={() => completedSale ? handlePrint(completedSale) : handleCompleteSale()}
               disabled={isProcessing || cart.length === 0}
-              className="flex-1 h-9 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+              className="h-9 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4"
             >
               <Printer className="h-3.5 w-3.5" />
-              {completedSale ? 'Imprimir (F12)' : isProcessing ? 'Guardando...' : 'Guardar e Imprimir (F12)'}
+              {completedSale ? 'Imprimir (F12)' : isProcessing ? 'Guardando...' : 'Imprimir (F12)'}
             </Button>
           </div>
         </div>

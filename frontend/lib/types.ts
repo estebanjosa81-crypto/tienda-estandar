@@ -280,6 +280,7 @@ export interface CategoryItem {
   id: string
   name: string
   description?: string
+  isHidden?: boolean
 }
 
 export const SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']

@@ -639,6 +639,13 @@ class ApiService {
     })
   }
 
+  async updateCategory(id: string, data: { name?: string; description?: string; isHidden?: boolean }) {
+    return this.request<any>(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   async deleteCategory(id: string) {
     return this.request<any>(`/categories/${id}`, {
       method: 'DELETE',
