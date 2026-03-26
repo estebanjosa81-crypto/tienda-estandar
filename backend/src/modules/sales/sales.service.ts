@@ -102,6 +102,7 @@ export interface CreateSaleItem {
   quantity: number;
   discount?: number;
   customAmount?: number;
+  unitPrice?: number; // Precio personalizado desde facturación (override del precio de venta)
 }
 
 export interface CreateSaleData {
@@ -456,6 +457,9 @@ export class SalesService {
         let unitPrice: number;
         if (item.customAmount && recipeRows.length > 0) {
           unitPrice = item.customAmount;
+        } else if (item.unitPrice !== undefined && item.unitPrice >= 0) {
+          // Precio personalizado enviado desde facturación (override del precio de venta)
+          unitPrice = item.unitPrice;
         } else {
           unitPrice = Number(priceRows[0].sale_price);
         }
