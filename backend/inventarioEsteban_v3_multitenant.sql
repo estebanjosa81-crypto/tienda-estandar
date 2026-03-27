@@ -2144,6 +2144,94 @@ CREATE TABLE IF NOT EXISTS printers (
   COMMENT 'Impresoras POS registradas por tenant';
 
 -- ============================================
+-- MIGRACIONES PENDIENTES
+-- Aplican columnas que existen en archivos de migración separados
+-- pero no estaban embebidas en el CREATE TABLE base.
+-- Idempotentes: seguras de re-ejecutar en instalaciones existentes.
+-- ============================================
+
+DROP PROCEDURE IF EXISTS sp_pending_migrations;
+
+DELIMITER //
+CREATE PROCEDURE sp_pending_migrations()
+BEGIN
+    -- ------------------------------------------------
+    -- 1. sales.sede_id
+    --    Fuente: src/modules/sales/migrations/add_sede_id.sql
+    --    Permite asociar una venta a una sede/sucursal específica.
+    -- ------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'sales'
+          AND COLUMN_NAME  = 'sede_id'
+    ) THEN
+        ALTER TABLE sales
+            ADD COLUMN sede_id VARCHAR(36) NULL DEFAULT NULL
+                COMMENT 'Sede donde se realizó la venta (NULL = sede única)';
+        ALTER TABLE sales
+            ADD INDEX idx_sales_sede_id (sede_id);
+    END IF;
+
+    -- ------------------------------------------------
+    -- 2. product_recipes.include_in_cost
+    --    Fuente: migrations/add_include_in_cost.sql
+    --    Controla si el insumo se incluye en el cálculo de costo del producto.
+    -- ------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'product_recipes'
+          AND COLUMN_NAME  = 'include_in_cost'
+    ) THEN
+        ALTER TABLE product_recipes
+            ADD COLUMN include_in_cost TINYINT(1) NOT NULL DEFAULT 1
+                COMMENT '1 = se suma al costo del producto terminado, 0 = excluido del costo';
+    END IF;
+
+    -- ------------------------------------------------
+    -- 3. categories.is_hidden
+    --    Fuente: src/modules/categories/migrations/add_is_hidden.sql
+    --    Oculta la categoría en vistas de cliente/vendedor (distinto de hidden_in_store).
+    -- ------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'categories'
+          AND COLUMN_NAME  = 'is_hidden'
+    ) THEN
+        ALTER TABLE categories
+            ADD COLUMN is_hidden TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = categoría oculta en la interfaz de POS y tienda';
+    END IF;
+
+    -- ------------------------------------------------
+    -- 4. products.product_type ENUM — agregar valor 'insumos'
+    --    Fuente: inventario_perfummua.sql (ALTER TABLE manual)
+    --    Necesario para clasificar extractos, envases y cajas como insumos.
+    -- ------------------------------------------------
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'products'
+          AND COLUMN_NAME  = 'product_type'
+          AND COLUMN_TYPE  LIKE '%insumos%'
+    ) THEN
+        ALTER TABLE products
+            MODIFY COLUMN product_type ENUM(
+                'general', 'alimentos', 'bebidas', 'ropa', 'electronica',
+                'farmacia', 'ferreteria', 'libreria', 'juguetes', 'cosmetica',
+                'perfumes', 'deportes', 'hogar', 'mascotas', 'otros', 'insumos'
+            ) NOT NULL DEFAULT 'general';
+    END IF;
+
+END //
+DELIMITER ;
+
+CALL sp_pending_migrations();
+DROP PROCEDURE IF EXISTS sp_pending_migrations;
+
+-- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
 -- ============================================
 -- CREDENCIALES POR DEFECTO:

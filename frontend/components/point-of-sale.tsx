@@ -66,7 +66,7 @@ import { BillingPOS } from '@/components/billing-pos'
 
 export function PointOfSale() {
   const { products, fetchProducts, cart, addToCart, removeFromCart, updateCartQuantity, applyItemDiscount, setCustomAmount, clearCart, addSale, storeInfo, selectedCustomer, setSelectedCustomer, categories, fetchCategories, sedes, fetchSedes } = useStore()
-  const [billingMode, setBillingMode] = useState(false)
+  const [billingMode, setBillingMode] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedSede, setSelectedSede] = useState<string | null>(null)
