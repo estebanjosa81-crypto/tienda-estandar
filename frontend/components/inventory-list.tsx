@@ -594,16 +594,33 @@ export function InventoryList() {
   const usedTypes = new Set(products.map(p => p.productType).filter(Boolean))
   const usedCategories = new Set(products.map(p => p.category).filter(Boolean))
 
+  const normalizedSearch = search.trim().toLowerCase()
+  const getSearchRank = (product: Product, q: string) => {
+    if (!q) return 0
+    const articulo = product.articulo?.toLowerCase() || ''
+    const name = product.name.toLowerCase()
+    const sku = product.sku.toLowerCase()
+    const barcode = product.barcode?.toLowerCase() || ''
+    const brand = product.brand?.toLowerCase() || ''
+
+    if (articulo.includes(q)) return 0
+    if (name.includes(q)) return 1
+    if (sku.includes(q)) return 2
+    if (barcode.includes(q)) return 3
+    if (brand.includes(q)) return 4
+    return 5
+  }
+
   // Filter products (hidden categories are fully excluded)
   const filteredProducts = products.filter(product => {
     if (hiddenCategoryIds.has(product.category)) return false
 
     const matchesSearch =
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      (product.articulo && product.articulo.toLowerCase().includes(search.toLowerCase())) ||
-      product.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (product.brand && product.brand.toLowerCase().includes(search.toLowerCase())) ||
-      (product.barcode && product.barcode.toLowerCase().includes(search.toLowerCase()))
+      product.name.toLowerCase().includes(normalizedSearch) ||
+      (product.articulo && product.articulo.toLowerCase().includes(normalizedSearch)) ||
+      product.sku.toLowerCase().includes(normalizedSearch) ||
+      (product.brand && product.brand.toLowerCase().includes(normalizedSearch)) ||
+      (product.barcode && product.barcode.toLowerCase().includes(normalizedSearch))
 
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
     const matchesType = typeFilter === 'all' || product.productType === typeFilter
@@ -618,8 +635,16 @@ export function InventoryList() {
     return matchesSearch && matchesCategory && matchesStock && matchesType && matchesSede
   })
 
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE)
-  const paginatedProducts = filteredProducts.slice(
+  const rankedProducts = normalizedSearch
+    ? [...filteredProducts].sort((a, b) => {
+        const rankDiff = getSearchRank(a, normalizedSearch) - getSearchRank(b, normalizedSearch)
+        if (rankDiff !== 0) return rankDiff
+        return a.name.localeCompare(b.name)
+      })
+    : filteredProducts
+
+  const totalPages = Math.ceil(rankedProducts.length / ITEMS_PER_PAGE)
+  const paginatedProducts = rankedProducts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   )

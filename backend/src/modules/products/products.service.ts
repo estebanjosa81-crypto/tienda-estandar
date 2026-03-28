@@ -356,10 +356,12 @@ export class ProductsService {
       values.push(filters.productType);
     }
 
+    let searchOrderValues: string[] = [];
     if (filters?.search) {
       conditions.push('(name LIKE ? OR articulo LIKE ? OR sku LIKE ? OR brand LIKE ? OR barcode LIKE ?)');
       const searchTerm = `%${filters.search}%`;
       values.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      searchOrderValues = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
     }
 
     if (filters?.minPrice !== undefined) {
@@ -399,9 +401,23 @@ export class ProductsService {
     );
     const total = countResult[0].total;
 
+    const orderBy = filters?.search
+      ? `ORDER BY
+          CASE
+            WHEN articulo LIKE ? THEN 0
+            WHEN name LIKE ? THEN 1
+            WHEN sku LIKE ? THEN 2
+            WHEN barcode LIKE ? THEN 3
+            WHEN brand LIKE ? THEN 4
+            ELSE 5
+          END,
+          name ASC,
+          created_at DESC`
+      : 'ORDER BY created_at DESC';
+
     const [rows] = await db.execute<ProductRow[]>(
-      `SELECT * FROM products ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...values, String(limit), String(offset)]
+      `SELECT * FROM products ${whereClause} ${orderBy} LIMIT ? OFFSET ?`,
+      [...values, ...searchOrderValues, String(limit), String(offset)]
     );
 
     const mappedProducts = rows.map(this.mapProduct);

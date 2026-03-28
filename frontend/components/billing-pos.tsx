@@ -134,17 +134,36 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const todayStr = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   // ── Filtered products ───────────────────────────────────────────────────────
+  const normalizedProductSearch = productSearch.trim().toLowerCase()
+  const getSearchRank = (p: Product, q: string) => {
+    if (!q) return 0
+    const articulo = p.articulo?.toLowerCase() || ''
+    const name = p.name.toLowerCase()
+    const sku = p.sku.toLowerCase()
+    const barcode = p.barcode?.toLowerCase() || ''
+
+    if (articulo.includes(q)) return 0
+    if (name.includes(q)) return 1
+    if (sku.includes(q)) return 2
+    if (barcode.includes(q)) return 3
+    return 4
+  }
+
   const filteredProducts = products.filter(p => {
     if (p.category === 'insumos') return false
     if (hiddenCategoryIds.has(p.category)) return false
-    if (!productSearch.trim()) return false
-    const q = productSearch.toLowerCase()
+    if (!normalizedProductSearch) return false
+    const q = normalizedProductSearch
     return (
       p.name.toLowerCase().includes(q) ||
       p.sku.toLowerCase().includes(q) ||
       (p.articulo && p.articulo.toLowerCase().includes(q)) ||
       (p.barcode && p.barcode.toLowerCase().includes(q))
     )
+  }).sort((a, b) => {
+    const rankDiff = getSearchRank(a, normalizedProductSearch) - getSearchRank(b, normalizedProductSearch)
+    if (rankDiff !== 0) return rankDiff
+    return a.name.localeCompare(b.name)
   }).slice(0, 14)
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
