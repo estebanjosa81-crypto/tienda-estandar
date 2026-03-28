@@ -90,6 +90,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [productQty, setProductQty] = useState(1)
   const [productPrice, setProductPrice] = useState<number | ''>('')
   const [showProductDropdown, setShowProductDropdown] = useState(false)
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0)
   const [showScanner, setShowScanner] = useState(false)
 
   // ── Per-item overrides ──────────────────────────────────────────────────────
@@ -105,6 +106,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const productSearchRef = useRef<HTMLInputElement>(null)
+  const productQtyRef = useRef<HTMLInputElement>(null)
+  const productPriceRef = useRef<HTMLInputElement>(null)
   const cashInputRef = useRef<HTMLInputElement>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -166,13 +169,36 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     return a.name.localeCompare(b.name)
   }).slice(0, 14)
 
+  useEffect(() => {
+    if (!normalizedProductSearch || filteredProducts.length === 0) {
+      setHighlightedProductIndex(0)
+      return
+    }
+    setHighlightedProductIndex(0)
+  }, [normalizedProductSearch, filteredProducts.length])
+
+  useEffect(() => {
+    if (!showProductDropdown || filteredProducts.length === 0) return
+    const active = filteredProducts[highlightedProductIndex]
+    if (!active) return
+    const el = document.querySelector(`[data-product-option="${active.id}"]`)
+    if (el instanceof HTMLElement) el.scrollIntoView({ block: 'nearest' })
+  }, [filteredProducts, highlightedProductIndex, showProductDropdown])
+
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F4') { e.preventDefault(); productSearchRef.current?.focus(); productSearchRef.current?.select() }
+      if (e.key === 'F2') { e.preventDefault(); productQtyRef.current?.focus(); productQtyRef.current?.select() }
+      if (e.key === 'F6') { e.preventDefault(); productPriceRef.current?.focus(); productPriceRef.current?.select() }
+      if (e.key === 'F7') { e.preventDefault(); setShowScanner(true) }
       if (e.key === 'F11') { e.preventDefault(); cashInputRef.current?.focus(); cashInputRef.current?.select() }
       if (e.key === 'F12') { e.preventDefault(); completedSale ? handlePrint(completedSale) : (billingLines.length > 0 && handleCompleteSale()) }
       if (e.key === 'F3') { e.preventDefault(); handleNewInvoice() }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        completedSale ? handlePrint(completedSale) : (billingLines.length > 0 && handleCompleteSale())
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -232,6 +258,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     setProductSearch('')
     setShowProductDropdown(false)
+    setHighlightedProductIndex(0)
     setProductQty(1)
     setProductPrice('')
     productSearchRef.current?.focus()
@@ -251,8 +278,28 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   }
 
   const handleProductSearchKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && filteredProducts.length > 0) handleAddProductFromSearch(filteredProducts[0].id)
-    if (e.key === 'Escape') { setShowProductDropdown(false); setProductSearch('') }
+    if (e.key === 'ArrowDown' && filteredProducts.length > 0) {
+      e.preventDefault()
+      setShowProductDropdown(true)
+      setHighlightedProductIndex((prev) => Math.min(prev + 1, filteredProducts.length - 1))
+      return
+    }
+    if (e.key === 'ArrowUp' && filteredProducts.length > 0) {
+      e.preventDefault()
+      setShowProductDropdown(true)
+      setHighlightedProductIndex((prev) => Math.max(prev - 1, 0))
+      return
+    }
+    if (e.key === 'Enter' && filteredProducts.length > 0) {
+      const selected = filteredProducts[highlightedProductIndex] || filteredProducts[0]
+      handleAddProductFromSearch(selected.id)
+      return
+    }
+    if (e.key === 'Escape') {
+      setShowProductDropdown(false)
+      setProductSearch('')
+      setHighlightedProductIndex(0)
+    }
   }
 
   const removeItem = (lineId: string) => {
@@ -777,7 +824,10 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               <Input
                 ref={productSearchRef}
                 value={productSearch}
-                onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(e.target.value.length > 0) }}
+                onChange={(e) => {
+                  setProductSearch(e.target.value)
+                  setShowProductDropdown(e.target.value.length > 0)
+                }}
                 onKeyDown={handleProductSearchKey}
                 onFocus={() => productSearch.length > 0 && setShowProductDropdown(true)}
                 placeholder="Buscar por nombre, código, SKU..."
@@ -786,14 +836,17 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               {showProductDropdown && filteredProducts.length > 0 && (
                 <div className="absolute z-50 top-full left-0 right-0 bg-popover border border-border rounded-md shadow-lg mt-0.5 max-h-56 overflow-y-auto">
-                  {filteredProducts.map(p => {
+                  {filteredProducts.map((p, index) => {
                     const lowStock = !p.isComposite && p.stock > 0 && p.stock <= p.reorderPoint
                     const outStock = !p.isComposite && p.stock === 0
+                    const isActive = index === highlightedProductIndex
                     return (
                       <button
                         key={p.id}
+                        data-product-option={p.id}
                         onClick={() => handleAddProductFromSearch(p.id)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors border-b border-border/40 last:border-b-0 flex items-center justify-between gap-2"
+                        onMouseEnter={() => setHighlightedProductIndex(index)}
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors border-b border-border/40 last:border-b-0 flex items-center justify-between gap-2 ${isActive ? 'bg-accent' : 'hover:bg-accent'}`}
                       >
                         <div className="min-w-0">
                           <span className="font-medium truncate block">{p.name}</span>
@@ -817,6 +870,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
             <Input
               type="number"
               min={1}
+              ref={productQtyRef}
               value={productQty}
               onChange={(e) => setProductQty(Math.max(1, parseInt(e.target.value) || 1))}
               onFocus={(e) => e.target.select()}
@@ -828,6 +882,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
             <Input
               type="number"
               min={0}
+              ref={productPriceRef}
               value={productPrice}
               onChange={(e) => setProductPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
               onFocus={(e) => e.target.select()}
