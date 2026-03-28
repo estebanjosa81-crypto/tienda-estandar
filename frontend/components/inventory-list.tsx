@@ -60,6 +60,9 @@ import {
   EyeOff,
   Pencil,
   FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -801,7 +804,7 @@ export function InventoryList() {
                 <SelectContent>
                   <SelectItem value="all">Todo</SelectItem>
                   <SelectItem value="suficiente">Suficiente</SelectItem>
-                  <SelectItem value="bajo">Bajo</SelectItem>
+                  <SelectItem value="bajo">Reabastecimiento</SelectItem>
                   <SelectItem value="agotado">Agotado</SelectItem>
                 </SelectContent>
               </Select>
@@ -901,17 +904,27 @@ export function InventoryList() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full ${
-                            status === 'suficiente' ? 'bg-primary' :
-                            status === 'bajo' ? 'bg-warning' : 'bg-destructive'
-                          }`} />
-                          <span className={`font-medium text-sm lg:text-base ${
-                            status === 'suficiente' ? 'text-primary' :
-                            status === 'bajo' ? 'text-warning' : 'text-destructive'
-                          }`}>
-                            {product.stock}
-                          </span>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-2">
+                            {status === 'suficiente' && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                            {status === 'bajo' && <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                            {status === 'agotado' && <XCircle className="h-4 w-4 text-red-600" />}
+                            <span className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full ${
+                              status === 'suficiente' ? 'bg-emerald-500' :
+                              status === 'bajo' ? 'bg-amber-500' : 'bg-red-500'
+                            }`} />
+                            <span className={`font-medium text-sm lg:text-base ${
+                              status === 'suficiente' ? 'text-emerald-700' :
+                              status === 'bajo' ? 'text-amber-700' : 'text-red-700'
+                            }`}>
+                              {product.stock}
+                            </span>
+                          </div>
+                          {status === 'bajo' && (
+                            <Badge variant="secondary" className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-1.5 py-0">
+                              Reabastecimiento
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
