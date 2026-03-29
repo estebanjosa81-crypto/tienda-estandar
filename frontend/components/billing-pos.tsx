@@ -111,6 +111,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const productPriceRef = useRef<HTMLInputElement>(null)
   const cashInputRef = useRef<HTMLInputElement>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
+  const qtyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
   useEffect(() => { fetchSedes() }, [fetchSedes])
@@ -296,6 +297,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       e.preventDefault()
       const selected = filteredProducts[highlightedProductIndex] || filteredProducts[0]
       setPendingProductId(selected.id)
+      setProductSearch(selected.name)
       setShowProductDropdown(false)
       setTimeout(() => { productQtyRef.current?.focus(); productQtyRef.current?.select() }, 0)
       return
@@ -878,14 +880,23 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               min={1}
               ref={productQtyRef}
               value={productQty}
-              onChange={(e) => setProductQty(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => {
+                setProductQty(Math.max(1, parseInt(e.target.value) || 1))
+                if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
+                qtyDebounceRef.current = setTimeout(() => {
+                  productPriceRef.current?.focus()
+                  productPriceRef.current?.select()
+                }, 600)
+              }}
               onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === 'ArrowRight') {
                   e.preventDefault()
+                  if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
                   productPriceRef.current?.focus()
                   productPriceRef.current?.select()
                 } else if (e.key === 'Escape') {
+                  if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
                   setPendingProductId(null)
                   setProductSearch('')
                   setProductQty(1)
