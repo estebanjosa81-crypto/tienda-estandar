@@ -297,7 +297,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       e.preventDefault()
       const selected = filteredProducts[highlightedProductIndex] || filteredProducts[0]
       setPendingProductId(selected.id)
-      setProductSearch(selected.name)
+      setProductSearch(selected.articulo || selected.name)
       setShowProductDropdown(false)
       setTimeout(() => { productQtyRef.current?.focus(); productQtyRef.current?.select() }, 0)
       return
