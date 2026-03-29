@@ -91,6 +91,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [productPrice, setProductPrice] = useState<number | ''>('')
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(0)
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null)
   const [showScanner, setShowScanner] = useState(false)
 
   // ── Per-item overrides ──────────────────────────────────────────────────────
@@ -261,6 +262,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     setHighlightedProductIndex(0)
     setProductQty(1)
     setProductPrice('')
+    setPendingProductId(null)
     productSearchRef.current?.focus()
   }
 
@@ -290,14 +292,18 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       setHighlightedProductIndex((prev) => Math.max(prev - 1, 0))
       return
     }
-    if (e.key === 'Enter' && filteredProducts.length > 0) {
+    if ((e.key === 'Enter' || e.key === 'ArrowRight') && filteredProducts.length > 0) {
+      e.preventDefault()
       const selected = filteredProducts[highlightedProductIndex] || filteredProducts[0]
-      handleAddProductFromSearch(selected.id)
+      setPendingProductId(selected.id)
+      setShowProductDropdown(false)
+      setTimeout(() => { productQtyRef.current?.focus(); productQtyRef.current?.select() }, 0)
       return
     }
     if (e.key === 'Escape') {
       setShowProductDropdown(false)
       setProductSearch('')
+      setPendingProductId(null)
       setHighlightedProductIndex(0)
     }
   }
@@ -874,6 +880,18 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               value={productQty}
               onChange={(e) => setProductQty(Math.max(1, parseInt(e.target.value) || 1))}
               onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                  e.preventDefault()
+                  productPriceRef.current?.focus()
+                  productPriceRef.current?.select()
+                } else if (e.key === 'Escape') {
+                  setPendingProductId(null)
+                  setProductSearch('')
+                  setProductQty(1)
+                  productSearchRef.current?.focus()
+                }
+              }}
               className="h-9 text-sm bg-background border-border text-center"
             />
           </div>
@@ -886,6 +904,19 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               value={productPrice}
               onChange={(e) => setProductPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
               onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                  e.preventDefault()
+                  const id = pendingProductId ?? (filteredProducts.length > 0 ? filteredProducts[0].id : null)
+                  if (id) handleAddProductFromSearch(id)
+                } else if (e.key === 'Escape') {
+                  setPendingProductId(null)
+                  setProductSearch('')
+                  setProductQty(1)
+                  setProductPrice('')
+                  productSearchRef.current?.focus()
+                }
+              }}
               placeholder="Precio"
               className="h-9 text-sm bg-background border-border"
             />
