@@ -321,6 +321,12 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const handleCompleteSale = async () => {
     if (billingLines.length === 0) { toast.error('Agrega al menos un producto'); return }
 
+    if (formaPago !== 'credito' && paymentMethod !== 'mixto' && paidAmount < total) {
+      toast.error(`Ingresa el monto recibido (mínimo $${Math.round(total).toLocaleString('es-CO')})`)
+      cashInputRef.current?.focus()
+      return
+    }
+
     if (paymentMethod === 'mixto') {
       const m1 = parseFloat(mixtoAmount1) || 0
       const m2 = parseFloat(mixtoAmount2) || 0
