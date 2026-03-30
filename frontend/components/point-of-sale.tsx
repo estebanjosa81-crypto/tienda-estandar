@@ -444,6 +444,7 @@ export function PointOfSale() {
       <html>
         <head>
           <title>Factura ${sale.invoiceNumber}</title>
+          <script>window.onload = function() { window.focus(); window.print(); }</script>
           <style>
             body { font-family: Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto; color: #333; font-size: 14px; }
             .invoice { margin-bottom: 0; }
@@ -477,7 +478,6 @@ export function PointOfSale() {
       </html>
     `)
     printWindow.document.close()
-    printWindow.print()
   }
 
   const handleCloseInvoice = () => {
