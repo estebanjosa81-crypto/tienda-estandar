@@ -368,77 +368,76 @@ export function PointOfSale() {
 
     const copies = storeInfo.invoiceCopies ?? 1
 
+    const fmtCOP = (v: number) => `$${Math.round(v).toLocaleString('es-CO')}`
+    const TAX_RATE_POS = 0.19
+
     const invoiceHtml = `
-          <div class="invoice">
-            <div class="header">
-              ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:70px;max-width:200px;object-fit:contain;margin-bottom:8px;" />` : ''}
-              <h1>${storeInfo.name}</h1>
-              <p class="nit">NIT: ${storeInfo.taxId}</p>
-              <p>${storeInfo.address}</p>
-              <p>Tel: ${storeInfo.phone} | ${storeInfo.email}</p>
-            </div>
-            <div class="invoice-info">
-              <div>
-                <h3>Factura de Venta</h3>
-                <p><strong>No: ${sale.invoiceNumber}</strong></p>
-                <p>Fecha: ${new Date(sale.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                <p>Hora: ${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</p>
-              </div>
-              <div>
-                <h3>Cliente</h3>
-                ${sale.customerName ? `<p>${sale.customerName}</p>` : '<p>Consumidor Final</p>'}
-                ${sale.customerPhone ? `<p>Tel: ${sale.customerPhone}</p>` : ''}
-                ${sale.sellerName ? `<p style="margin-top:10px"><strong>Vendedor:</strong> ${sale.sellerName}</p>` : ''}
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>SKU</th>
-                  <th>Cant.</th>
-                  <th class="text-right">P. Unit.</th>
-                  <th class="text-right">Desc.</th>
-                  <th class="text-right">Subtotal</th>
+      <div class="ticket">
+        <div class="header">
+          ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:60px;max-width:180px;object-fit:contain;display:block;margin:0 auto 6px;" />` : ''}
+          <div class="store-name">${storeInfo.name}</div>
+          <div>NIT: ${storeInfo.taxId}</div>
+          <div>${storeInfo.address}</div>
+          <div>Tel: ${storeInfo.phone}${storeInfo.email ? ` | ${storeInfo.email}` : ''}</div>
+        </div>
+        <div class="divider"></div>
+        <div class="meta">
+          <div class="meta-row"><span>FACTURA</span><span><b>${sale.invoiceNumber}</b></span></div>
+          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO')}</span></div>
+          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</span></div>
+          <div class="meta-row"><span>Método:</span><span>${paymentLabels[sale.paymentMethod] || sale.paymentMethod}</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="meta">
+          <div><b>Cliente:</b> ${sale.customerName || 'Consumidor Final'}</div>
+          ${sale.customerPhone ? `<div>Tel: ${sale.customerPhone}</div>` : ''}
+          ${sale.sellerName ? `<div>Vendedor: <b>${sale.sellerName}</b></div>` : ''}
+        </div>
+        <div class="divider"></div>
+        <table class="items">
+          <thead><tr><th>Cant x Precio</th><th class="tr">Total</th></tr></thead>
+          <tbody>
+            ${sale.items.map(item => {
+              const unitPrice = item.unitPrice
+              const discAmt = item.discount > 0 ? Math.round(item.discount) : 0
+              const itemSub = Math.max(0, unitPrice * item.quantity - discAmt)
+              const itemIva = sale.tax > 0 ? itemSub * TAX_RATE_POS : 0
+              const itemTotal = itemSub + itemIva
+              return `
+                <tr class="item-name-row">
+                  <td colspan="2"><b>${item.productName}</b>${(item.sku || item.productSku) ? ` <span class="sku">[${item.sku || item.productSku}]</span>` : ''}</td>
                 </tr>
-              </thead>
-              <tbody>
-                ${sale.items.map(item => `
-                  <tr>
-                    <td>${item.productName}</td>
-                    <td>${item.sku || item.productSku || '-'}</td>
-                    <td>${item.quantity}</td>
-                    <td class="text-right">$${item.unitPrice.toLocaleString('es-CO')}</td>
-                    <td class="text-right">${item.discount > 0 ? `$${item.discount.toLocaleString('es-CO')}` : '-'}</td>
-                    <td class="text-right">$${(item.subtotal || item.total || 0).toLocaleString('es-CO')}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            <table class="totals">
-              <tr><td>Subtotal:</td><td class="text-right">$${sale.subtotal.toLocaleString('es-CO')}</td></tr>
-              ${sale.discount > 0 ? `<tr><td>Descuento:</td><td class="text-right">-$${sale.discount.toLocaleString('es-CO')}</td></tr>` : ''}
-              ${sale.tax > 0
-                ? `<tr><td style="color:#b45309;font-weight:600">IVA (19%) — Fact. Electrónica:</td><td class="text-right" style="color:#b45309;font-weight:600">$${sale.tax.toLocaleString('es-CO')}</td></tr>`
-                : `<tr><td style="color:#16a34a">Sin IVA (venta directa):</td><td class="text-right" style="color:#16a34a">$0</td></tr>`
-              }
-              <tr class="total-row"><td>TOTAL:</td><td class="text-right">$${sale.total.toLocaleString('es-CO')}</td></tr>
-            </table>
-            <div class="payment-info">
-              <h3>Información de Pago</h3>
-              <p><strong>Método:</strong> ${paymentLabels[sale.paymentMethod] || sale.paymentMethod}</p>
-              ${sale.paymentMethod === 'mixto' && mixedCash > 0 ? `
-              <p style="margin-left:10px; font-size:12px;"><strong>Efectivo:</strong> $${mixedCash.toLocaleString('es-CO')}</p>
-              <p style="margin-left:10px; font-size:12px;"><strong>${paymentLabels[mixedSecondMethod] || mixedSecondMethod}:</strong> $${mixedSecondAmount.toLocaleString('es-CO')}</p>` : ''}
-              <p><strong>Monto Recibido:</strong> $${sale.amountPaid.toLocaleString('es-CO')}</p>
-              ${sale.change > 0 ? `<p><strong>Cambio:</strong> $${sale.change.toLocaleString('es-CO')}</p>` : ''}
-            </div>
-            <div class="footer">
-              <p><strong>${storeInfo.invoiceGreeting || '¡Gracias por su compra!'}</strong></p>
-              ${(storeInfo.invoicePolicy || '').split('\n').map(line => `<p>${line}</p>`).join('')}
-              <p>${storeInfo.name} - ${storeInfo.phone}</p>
-            </div>
-          </div>`
+                <tr>
+                  <td>${item.quantity} x ${fmtCOP(unitPrice)}${discAmt > 0 ? ` <span class="disc">-${fmtCOP(discAmt)}</span>` : ''}${sale.tax > 0 ? ` +IVA` : ''}</td>
+                  <td class="tr">${fmtCOP(itemTotal)}</td>
+                </tr>`
+            }).join('')}
+          </tbody>
+        </table>
+        <div class="divider"></div>
+        <table class="totals">
+          <tr><td>Subtotal:</td><td class="tr">${fmtCOP(sale.subtotal)}</td></tr>
+          ${sale.discount > 0 ? `<tr><td>Descuento:</td><td class="tr disc">-${fmtCOP(sale.discount)}</td></tr>` : ''}
+          ${sale.tax > 0
+            ? `<tr><td>IVA (19%):</td><td class="tr">${fmtCOP(sale.tax)}</td></tr>`
+            : `<tr><td>IVA:</td><td class="tr">$0</td></tr>`}
+          <tr class="total-row"><td><b>TOTAL:</b></td><td class="tr"><b>${fmtCOP(sale.total)}</b></td></tr>
+        </table>
+        <div class="divider"></div>
+        <table class="totals">
+          ${sale.paymentMethod === 'mixto' && mixedCash > 0 ? `
+            <tr><td>Efectivo:</td><td class="tr">${fmtCOP(mixedCash)}</td></tr>
+            <tr><td>${paymentLabels[mixedSecondMethod] || mixedSecondMethod}:</td><td class="tr">${fmtCOP(mixedSecondAmount)}</td></tr>` : ''}
+          <tr><td>Recibido:</td><td class="tr">${fmtCOP(sale.amountPaid)}</td></tr>
+          ${sale.change > 0 ? `<tr><td>Cambio:</td><td class="tr">${fmtCOP(sale.change)}</td></tr>` : ''}
+        </table>
+        <div class="divider"></div>
+        <div class="footer">
+          <div><b>${storeInfo.invoiceGreeting || '¡Gracias por su compra!'}</b></div>
+          ${(storeInfo.invoicePolicy || '').split('\n').filter(Boolean).map(line => `<div>${line}</div>`).join('')}
+          <div>${storeInfo.name} — ${storeInfo.phone}</div>
+        </div>
+      </div>`
 
     printWindow.document.write(`
       <html>
@@ -446,34 +445,34 @@ export function PointOfSale() {
           <title>Factura ${sale.invoiceNumber}</title>
           <script>window.onload = function() { window.focus(); window.print(); }</script>
           <style>
-            body { font-family: Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto; color: #333; font-size: 14px; }
-            .invoice { margin-bottom: 0; }
-            .page-break { border: none; border-top: 2px dashed #aaa; margin: 30px 0; page-break-after: always; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .header h1 { margin: 0 0 5px 0; font-size: 22px; }
-            .header p { margin: 3px 0; color: #555; font-size: 13px; }
-            .header .nit { font-weight: bold; font-size: 14px; }
-            .invoice-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
-            .invoice-info h3 { margin: 0 0 8px 0; font-size: 13px; color: #666; text-transform: uppercase; }
-            .invoice-info p { margin: 3px 0; font-size: 13px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th { background: #f0f0f0; padding: 10px 8px; text-align: left; border-bottom: 2px solid #ccc; font-size: 12px; text-transform: uppercase; }
-            td { padding: 8px; border-bottom: 1px solid #eee; font-size: 13px; }
-            .text-right { text-align: right; }
-            .totals { width: 300px; margin-left: auto; }
-            .totals tr td { padding: 5px 8px; }
-            .totals .total-row td { font-size: 16px; font-weight: bold; border-top: 2px solid #333; padding-top: 10px; }
-            .payment-info { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-            .payment-info h3 { margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; color: #666; }
-            .payment-info p { margin: 3px 0; font-size: 13px; }
-            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px dashed #ccc; font-size: 12px; color: #777; }
-            .footer p { margin: 4px 0; }
-            @media print { body { padding: 15px; } .page-break { page-break-after: always; } }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 72mm; margin: 0; padding: 2mm; color: #000; }
+            .ticket { width: 100%; }
+            .header { text-align: center; padding-bottom: 4px; }
+            .store-name { font-size: 13px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+            .header div { font-size: 10px; line-height: 1.4; }
+            .divider { border-top: 1px dashed #000; margin: 4px 0; }
+            .meta { font-size: 10px; line-height: 1.5; padding: 2px 0; }
+            .meta-row { display: flex; justify-content: space-between; }
+            table { width: 100%; border-collapse: collapse; }
+            .items thead th { font-size: 10px; border-bottom: 1px solid #000; padding: 2px 0; text-align: left; }
+            .items thead th.tr { text-align: right; }
+            .item-name-row td { font-size: 10px; padding-top: 3px; padding-bottom: 0; }
+            .items td { font-size: 10px; padding: 1px 0; vertical-align: top; }
+            .tr { text-align: right; }
+            .sku { font-size: 9px; color: #444; }
+            .disc { color: #000; }
+            .totals td { font-size: 11px; padding: 1px 0; }
+            .totals .tr { text-align: right; }
+            .total-row td { font-size: 13px; border-top: 1px solid #000; padding-top: 3px; }
+            .footer { text-align: center; font-size: 10px; padding-top: 4px; line-height: 1.5; }
+            .page-break { page-break-after: always; border-top: 1px dashed #000; margin: 6px 0; }
+            @media print { body { width: 72mm; padding: 1mm; } .page-break { page-break-after: always; } }
           </style>
         </head>
         <body>
           ${invoiceHtml}
-          ${copies === 2 ? `<hr class="page-break" />${invoiceHtml}` : ''}
+          ${copies === 2 ? `<div class="page-break"></div>${invoiceHtml}` : ''}
         </body>
       </html>
     `)
