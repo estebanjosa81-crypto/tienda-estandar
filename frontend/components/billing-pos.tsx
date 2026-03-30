@@ -292,7 +292,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       setHighlightedProductIndex((prev) => Math.max(prev - 1, 0))
       return
     }
-    if ((e.key === 'Enter' || e.key === 'ArrowRight') && filteredProducts.length > 0) {
+    if ((e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowRight') && filteredProducts.length > 0) {
       e.preventDefault()
       const selected = filteredProducts[highlightedProductIndex] || filteredProducts[0]
       setPendingProductId(selected.id)
@@ -889,7 +889,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               }}
               onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowRight') {
                   e.preventDefault()
                   if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
                   productPriceRef.current?.focus()
@@ -915,7 +915,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               onChange={(e) => setProductPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
               onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowRight') {
                   e.preventDefault()
                   const id = pendingProductId ?? (filteredProducts.length > 0 ? filteredProducts[0].id : null)
                   if (id) handleAddProductFromSearch(id)
