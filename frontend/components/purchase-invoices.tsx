@@ -238,6 +238,8 @@ export function PurchaseInvoices() {
   const [savingQuickSupplier, setSavingQuickSupplier] = useState(false)
 
   const searchContainerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [dropdownIndex, setDropdownIndex] = useState(-1)
 
   const loadData = useCallback(async (page = 1) => {
     setLoading(true)
@@ -379,9 +381,12 @@ export function PurchaseInvoices() {
         ],
       }))
     }
-    setProductSearch('')
+    // Dejar el artículo/nombre en el buscador para referencia visual
+    setProductSearch((product as any).articulo || product.name)
     setProductSearchResults([])
     setShowProductDropdown(false)
+    setDropdownIndex(-1)
+    setTimeout(() => { searchInputRef.current?.select() }, 0)
   }
 
   const removeItem = (productId: string) => {
@@ -844,11 +849,33 @@ export function PurchaseInvoices() {
                         : <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       }
                       <Input
+                        ref={searchInputRef}
                         className="pl-9"
                         placeholder="Buscar por nombre, SKU o código de barras..."
                         value={productSearch}
-                        onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true) }}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value)
+                          setShowProductDropdown(true)
+                          setDropdownIndex(-1)
+                        }}
                         onFocus={() => { if (productSearch.trim()) setShowProductDropdown(true) }}
+                        onKeyDown={(e) => {
+                          const results = productSearchResults.filter(p => !form.items.some(i => i.productId === p.id))
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setDropdownIndex(i => Math.min(i + 1, results.length - 1))
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setDropdownIndex(i => Math.max(i - 1, 0))
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const target = dropdownIndex >= 0 ? results[dropdownIndex] : results[0]
+                            if (target) addProductToInvoice(target)
+                          } else if (e.key === 'Escape') {
+                            setShowProductDropdown(false)
+                            setDropdownIndex(-1)
+                          }
+                        }}
                       />
                       {productSearch.trim() && (
                         <button
@@ -869,18 +896,22 @@ export function PurchaseInvoices() {
                         ) : productSearchResults.length === 0 ? (
                           <div className="px-3 py-3 text-sm text-muted-foreground">Sin resultados para &quot;{productSearch}&quot;</div>
                         ) : (
-                          productSearchResults.map((p) => {
+                          productSearchResults.map((p, idx) => {
                             const alreadyAdded = form.items.some(i => i.productId === p.id)
+                            const isHighlighted = idx === dropdownIndex
+                            const articulo = (p as any).articulo
                             return (
                               <button
                                 key={p.id}
-                                className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors ${alreadyAdded ? 'opacity-50 cursor-default bg-muted/30' : 'hover:bg-accent'}`}
+                                className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors
+                                  ${alreadyAdded ? 'opacity-50 cursor-default bg-muted/30' : isHighlighted ? 'bg-accent' : 'hover:bg-accent'}`}
                                 onClick={() => { if (!alreadyAdded) addProductToInvoice(p) }}
                                 disabled={alreadyAdded}
                               >
                                 <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate">{p.name}</p>
+                                  {articulo && <p className="font-semibold truncate">{articulo}</p>}
+                                  <p className={`truncate ${articulo ? 'text-xs text-muted-foreground' : 'font-medium'}`}>{p.name}</p>
                                   <p className="text-xs text-muted-foreground">{p.sku}</p>
                                 </div>
                                 <div className="text-right shrink-0 space-y-0.5">
