@@ -337,7 +337,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       const discAmt = itemDiscounts[item.lineId] ?? 0
       const lineTotal = effectivePrice * item.quantity
       // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
-      const finalDiscountPct = lineTotal > 0 ? Math.min(100, Math.round((discAmt / lineTotal) * 100)) : 0
+      // Sin Math.round para preservar precisión: 300/15300*100 = 1.9607... → backend calcula $300 exactos
+      const finalDiscountPct = lineTotal > 0 ? Math.min(100, (discAmt / lineTotal) * 100) : 0
       return {
         productId: item.product.id,
         quantity: item.quantity,
