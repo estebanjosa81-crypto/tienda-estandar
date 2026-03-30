@@ -111,7 +111,6 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const productPriceRef = useRef<HTMLInputElement>(null)
   const cashInputRef = useRef<HTMLInputElement>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
-  const qtyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
   useEffect(() => { fetchSedes() }, [fetchSedes])
@@ -371,9 +370,9 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     setIsProcessing(false)
 
     if (result.success && result.data) {
-      setCompletedSale(result.data)
       toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`)
       handlePrint(result.data)
+      setTimeout(() => handleNewInvoice(), 800)
     } else {
       toast.error(result.error || 'Error al guardar la factura')
     }
@@ -416,94 +415,79 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     const copies = storeInfo.invoiceCopies ?? 1
     const sedeName = sedeId ? sedes.find(s => s.id === sedeId)?.name : null
 
+    // Layout optimizado para impresora térmica 80mm (ancho útil ~72mm)
+    const fmtCOP = (v: number) => `$${Math.round(v).toLocaleString('es-CO')}`
     const invoiceHtml = `
-      <div class="invoice">
+      <div class="ticket">
         <div class="header">
-          ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:70px;max-width:200px;object-fit:contain;margin-bottom:8px;" />` : ''}
-          <h1>${storeInfo.name}</h1>
-          <p class="nit">NIT: ${storeInfo.taxId}</p>
-          <p>${storeInfo.address}</p>
-          <p>Tel: ${storeInfo.phone}${storeInfo.email ? ` | ${storeInfo.email}` : ''}</p>
-          ${sedeName ? `<p><strong>Sede: ${sedeName}</strong></p>` : ''}
+          ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:60px;max-width:180px;object-fit:contain;display:block;margin:0 auto 6px;" />` : ''}
+          <div class="store-name">${storeInfo.name}</div>
+          <div>NIT: ${storeInfo.taxId}</div>
+          <div>${storeInfo.address}</div>
+          <div>Tel: ${storeInfo.phone}</div>
+          ${storeInfo.email ? `<div>${storeInfo.email}</div>` : ''}
+          ${sedeName ? `<div><b>Sede: ${sedeName}</b></div>` : ''}
         </div>
-        <div class="invoice-info">
-          <div>
-            <h3>${docType === 'remision' ? 'Remisión' : docType === 'nota_debito' ? 'Nota Débito' : 'Factura de Venta'}</h3>
-            <p><strong>No: ${sale.invoiceNumber}</strong></p>
-            <p>Fecha: ${new Date(sale.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            <p>Hora: ${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</p>
-            <p>Forma de pago: ${formaPago === 'credito' ? `Crédito (${creditDays} días)` : 'Contado'}</p>
-            <p>Método: ${PM_LABELS[sale.paymentMethod] || sale.paymentMethod}</p>
-          </div>
-          <div>
-            <h3>Cliente</h3>
-            ${sale.customerName ? `<p><strong>${sale.customerName}</strong></p>` : '<p>Consumidor Final</p>'}
-            ${selectedCustomer?.cedula ? `<p>CC/NIT: ${selectedCustomer.cedula}</p>` : ''}
-            ${sale.customerPhone ? `<p>Tel: ${sale.customerPhone}</p>` : ''}
-            ${selectedCustomer?.email ? `<p>${selectedCustomer.email}</p>` : ''}
-            ${selectedCustomer?.address ? `<p>${selectedCustomer.address}</p>` : ''}
-            ${sale.sellerName ? `<p style="margin-top:8px">Vendedor: <strong>${sale.sellerName}</strong></p>` : ''}
-          </div>
+        <div class="divider"></div>
+        <div class="meta">
+          <div class="meta-row"><span>${docType === 'remision' ? 'REMISIÓN' : docType === 'nota_debito' ? 'NOTA DÉBITO' : 'FACTURA'}</span><span><b>${sale.invoiceNumber}</b></span></div>
+          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO')}</span></div>
+          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</span></div>
+          <div class="meta-row"><span>Pago:</span><span>${formaPago === 'credito' ? `Crédito ${creditDays}d` : 'Contado'}</span></div>
+          <div class="meta-row"><span>Método:</span><span>${PM_LABELS[sale.paymentMethod] || sale.paymentMethod}</span></div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>Código</th><th>Descripción</th><th>Cant.</th>
-              <th class="text-right">Dto $</th>
-              <th class="text-right">V.Unit</th>
-              ${applyIva ? '<th class="text-right">IVA</th>' : ''}
-              <th class="text-right">Subtotal</th>
-              <th class="text-right">Total</th>
-            </tr>
-          </thead>
+        <div class="divider"></div>
+        <div class="meta">
+          <div><b>Cliente:</b> ${sale.customerName || 'Consumidor Final'}</div>
+          ${selectedCustomer?.cedula ? `<div>CC/NIT: ${selectedCustomer.cedula}</div>` : ''}
+          ${sale.customerPhone ? `<div>Tel: ${sale.customerPhone}</div>` : ''}
+          ${sale.sellerName ? `<div>Vendedor: <b>${sale.sellerName}</b></div>` : ''}
+        </div>
+        <div class="divider"></div>
+        <table class="items">
+          <thead><tr><th>Cant x Precio</th><th class="tr">Total</th></tr></thead>
           <tbody>
-            ${sale.items.map((item, idx) => {
+            ${sale.items.map(item => {
               const unitPrice = item.unitPrice
-              // discount is stored as % in backend — convert back to $ for display
               const discAmt = Math.round((item.discount / 100) * unitPrice * item.quantity)
               const itemSub = Math.max(0, unitPrice * item.quantity - discAmt)
               const itemIva = applyIva ? itemSub * TAX_RATE : 0
               const itemTotal = itemSub + itemIva
-              // match note by productId (best effort for print)
               const noteText = Object.entries(itemNotes).find(([k]) => k.startsWith(item.productId))?.[1]
               return `
+                <tr class="item-name-row">
+                  <td colspan="2"><b>${item.productName}</b>${item.sku || item.productSku ? ` <span class="sku">[${item.sku || item.productSku}]</span>` : ''}${noteText ? `<br><span class="note">${noteText}</span>` : ''}</td>
+                </tr>
                 <tr>
-                  <td>${idx + 1}</td>
-                  <td>${item.sku || item.productSku || '-'}</td>
-                  <td>${item.productName}${noteText ? `<br><small style="color:#888">${noteText}</small>` : ''}</td>
-                  <td>${item.quantity}</td>
-                  <td class="text-right">${discAmt > 0 ? `$${Math.round(discAmt).toLocaleString('es-CO')}` : '-'}</td>
-                  <td class="text-right">$${Math.round(unitPrice).toLocaleString('es-CO')}</td>
-                  ${applyIva ? `<td class="text-right">$${Math.round(itemIva).toLocaleString('es-CO')}</td>` : ''}
-                  <td class="text-right">$${Math.round(itemSub).toLocaleString('es-CO')}</td>
-                  <td class="text-right">$${Math.round(itemTotal).toLocaleString('es-CO')}</td>
+                  <td>${item.quantity} x ${fmtCOP(unitPrice)}${discAmt > 0 ? ` <span class="disc">-${fmtCOP(discAmt)}</span>` : ''}${applyIva ? ` +IVA` : ''}</td>
+                  <td class="tr">${fmtCOP(itemTotal)}</td>
                 </tr>`
             }).join('')}
           </tbody>
         </table>
+        <div class="divider"></div>
         <table class="totals">
-          <tr><td>Subtotal bruto:</td><td class="text-right">$${Math.round(subtotalBeforeGlobal).toLocaleString('es-CO')}</td></tr>
-          ${globalDiscAmt > 0 ? `<tr><td>Descuento (${globalDiscountPct}%):</td><td class="text-right" style="color:#dc2626">-$${Math.round(globalDiscAmt).toLocaleString('es-CO')}</td></tr>` : ''}
-          ${sale.discount > 0 ? `<tr><td>Dto. items:</td><td class="text-right" style="color:#dc2626">-$${Math.round(sale.discount).toLocaleString('es-CO')}</td></tr>` : ''}
-          ${applyIva
-            ? `<tr><td style="color:#b45309;font-weight:600">IVA (19%):</td><td class="text-right" style="color:#b45309;font-weight:600">$${Math.round(sale.tax).toLocaleString('es-CO')}</td></tr>`
-            : `<tr><td style="color:#16a34a">Exento de IVA:</td><td class="text-right" style="color:#16a34a">$0</td></tr>`}
-          <tr class="total-row"><td>TOTAL:</td><td class="text-right">$${Math.round(sale.total).toLocaleString('es-CO')}</td></tr>
+          <tr><td>Subtotal:</td><td class="tr">${fmtCOP(subtotalBeforeGlobal)}</td></tr>
+          ${globalDiscAmt > 0 ? `<tr><td>Descuento (${globalDiscountPct}%):</td><td class="tr disc">-${fmtCOP(globalDiscAmt)}</td></tr>` : ''}
+          ${sale.discount > 0 ? `<tr><td>Dto. items:</td><td class="tr disc">-${fmtCOP(sale.discount)}</td></tr>` : ''}
+          ${applyIva ? `<tr><td>IVA (19%):</td><td class="tr">${fmtCOP(sale.tax)}</td></tr>` : `<tr><td>IVA:</td><td class="tr">$0</td></tr>`}
+          <tr class="total-row"><td><b>TOTAL:</b></td><td class="tr"><b>${fmtCOP(sale.total)}</b></td></tr>
         </table>
-        <div class="payment-info">
-          <h3>Pago</h3>
+        <div class="divider"></div>
+        <table class="totals">
           ${paymentMethod === 'mixto'
-            ? `<p>${PM_LABELS[mixtoMethod1]}: $${Math.round(parseFloat(mixtoAmount1) || 0).toLocaleString('es-CO')}</p>
-               <p>${PM_LABELS[mixtoMethod2]}: $${Math.round(parseFloat(mixtoAmount2) || 0).toLocaleString('es-CO')}</p>`
-            : `<p><strong>Método:</strong> ${PM_LABELS[sale.paymentMethod] || sale.paymentMethod}</p>`}
-          ${sale.amountPaid > 0 ? `<p><strong>Recibido:</strong> $${Math.round(sale.amountPaid).toLocaleString('es-CO')}</p>` : ''}
-          ${sale.change > 0 ? `<p><strong>Cambio:</strong> $${Math.round(sale.change).toLocaleString('es-CO')}</p>` : ''}
-          ${formaPago === 'credito' ? `<p style="color:#dc2626;font-weight:bold">CRÉDITO — Vence en ${creditDays} días</p>` : ''}
-        </div>
+            ? `<tr><td>${PM_LABELS[mixtoMethod1]}:</td><td class="tr">${fmtCOP(parseFloat(mixtoAmount1) || 0)}</td></tr>
+               <tr><td>${PM_LABELS[mixtoMethod2]}:</td><td class="tr">${fmtCOP(parseFloat(mixtoAmount2) || 0)}</td></tr>`
+            : ''}
+          ${sale.amountPaid > 0 ? `<tr><td>Recibido:</td><td class="tr">${fmtCOP(sale.amountPaid)}</td></tr>` : ''}
+          ${sale.change > 0 ? `<tr><td>Cambio:</td><td class="tr">${fmtCOP(sale.change)}</td></tr>` : ''}
+          ${formaPago === 'credito' ? `<tr><td colspan="2" style="color:#000;font-weight:bold;text-align:center">*** CRÉDITO — Vence en ${creditDays} días ***</td></tr>` : ''}
+        </table>
+        <div class="divider"></div>
         <div class="footer">
-          <p><strong>${storeInfo.invoiceGreeting || '¡Gracias por su compra!'}</strong></p>
-          ${(storeInfo.invoicePolicy || '').split('\n').filter(Boolean).map(line => `<p>${line}</p>`).join('')}
-          <p>${storeInfo.name} — ${storeInfo.phone}</p>
+          <div><b>${storeInfo.invoiceGreeting || '¡Gracias por su compra!'}</b></div>
+          ${(storeInfo.invoicePolicy || '').split('\n').filter(Boolean).map(line => `<div>${line}</div>`).join('')}
+          <div>${storeInfo.name} — ${storeInfo.phone}</div>
         </div>
       </div>`
 
@@ -511,29 +495,35 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       <title>Factura ${sale.invoiceNumber}</title>
       <script>window.onload = function() { window.focus(); window.print(); }</script>
       <style>
-        body{font-family:Arial,sans-serif;padding:28px;max-width:820px;margin:0 auto;color:#222;font-size:13px}
-        .page-break{border:none;border-top:2px dashed #aaa;margin:28px 0;page-break-after:always}
-        .header{text-align:center;border-bottom:2px solid #333;padding-bottom:14px;margin-bottom:18px}
-        .header h1{margin:0 0 4px 0;font-size:20px}.header p{margin:2px 0;color:#555;font-size:12px}.header .nit{font-weight:bold;font-size:13px}
-        .invoice-info{display:flex;justify-content:space-between;margin-bottom:18px;gap:20px}
-        .invoice-info>div{flex:1}.invoice-info h3{margin:0 0 6px 0;font-size:11px;color:#666;text-transform:uppercase;border-bottom:1px solid #eee;padding-bottom:3px}
-        .invoice-info p{margin:2px 0;font-size:12px}
-        table{width:100%;border-collapse:collapse;margin-bottom:16px}
-        th{background:#f4f4f4;padding:7px 5px;text-align:left;border-bottom:2px solid #ccc;font-size:10px;text-transform:uppercase}
-        td{padding:5px;border-bottom:1px solid #eee;font-size:11px}
-        .text-right{text-align:right}
-        .totals{width:300px;margin-left:auto}
-        .totals tr td{padding:3px 8px}
-        .totals .total-row td{font-size:15px;font-weight:bold;border-top:2px solid #333;padding-top:8px}
-        .payment-info{background:#f8f8f8;padding:10px 14px;border-radius:5px;margin-bottom:16px}
-        .payment-info h3{margin:0 0 5px 0;font-size:10px;text-transform:uppercase;color:#666}
-        .payment-info p{margin:2px 0;font-size:12px}
-        .footer{text-align:center;margin-top:16px;padding-top:10px;border-top:1px dashed #ccc;font-size:11px;color:#777}
-        .footer p{margin:2px 0}
-        @media print{body{padding:10px}.page-break{page-break-after:always}}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 72mm; margin: 0; padding: 2mm; color: #000; }
+        .ticket { width: 100%; }
+        .header { text-align: center; padding-bottom: 4px; }
+        .store-name { font-size: 13px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+        .header div { font-size: 10px; line-height: 1.4; }
+        .divider { border-top: 1px dashed #000; margin: 4px 0; }
+        .meta { font-size: 10px; line-height: 1.5; padding: 2px 0; }
+        .meta-row { display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; }
+        .items thead th { font-size: 10px; border-bottom: 1px solid #000; padding: 2px 0; text-align: left; }
+        .items thead th.tr { text-align: right; }
+        .item-name-row td { font-size: 10px; padding-top: 3px; padding-bottom: 0; }
+        .items td { font-size: 10px; padding: 1px 0; vertical-align: top; }
+        .tr { text-align: right; }
+        .sku { font-size: 9px; color: #444; }
+        .note { font-size: 9px; color: #444; font-style: italic; }
+        .disc { color: #000; }
+        .totals td { font-size: 11px; padding: 1px 0; }
+        .totals .tr { text-align: right; }
+        .total-row td { font-size: 13px; border-top: 1px solid #000; padding-top: 3px; }
+        .footer { text-align: center; font-size: 10px; padding-top: 4px; line-height: 1.5; }
+        @media print {
+          body { width: 72mm; padding: 1mm; }
+          .page-break { page-break-after: always; border-top: 1px dashed #000; margin: 6px 0; }
+        }
       </style></head><body>
       ${invoiceHtml}
-      ${copies === 2 ? `<hr class="page-break" />${invoiceHtml}` : ''}
+      ${copies === 2 ? `<div class="page-break"></div>${invoiceHtml}` : ''}
     </body></html>`)
     printWindow.document.close()
   }
@@ -888,21 +878,14 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               value={productQty}
               onChange={(e) => {
                 setProductQty(Math.max(1, parseInt(e.target.value) || 1))
-                if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
-                qtyDebounceRef.current = setTimeout(() => {
-                  productPriceRef.current?.focus()
-                  productPriceRef.current?.select()
-                }, 600)
               }}
               onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowRight') {
                   e.preventDefault()
-                  if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
                   productPriceRef.current?.focus()
                   productPriceRef.current?.select()
                 } else if (e.key === 'Escape') {
-                  if (qtyDebounceRef.current) clearTimeout(qtyDebounceRef.current)
                   setPendingProductId(null)
                   setProductSearch('')
                   setProductQty(1)
