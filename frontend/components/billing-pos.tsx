@@ -503,6 +503,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     printWindow.document.write(`<html><head>
       <title>Factura ${sale.invoiceNumber}</title>
+      <script>window.onload = function() { window.focus(); window.print(); }</script>
       <style>
         body{font-family:Arial,sans-serif;padding:28px;max-width:820px;margin:0 auto;color:#222;font-size:13px}
         .page-break{border:none;border-top:2px dashed #aaa;margin:28px 0;page-break-after:always}
@@ -529,7 +530,6 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       ${copies === 2 ? `<hr class="page-break" />${invoiceHtml}` : ''}
     </body></html>`)
     printWindow.document.close()
-    setTimeout(() => printWindow.print(), 300)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
