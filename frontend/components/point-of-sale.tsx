@@ -190,9 +190,8 @@ export function PointOfSale() {
   // Hidden category IDs
   const hiddenCategoryIds = new Set(categories.filter(c => c.isHidden).map(c => c.id))
 
-  // Filter products available for sale (exclude raw materials/insumos and hidden categories)
+  // Filter products available for sale (show all inventory products including insumos)
   const availableProducts = products.filter(p => {
-    if (p.category === 'insumos') return false
     if (hiddenCategoryIds.has(p.category)) return false
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -201,9 +200,7 @@ export function PointOfSale() {
       (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !selectedCategory || p.category === selectedCategory
     const matchesSede = !selectedSede || p.sedeId === selectedSede
-    // Composite products (BOM/formulas) always show even with stock=0 so the seller can see them
-    if (p.isComposite) return matchesSearch && matchesCategory && matchesSede
-    return matchesSearch && matchesCategory && matchesSede && p.stock > 0
+    return matchesSearch && matchesCategory && matchesSede
   })
 
   const posTotalPages = Math.ceil(availableProducts.length / POS_PAGE_SIZE)
@@ -678,7 +675,7 @@ export function PointOfSale() {
                   Todas
                 </Button>
                 {sedes.map((sede) => {
-                  const count = products.filter(p => p.sedeId === sede.id && p.category !== 'insumos' && p.stock > 0).length
+                  const count = products.filter(p => p.sedeId === sede.id && !hiddenCategoryIds.has(p.category)).length
                   return (
                     <Button
                       key={sede.id}
@@ -712,8 +709,8 @@ export function PointOfSale() {
                 <Package className="h-3 w-3 lg:h-4 lg:w-4 mr-1.5" />
                 Todas
               </Button>
-              {categories.filter(cat => cat.id !== 'insumos').map((cat) => {
-                const count = products.filter(p => p.category === cat.id && p.category !== 'insumos' && p.stock > 0).length
+              {categories.filter(cat => !cat.isHidden).map((cat) => {
+                const count = products.filter(p => p.category === cat.id).length
                 if (count === 0) return null
                 return (
                   <Button

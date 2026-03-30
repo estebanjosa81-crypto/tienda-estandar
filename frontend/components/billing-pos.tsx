@@ -155,7 +155,6 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   }
 
   const filteredProducts = products.filter(p => {
-    if (p.category === 'insumos') return false
     if (hiddenCategoryIds.has(p.category)) return false
     if (!normalizedProductSearch) return false
     const q = normalizedProductSearch
