@@ -467,7 +467,8 @@ export function PointOfSale() {
             .total-row td { font-size: 13px; border-top: 1px solid #000; padding-top: 3px; }
             .footer { text-align: center; font-size: 10px; padding-top: 4px; line-height: 1.5; }
             .page-break { page-break-after: always; border-top: 1px dashed #000; margin: 6px 0; }
-            @media print { body { width: 72mm; padding: 1mm; } .page-break { page-break-after: always; } }
+            @page { size: 80mm auto; margin: 2mm; }
+            @media print { body { width: 72mm; padding: 0; } .page-break { page-break-after: always; } }
           </style>
         </head>
         <body>
