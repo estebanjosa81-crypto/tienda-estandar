@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useStore } from '@/lib/store'
 import { api } from '@/lib/api'
 import type { Sale } from '@/lib/types'
-import { formatCOP } from '@/lib/utils'
+import { formatCOP, formatDate, formatTime, formatDateLong } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -167,8 +167,8 @@ export function Invoicing() {
             <div>
               <h3>Factura de Venta</h3>
               <p><strong>No: ${sale.invoiceNumber}</strong></p>
-              <p>Fecha: ${new Date(sale.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-              <p>Hora: ${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</p>
+              <p>Fecha: ${formatDateLong(sale.createdAt)}</p>
+              <p>Hora: ${formatTime(sale.createdAt)}</p>
             </div>
             <div>
               <h3>Cliente</h3>
@@ -403,7 +403,7 @@ export function Invoicing() {
                         {sale.invoiceNumber}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(sale.createdAt).toLocaleDateString('es-CO')}
+                        {formatDate(sale.createdAt)}
                       </TableCell>
                       <TableCell className="text-foreground">
                         {sale.sellerName || sale.seller || ''}
@@ -472,10 +472,10 @@ export function Invoicing() {
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Factura de Venta</h3>
                   <p className="text-sm font-bold text-foreground">{selectedSale.invoiceNumber}</p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(selectedSale.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    {formatDateLong(selectedSale.createdAt)}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(selectedSale.createdAt).toLocaleTimeString('es-CO')}
+                    {formatTime(selectedSale.createdAt)}
                   </p>
                   <div className="mt-2">
                     {getStatusBadge(selectedSale.status)}
