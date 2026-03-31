@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
-import { formatCOP } from '@/lib/utils'
+import { formatCOP, formatDate } from '@/lib/utils'
 import type { CreditDetail, CreditPayment, PaymentMethod } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -416,11 +416,11 @@ export function Credits() {
                           </div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-muted-foreground">
-                          {new Date(credit.createdAt).toLocaleDateString('es-CO')}
+                          {formatDate(credit.createdAt)}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <div className="text-xs text-muted-foreground">
-                            {credit.dueDateParsed.toLocaleDateString('es-CO')}
+                            {formatDate(credit.dueDateParsed)}
                           </div>
                           {credit.creditStatus !== 'pagado' && (
                             isOverdue ? (
@@ -489,11 +489,7 @@ export function Credits() {
                 <div className="flex items-center gap-2 ml-6">
                   <Calendar className="h-3 w-3 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    {new Date(selectedCredit.sale.createdAt).toLocaleDateString('es-CO', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                    {formatDate(selectedCredit.sale.createdAt)}
                   </span>
                 </div>
               </div>
@@ -525,7 +521,7 @@ export function Credits() {
                           {payment.paymentMethod === 'efectivo' && <Banknote className="h-3 w-3" />}
                           {payment.paymentMethod === 'tarjeta' && <CreditCard className="h-3 w-3" />}
                           {payment.paymentMethod === 'transferencia' && <Building className="h-3 w-3" />}
-                          <span>{new Date(payment.createdAt).toLocaleDateString('es-CO')}</span>
+                          <span>{formatDate(payment.createdAt)}</span>
                         </div>
                         <div className="text-right">
                           <span className="font-medium text-green-600">{formatCOP(payment.amount)}</span>

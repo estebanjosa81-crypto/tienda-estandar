@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import type { Sale } from '@/lib/types'
-import { formatCOP } from '@/lib/utils'
+import { formatCOP, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -143,8 +143,8 @@ export function SalesHistory() {
               <div class="invoice-info-section">
                 <h3>Factura</h3>
                 <p><strong>${sale.invoiceNumber}</strong></p>
-                <p>Fecha: ${new Date(sale.createdAt).toLocaleDateString('es-CO')}</p>
-                <p>Hora: ${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</p>
+                <p>Fecha: ${formatDate(sale.createdAt)}</p>
+                <p>Hora: ${formatTime(sale.createdAt)}</p>
               </div>
               <div class="invoice-info-section">
                 <h3>Vendedor</h3>
@@ -368,17 +368,17 @@ export function SalesHistory() {
                       <div>
                         <span className="font-medium text-xs sm:text-sm text-foreground">{sale.invoiceNumber}</span>
                         <p className="text-[10px] text-muted-foreground sm:hidden">
-                          {new Date(sale.createdAt).toLocaleDateString('es-CO')}
+                          {formatDate(sale.createdAt)}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <div>
                         <p className="text-sm text-foreground">
-                          {new Date(sale.createdAt).toLocaleDateString('es-CO')}
+                          {formatDate(sale.createdAt)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(sale.createdAt).toLocaleTimeString('es-CO')}
+                          {formatTime(sale.createdAt)}
                         </p>
                       </div>
                     </TableCell>
@@ -469,7 +469,7 @@ export function SalesHistory() {
                 <div>
                   <Label className="text-muted-foreground">Fecha</Label>
                   <p className="font-semibold text-foreground">
-                    {new Date(selectedSale.createdAt).toLocaleString('es-CO')}
+                    {formatDateTime(selectedSale.createdAt)}
                   </p>
                 </div>
                 <div>

@@ -135,7 +135,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   })()
   const change = Math.max(0, paidAmount - total)
 
-  const todayStr = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const todayStr = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric' })
 
   // ── Filtered products ───────────────────────────────────────────────────────
   const normalizedProductSearch = productSearch.trim().toLowerCase()
@@ -431,8 +431,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
         <div class="divider"></div>
         <div class="meta">
           <div class="meta-row"><span>${docType === 'remision' ? 'REMISIÓN' : docType === 'nota_debito' ? 'NOTA DÉBITO' : 'FACTURA'}</span><span><b>${sale.invoiceNumber}</b></span></div>
-          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO')}</span></div>
-          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</span></div>
+          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}</span></div>
+          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' })}</span></div>
           <div class="meta-row"><span>Pago:</span><span>${formaPago === 'credito' ? `Crédito ${creditDays}d` : 'Contado'}</span></div>
           <div class="meta-row"><span>Método:</span><span>${PM_LABELS[sale.paymentMethod] || sale.paymentMethod}</span></div>
         </div>
