@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useStore, calculateCartTotals } from '@/lib/store'
 import { api } from '@/lib/api'
 import { TAX_RATE, type PaymentMethod, type Customer, type CustomerFull } from '@/lib/types'
-import { formatCOP } from '@/lib/utils'
+import { formatCOP, formatDate, formatTime, formatDateLong } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -383,8 +383,8 @@ export function PointOfSale() {
         <div class="divider"></div>
         <div class="meta">
           <div class="meta-row"><span>FACTURA</span><span><b>${sale.invoiceNumber}</b></span></div>
-          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO')}</span></div>
-          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO')}</span></div>
+          <div class="meta-row"><span>Fecha:</span><span>${new Date(sale.createdAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}</span></div>
+          <div class="meta-row"><span>Hora:</span><span>${new Date(sale.createdAt).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' })}</span></div>
           <div class="meta-row"><span>Método:</span><span>${paymentLabels[sale.paymentMethod] || sale.paymentMethod}</span></div>
         </div>
         <div class="divider"></div>
@@ -1733,10 +1733,10 @@ export function PointOfSale() {
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Factura de Venta</h3>
                   <p className="text-sm font-bold text-foreground">{completedSale.invoiceNumber}</p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(completedSale.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    {formatDateLong(completedSale.createdAt)}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(completedSale.createdAt).toLocaleTimeString('es-CO')}
+                    {formatTime(completedSale.createdAt)}
                   </p>
                 </div>
                 <div>
