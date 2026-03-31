@@ -602,6 +602,17 @@ class ApiService {
     return this.request<any>(`/customers/${id}/balance`)
   }
 
+  async bulkCreateCustomers(customers: Record<string, any>[]) {
+    return this.request<{
+      totalCreated: number
+      totalFailed: number
+      errors: Array<{ row: number; cedula: string; error: string }>
+    }>('/customers/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ customers }),
+    })
+  }
+
   // Credits endpoints
   async getPendingCredits(params?: { page?: number; limit?: number; customerId?: string; status?: string }) {
     const searchParams = new URLSearchParams()

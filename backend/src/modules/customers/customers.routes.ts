@@ -36,6 +36,16 @@ router.get(
   customersController.getBalance.bind(customersController)
 );
 
+// POST /api/customers/bulk - Importación masiva
+router.post(
+  '/bulk',
+  [
+    body('customers').isArray({ min: 1, max: 500 }).withMessage('Se requiere un array de 1 a 500 clientes'),
+    validateRequest,
+  ],
+  customersController.bulkCreate.bind(customersController)
+);
+
 // POST /api/customers - Crear cliente
 router.post(
   '/',

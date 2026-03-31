@@ -49,7 +49,9 @@ import {
   CreditCard,
   FileText,
   IdCard,
+  Upload,
 } from 'lucide-react'
+import { BulkUploadCustomersDialog } from './bulk-upload-customers-dialog'
 
 interface CustomerFormData {
   cedula: string
@@ -76,6 +78,7 @@ export function Customers() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isImportOpen, setIsImportOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<CustomerFull | null>(null)
   const [customerToDelete, setCustomerToDelete] = useState<CustomerFull | null>(null)
@@ -173,11 +176,23 @@ export function Customers() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground">Gestión de clientes y saldos</p>
         </div>
-        <Button onClick={handleOpenNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importar CSV
+          </Button>
+          <Button onClick={handleOpenNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        </div>
       </div>
+
+      <BulkUploadCustomersDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onImported={fetchCustomers}
+      />
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
