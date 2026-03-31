@@ -12,6 +12,7 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  timezone: '-05:00',
 });
 
 export const testConnection = async (): Promise<boolean> => {
