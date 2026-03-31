@@ -101,6 +101,25 @@ export class CustomersController {
     }
   }
 
+  async bulkCreate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const { customers } = req.body;
+      if (!Array.isArray(customers) || customers.length === 0) {
+        res.status(400).json({ success: false, error: 'Se requiere un array de clientes' });
+        return;
+      }
+      if (customers.length > 500) {
+        res.status(400).json({ success: false, error: 'Máximo 500 clientes por importación' });
+        return;
+      }
+      const result = await customersService.bulkCreate(tenantId, customers);
+      res.status(result.totalFailed > 0 ? 207 : 201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getBalance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const balance = await customersService.getBalance(req.params.id);

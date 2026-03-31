@@ -433,6 +433,47 @@ export class CustomersService {
       balance: customer.balance,
     };
   }
+
+  async bulkCreate(
+    tenantId: string,
+    customers: Array<{
+      cedula: string;
+      name: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      creditLimit?: number;
+      notes?: string;
+    }>
+  ): Promise<{ totalCreated: number; totalFailed: number; errors: Array<{ row: number; cedula: string; error: string }> }> {
+    let totalCreated = 0;
+    let totalFailed = 0;
+    const errors: Array<{ row: number; cedula: string; error: string }> = [];
+
+    for (let i = 0; i < customers.length; i++) {
+      const c = customers[i];
+      try {
+        const [existing] = await db.execute<CustomerRow[]>(
+          'SELECT id FROM customers WHERE cedula = ? AND tenant_id = ?',
+          [c.cedula, tenantId]
+        );
+        if (existing.length > 0) {
+          throw new Error(`Cédula "${c.cedula}" ya existe`);
+        }
+        const id = uuidv4();
+        await db.execute<ResultSetHeader>(
+          'INSERT INTO customers (id, tenant_id, cedula, name, phone, email, address, credit_limit, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, tenantId, c.cedula, c.name, c.phone || null, c.email || null, c.address || null, c.creditLimit || 0, c.notes || null]
+        );
+        totalCreated++;
+      } catch (err: any) {
+        totalFailed++;
+        errors.push({ row: i + 2, cedula: c.cedula || '', error: err.message || 'Error desconocido' });
+      }
+    }
+
+    return { totalCreated, totalFailed, errors };
+  }
 }
 
 export const customersService = new CustomersService();
