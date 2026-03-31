@@ -604,7 +604,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               </label>
               <div className="flex flex-wrap gap-1">
                 <button
-                  onClick={() => setSedeId(null)}
+                  onClick={() => { setSedeId(null); setTimeout(() => productSearchRef.current?.focus(), 0) }}
                   className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${!sedeId ? 'bg-[#2d9e8c] text-white border-[#2d9e8c]' : 'border-border text-muted-foreground hover:border-[#2d9e8c]'}`}
                 >
                   Todas
@@ -612,7 +612,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                 {sedes.map(s => (
                   <button
                     key={s.id}
-                    onClick={() => setSedeId(s.id)}
+                    onClick={() => { setSedeId(s.id); setTimeout(() => productSearchRef.current?.focus(), 0) }}
                     className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${sedeId === s.id ? 'bg-[#2d9e8c] text-white border-[#2d9e8c]' : 'border-border text-muted-foreground hover:border-[#2d9e8c]'}`}
                   >
                     {s.name}
