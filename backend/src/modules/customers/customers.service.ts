@@ -444,6 +444,8 @@ export class CustomersService {
       address?: string;
       creditLimit?: number;
       notes?: string;
+      deudaTotal?: number;
+      abonosTotal?: number;
     }>
   ): Promise<{ totalCreated: number; totalFailed: number; errors: Array<{ row: number; cedula: string; error: string }> }> {
     let totalCreated = 0;
@@ -452,23 +454,73 @@ export class CustomersService {
 
     for (let i = 0; i < customers.length; i++) {
       const c = customers[i];
+      const connection = await db.getConnection();
       try {
-        const [existing] = await db.execute<CustomerRow[]>(
+        await connection.beginTransaction();
+
+        const [existing] = await connection.execute<CustomerRow[]>(
           'SELECT id FROM customers WHERE cedula = ? AND tenant_id = ?',
           [c.cedula, tenantId]
         );
         if (existing.length > 0) {
           throw new Error(`Cédula "${c.cedula}" ya existe`);
         }
-        const id = uuidv4();
-        await db.execute<ResultSetHeader>(
+
+        const customerId = uuidv4();
+        await connection.execute<ResultSetHeader>(
           'INSERT INTO customers (id, tenant_id, cedula, name, phone, email, address, credit_limit, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [id, tenantId, c.cedula, c.name, c.phone || null, c.email || null, c.address || null, c.creditLimit || 0, c.notes || null]
+          [customerId, tenantId, c.cedula, c.name, c.phone || null, c.email || null, c.address || null, c.creditLimit || 0, c.notes || null]
         );
+
+        // Si tiene deuda previa, crear venta de migración tipo fiado
+        if (c.deudaTotal && c.deudaTotal > 0) {
+          // Obtener siguiente número de factura
+          await connection.execute(
+            'INSERT IGNORE INTO invoice_sequence (tenant_id, prefix, current_number) VALUES (?, ?, 0)',
+            [tenantId, 'FAC']
+          );
+          const [seqRows] = await connection.execute<RowDataPacket[]>(
+            'SELECT current_number, prefix FROM invoice_sequence WHERE tenant_id = ? FOR UPDATE',
+            [tenantId]
+          );
+          const seqRow = (seqRows as any[])[0];
+          const nextNum = seqRow.current_number + 1;
+          const invoiceNumber = `${seqRow.prefix}-${String(nextNum).padStart(6, '0')}`;
+          await connection.execute(
+            'UPDATE invoice_sequence SET current_number = ? WHERE tenant_id = ?',
+            [nextNum, tenantId]
+          );
+
+          const saleId = uuidv4();
+          const creditStatus = (c.abonosTotal && c.abonosTotal >= c.deudaTotal) ? 'pagado' : (c.abonosTotal && c.abonosTotal > 0 ? 'parcial' : 'pendiente');
+          await connection.execute(
+            `INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, customer_phone,
+              subtotal, tax, discount, total, payment_method, amount_paid, change_amount,
+              seller_id, seller_name, credit_status, notes, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'fiado', 0, 0, '', 'Migración', ?, 'Saldo migrado desde sistema anterior', 'completada')`,
+            [saleId, tenantId, invoiceNumber, customerId, c.name, c.phone || null,
+              c.deudaTotal, c.deudaTotal, creditStatus]
+          );
+
+          // Si tiene abonos previos, registrarlos como un pago
+          if (c.abonosTotal && c.abonosTotal > 0) {
+            const paymentId = uuidv4();
+            await connection.execute(
+              `INSERT INTO credit_payments (id, tenant_id, sale_id, customer_id, amount, payment_method, notes, received_by)
+               VALUES (?, ?, ?, ?, ?, 'efectivo', 'Abono migrado desde sistema anterior', 'Migración')`,
+              [paymentId, tenantId, saleId, customerId, c.abonosTotal]
+            );
+          }
+        }
+
+        await connection.commit();
         totalCreated++;
       } catch (err: any) {
+        await connection.rollback();
         totalFailed++;
         errors.push({ row: i + 2, cedula: c.cedula || '', error: err.message || 'Error desconocido' });
+      } finally {
+        connection.release();
       }
     }
 

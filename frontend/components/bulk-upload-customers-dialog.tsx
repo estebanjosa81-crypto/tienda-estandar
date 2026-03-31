@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-const CSV_TEMPLATE_HEADERS = ['cedula', 'name', 'phone', 'email', 'address', 'creditLimit', 'notes']
+const CSV_TEMPLATE_HEADERS = ['cedula', 'name', 'phone', 'email', 'address', 'creditLimit', 'deudaTotal', 'abonosTotal', 'notes']
 
 interface RowValidation {
   rowIndex: number
@@ -82,6 +82,21 @@ function validateRow(rawRow: Record<string, string>, rowIndex: number, seenCedul
     else data.creditLimit = cl
   }
 
+  // Optional: deudaTotal
+  if (rawRow.deudaTotal?.trim()) {
+    const dt = parseFloat(rawRow.deudaTotal)
+    if (isNaN(dt) || dt < 0) errors.push('Deuda total inválida')
+    else data.deudaTotal = dt
+  }
+
+  // Optional: abonosTotal
+  if (rawRow.abonosTotal?.trim()) {
+    const at = parseFloat(rawRow.abonosTotal)
+    if (isNaN(at) || at < 0) errors.push('Abonos total inválido')
+    else data.abonosTotal = at
+    if (data.abonosTotal > (data.deudaTotal ?? 0)) errors.push('Los abonos no pueden superar la deuda total')
+  }
+
   // Optional: notes
   if (rawRow.notes?.trim()) data.notes = rawRow.notes.trim()
 
@@ -91,7 +106,7 @@ function validateRow(rawRow: Record<string, string>, rowIndex: number, seenCedul
 function downloadTemplate() {
   const SEP = ';'
   const headerRow = CSV_TEMPLATE_HEADERS.join(SEP)
-  const exampleRow = ['123456789', 'María García', '3001234567', 'maria@email.com', 'Calle 10 #5-20', '500000', 'Cliente frecuente'].join(SEP)
+  const exampleRow = ['123456789', 'María García', '3001234567', 'maria@email.com', 'Calle 10 #5-20', '500000', '150000', '50000', 'Cliente frecuente'].join(SEP)
   const bom = '\uFEFF'
   const csv = `${bom}sep=${SEP}\n${headerRow}\n${exampleRow}\n`
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -260,6 +275,8 @@ export function BulkUploadCustomersDialog({ open, onOpenChange, onImported }: Pr
               <p>cedula, name</p>
               <p className="font-medium text-foreground mt-2">Campos opcionales:</p>
               <p>phone, email, address, creditLimit, notes</p>
+              <p className="font-medium text-foreground mt-2">Para migrar saldos del sistema anterior:</p>
+              <p><strong>deudaTotal</strong> — total que debe el cliente. <strong>abonosTotal</strong> — lo que ya ha pagado de esa deuda.</p>
               <p className="mt-2">El separador del CSV es punto y coma (;). La cédula debe ser única por cliente.</p>
             </div>
           </div>
@@ -282,8 +299,8 @@ export function BulkUploadCustomersDialog({ open, onOpenChange, onImported }: Pr
                     <TableHead>Cédula</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Teléfono</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="text-right">Límite crédito</TableHead>
+                    <TableHead className="text-right">Deuda total</TableHead>
+                    <TableHead className="text-right">Abonado</TableHead>
                     <TableHead>Errores</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -297,8 +314,8 @@ export function BulkUploadCustomersDialog({ open, onOpenChange, onImported }: Pr
                       <TableCell className="text-sm font-mono">{row.data.cedula || '-'}</TableCell>
                       <TableCell className="font-medium text-sm max-w-[140px] truncate">{row.data.name || '-'}</TableCell>
                       <TableCell className="text-sm">{row.data.phone || '-'}</TableCell>
-                      <TableCell className="text-sm max-w-[120px] truncate">{row.data.email || '-'}</TableCell>
-                      <TableCell className="text-right text-sm">{row.data.creditLimit != null ? row.data.creditLimit.toLocaleString() : '-'}</TableCell>
+                      <TableCell className="text-right text-sm">{row.data.deudaTotal != null ? row.data.deudaTotal.toLocaleString() : '-'}</TableCell>
+                      <TableCell className="text-right text-sm">{row.data.abonosTotal != null ? row.data.abonosTotal.toLocaleString() : '-'}</TableCell>
                       <TableCell>
                         {!row.isValid && <span className="text-xs text-destructive">{row.errors.join('; ')}</span>}
                       </TableCell>
