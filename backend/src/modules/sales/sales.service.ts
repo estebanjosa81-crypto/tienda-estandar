@@ -236,7 +236,12 @@ export class SalesService {
     }
 
     if (filters?.todayOnly) {
-      conditions.push('DATE(created_at) = CURDATE()');
+      // Compare in Colombia timezone (UTC-5) to avoid date mismatch for late-night sales
+      const colombiaToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      const colombiaStart = new Date(colombiaToday + 'T05:00:00Z'); // midnight Colombia = UTC 05:00
+      const colombiaEnd = new Date(colombiaStart.getTime() + 24 * 60 * 60 * 1000);
+      conditions.push('created_at >= ? AND created_at < ?');
+      values.push(colombiaStart, colombiaEnd);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;

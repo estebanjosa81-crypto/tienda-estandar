@@ -70,7 +70,7 @@ export function SalesHistory() {
     const matchesPayment = paymentFilter === 'all' || sale.paymentMethod === paymentFilter
 
     const saleDate = new Date(sale.createdAt)
-    const matchesStartDate = !dateRange.start || saleDate >= new Date(dateRange.start)
+    const matchesStartDate = !dateRange.start || saleDate >= new Date(dateRange.start + 'T00:00:00')
     const matchesEndDate = !dateRange.end || saleDate <= new Date(dateRange.end + 'T23:59:59')
 
     return matchesSearch && matchesPayment && matchesStartDate && matchesEndDate
