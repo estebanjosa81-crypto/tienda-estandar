@@ -806,7 +806,7 @@ export class SalesService {
   async getDailyReport(tenantId: string, date: string): Promise<DailyReportData> {
     // Fetch all completed sales for the given date
     const [salesRows] = await db.execute<SaleRow[]>(
-      `SELECT * FROM sales WHERE tenant_id = ? AND DATE(created_at) = ? AND status = 'completada' ORDER BY created_at ASC`,
+      `SELECT * FROM sales WHERE tenant_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '-05:00')) = ? AND status = 'completada' ORDER BY created_at ASC`,
       [tenantId, date]
     );
 
