@@ -151,8 +151,9 @@ export function DailyClosingReport() {
     }
   }
 
-  const getSedeName = (sedeId: string | null) => {
+  const getSedeName = (sedeId: string | null, sedeName?: string | null) => {
     if (!sedeId) return 'Sin Sede'
+    if (sedeName) return sedeName
     const sede = sedes.find(s => s.id === sedeId)
     return sede?.name || `Sede ${sedeId.slice(0, 6)}`
   }
@@ -167,7 +168,7 @@ export function DailyClosingReport() {
     })
 
     const sedeHtml = report.sedes.map(sede => {
-      const sedeName = getSedeName(sede.sedeId)
+      const sedeName = getSedeName(sede.sedeId, sede.sedeName)
       const productsRows = sede.products.map((p, i) => `
         <tr>
           <td>${i + 1}</td>
@@ -383,7 +384,7 @@ export function DailyClosingReport() {
                   <SedeCard
                     key={sedeData.sedeId ?? '__none__'}
                     sedeData={sedeData}
-                    sedeName={getSedeName(sedeData.sedeId)}
+                    sedeName={getSedeName(sedeData.sedeId, sedeData.sedeName)}
                   />
                 ))
               )}

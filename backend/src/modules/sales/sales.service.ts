@@ -78,6 +78,7 @@ export interface ProductReportItem {
 
 export interface SedeReportData {
   sedeId: string | null;
+  sedeName: string | null;
   salesCount: number;
   subtotal: number;
   tax: number;
@@ -829,6 +830,18 @@ export class SalesService {
       itemsBySale.get(item.sale_id)!.push(item);
     }
 
+    // Fetch sede names for this tenant
+    const sedeIds = [...new Set(salesRows.map(s => s.sede_id).filter(Boolean))] as string[];
+    const sedeNameMap = new Map<string, string>();
+    if (sedeIds.length > 0) {
+      const placeholdersSedes = sedeIds.map(() => '?').join(',');
+      const [sedeRows] = await db.execute<RowDataPacket[]>(
+        `SELECT id, name FROM sedes WHERE tenant_id = ? AND id IN (${placeholdersSedes})`,
+        [tenantId, ...sedeIds]
+      );
+      for (const row of sedeRows) sedeNameMap.set(row.id, row.name);
+    }
+
     // Group sales by sede_id (null = no sede)
     const sedeGroups = new Map<string, SaleRow[]>();
     for (const sale of salesRows) {
@@ -874,6 +887,7 @@ export class SalesService {
 
       sedeReports.push({
         sedeId: sedeKey === '__none__' ? null : sedeKey,
+        sedeName: sedeKey === '__none__' ? null : (sedeNameMap.get(sedeKey) ?? null),
         salesCount: sales.length,
         subtotal: Math.round(subtotal * 100) / 100,
         tax: Math.round(tax * 100) / 100,

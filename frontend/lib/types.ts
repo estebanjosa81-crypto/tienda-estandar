@@ -155,6 +155,7 @@ export interface ProductReportItem {
 
 export interface SedeReportData {
   sedeId: string | null
+  sedeName: string | null
   salesCount: number
   subtotal: number
   tax: number
