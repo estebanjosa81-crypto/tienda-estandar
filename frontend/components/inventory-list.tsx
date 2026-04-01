@@ -63,6 +63,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  Camera,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -86,6 +87,7 @@ export function InventoryList() {
   const [isExporting, setIsExporting] = useState(false)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [quickImageProduct, setQuickImageProduct] = useState<Product | null>(null)
   const ITEMS_PER_PAGE = 100
 
   const handleExportCsv = async () => {
@@ -853,8 +855,25 @@ export function InventoryList() {
                     >
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-lg bg-secondary text-lg">
-                            {typeInfo.icon}
+                          <div
+                            className="relative flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-lg bg-secondary text-lg cursor-pointer group overflow-hidden"
+                            onClick={(e) => { e.stopPropagation(); setQuickImageProduct(product) }}
+                            title="Agregar imágenes"
+                          >
+                            {product.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="h-full w-full object-cover rounded-lg"
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                              />
+                            ) : (
+                              typeInfo.icon
+                            )}
+                            <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Camera className="h-4 w-4 text-white" />
+                            </div>
                           </div>
                           <div>
                             <p className="font-medium text-sm lg:text-base text-foreground">{product.name}</p>
@@ -1049,6 +1068,49 @@ export function InventoryList() {
           sedes={sedes}
         />
       )}
+
+      {/* Quick Image Upload Dialog */}
+      <Dialog open={!!quickImageProduct} onOpenChange={(open) => { if (!open) setQuickImageProduct(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4" />
+              Imágenes del Producto
+            </DialogTitle>
+            <DialogDescription className="truncate">{quickImageProduct?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <div>
+              <p className="text-sm font-medium mb-2">★ Imagen Principal</p>
+              <CloudinaryUpload
+                value={quickImageProduct?.imageUrl || ''}
+                onChange={async (url) => {
+                  if (!quickImageProduct) return
+                  const imgs = Array.isArray(quickImageProduct.images) ? [...quickImageProduct.images] : []
+                  imgs[0] = url
+                  await updateProduct(quickImageProduct.id, { imageUrl: url, images: imgs })
+                  setQuickImageProduct({ ...quickImageProduct, imageUrl: url, images: imgs })
+                  toast.success('Imagen principal actualizada')
+                }}
+              />
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Imagen Secundaria</p>
+              <CloudinaryUpload
+                value={quickImageProduct?.images?.[1] || ''}
+                onChange={async (url) => {
+                  if (!quickImageProduct) return
+                  const imgs = Array.isArray(quickImageProduct.images) ? [...quickImageProduct.images] : []
+                  imgs[1] = url
+                  await updateProduct(quickImageProduct.id, { images: imgs })
+                  setQuickImageProduct({ ...quickImageProduct, images: imgs })
+                  toast.success('Imagen secundaria actualizada')
+                }}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
