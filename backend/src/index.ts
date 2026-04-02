@@ -37,6 +37,7 @@ import cargosRoutes from './modules/cargos/cargos.routes';
 import novedadesRoutes from './modules/novedades/novedades.routes';
 import reviewsRoutes from './modules/reviews/reviews.routes';
 import { syncRoutes, startSyncScheduler } from './modules/sync';
+import mediaLibraryRoutes from './modules/media-library/media-library.routes';
 
 const app = express();
 
@@ -139,6 +140,7 @@ app.use(`${apiPrefix}/cargos`, cargosRoutes);
 app.use(`${apiPrefix}/novedades`, novedadesRoutes);
 app.use(`${apiPrefix}/reviews`, reviewsRoutes);
 app.use(`${apiPrefix}/sync`, syncRoutes);
+app.use(`${apiPrefix}/media-library`, mediaLibraryRoutes);
 
 // Error handling
 app.use(notFoundHandler);

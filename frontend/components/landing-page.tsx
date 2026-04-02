@@ -53,6 +53,7 @@ import {
   Share2,
   Send,
   MessageCircle,
+  UtensilsCrossed,
 } from 'lucide-react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
@@ -2221,16 +2222,169 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <X className="w-4 h-4" />
             </button>
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {/* ═════════ MOBILE LAYOUT ═════════ */}
+            <div className="sm:hidden pb-24">
+              {/* Hero image — full bleed */}
+              <div className="relative aspect-[4/5] w-full overflow-hidden" style={{ backgroundColor: effectiveBgColor }}>
+                {activeUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ensureAbsoluteUrl(activeUrl)}
+                    alt={selectedProduct.name}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Sparkles className="w-20 h-20 text-white/10" />
+                  </div>
+                )}
+                {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
+                  <div className="absolute top-4 left-4 flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg">
+                    <Flame className="w-4 h-4" />
+                    -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
+                  </div>
+                )}
+              </div>
 
-              {/* Back button — desktop */}
-              <button
-                onClick={closeProductModal}
-                className="hidden sm:flex items-center gap-2 text-white/50 hover:text-white transition-colors text-xs uppercase tracking-widest mb-6"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Volver
-              </button>
+              {/* Horizontal thumbnail strip */}
+              {gallery.length > 1 && (
+                <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+                  {gallery.map((url, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveImageIdx(i)}
+                      className={`w-16 h-16 flex-shrink-0 overflow-hidden transition-all duration-200 ${
+                        i === activeImageIdx
+                          ? 'border-2 border-amber-400'
+                          : 'border border-white/10 opacity-50'
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ensureAbsoluteUrl(url)} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Product info */}
+              <div className="px-4 space-y-5 mt-4">
+                {/* Name */}
+                <h1 className={`text-2xl font-bold leading-tight ${isLightBg ? 'text-black' : 'text-white'}`}>{selectedProduct.name}</h1>
+
+                {/* Price */}
+                <div>
+                  {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
+                    <div className="flex items-end gap-3 flex-wrap">
+                      <span className={`text-3xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                      <span className={`text-xl line-through pb-0.5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                    </div>
+                  ) : (
+                    <span className={`text-3xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                  )}
+                </div>
+
+                {/* Viewers */}
+                <div className="flex items-center gap-2 text-sm">
+                  <Eye className="w-4 h-4 text-amber-500/80 flex-shrink-0" />
+                  <span className={isLightBg ? 'text-black/60' : 'text-white/60'}>
+                    <strong className={isLightBg ? 'text-black' : 'text-white'}>{viewerCount}</strong> personas viendo este producto
+                  </span>
+                </div>
+
+                {/* Quantity + Favorite */}
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center border rounded-lg overflow-hidden ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
+                    <button
+                      onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
+                      disabled={selectedProduct.stock === 0}
+                      className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className={`w-11 text-center text-base font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
+                    <button
+                      onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
+                      disabled={selectedProduct.stock === 0}
+                      className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(selectedProduct.id) }}
+                    className={`w-11 h-11 rounded-full border flex items-center justify-center transition-all ${
+                      favorites.has(selectedProduct.id)
+                        ? 'border-red-500/40 text-red-500 bg-red-500/10'
+                        : isLightBg
+                          ? 'border-black/15 text-black/40 hover:border-black/30 hover:text-black'
+                          : 'border-white/15 text-white/40 hover:border-white/30 hover:text-white'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-current' : ''}`} />
+                  </button>
+                </div>
+
+                {/* CTA buttons */}
+                {selectedProduct.stock === 0 ? (
+                  <div className={`w-full py-4 text-sm uppercase tracking-widest font-semibold text-center border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
+                    Agotado
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      onClick={addFromModal}
+                      className="w-full py-4 rounded-xl text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform bg-zinc-900"
+                      style={{ color: '#ffffff' }}
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Añadir al carrito
+                    </button>
+                    <button
+                      onClick={() => { addFromModal(); setShowCheckout(true) }}
+                      className="w-full py-4 rounded-xl text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform bg-zinc-900"
+                      style={{ color: '#ffffff' }}
+                    >
+                      Comprar ahora
+                    </button>
+                  </div>
+                )}
+
+                {/* Store badge */}
+                {selectedProduct.storeName && (
+                  <div className={`flex items-center gap-3 pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/5 border-white/10'}`}>
+                      <Store className={`w-5 h-5 ${isLightBg ? 'text-black/40' : 'text-white/50'}`} />
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`text-sm font-medium ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{selectedProduct.storeName}</p>
+                      <span className={`flex items-center gap-1 text-[10px] border px-2 py-0.5 rounded-sm ${isLightBg ? 'border-black/10 text-black/40' : 'border-white/10 text-white/40'}`}>
+                        <CheckCircle className="w-3 h-3" /> Verificado
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="hidden sm:block max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+              {/* Top bar — Volver + Close */}
+              <div className="flex items-center justify-between mb-8">
+                <button
+                  onClick={closeProductModal}
+                  className={`flex items-center gap-2 text-sm font-medium transition-colors ${isLightBg ? 'text-black/60 hover:text-black' : 'text-white/50 hover:text-white'}`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Volver
+                </button>
+                <button
+                  onClick={closeProductModal}
+                  className="w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-white hover:bg-black transition-all shadow-md"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
               {/* ── Two-column layout ── */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
@@ -2242,15 +2396,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="flex gap-3 lg:max-h-[520px]">
                     {/* Vertical thumbnails */}
                     {gallery.length > 1 && (
-                      <div className="hidden sm:flex flex-col gap-2 w-[64px] flex-shrink-0 overflow-y-auto scrollbar-hide">
+                      <div className="hidden sm:flex flex-col gap-2 w-[68px] flex-shrink-0 overflow-y-auto scrollbar-hide">
                         {gallery.map((url, i) => (
                           <button
                             key={i}
                             onClick={() => setActiveImageIdx(i)}
-                            className={`w-[64px] h-[64px] overflow-hidden flex-shrink-0 transition-all duration-200 ${
+                            className={`w-[68px] h-[68px] overflow-hidden flex-shrink-0 rounded-sm transition-all duration-200 ${
                               i === activeImageIdx
-                                ? 'border-2 border-amber-400/80'
-                                : 'border border-white/10 opacity-50 hover:opacity-100'
+                                ? `border-2 ${isLightBg ? 'border-black/70' : 'border-white/70'}`
+                                : `border ${isLightBg ? 'border-black/10 opacity-60 hover:opacity-100' : 'border-white/10 opacity-50 hover:opacity-100'}`
                             }`}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2261,7 +2415,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     )}
 
                     {/* Hero image */}
-                    <div className="flex-1 relative overflow-hidden lg:max-h-[520px]" style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor }}>
+                    <div className="flex-1 relative overflow-hidden lg:max-h-[520px] rounded-md" style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor }}>
                       {activeUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -2315,18 +2469,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                   {/* Store info */}
                   {selectedProduct.storeName && (
-                    <div className="flex items-center gap-3 py-4 border-t border-white/5">
-                      <div className="w-10 h-10 bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                        <Store className="w-5 h-5 text-white/50" />
+                    <div className={`flex items-center gap-3 py-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/6 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
+                        <Store className={`w-5 h-5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-white/80">{selectedProduct.storeName}</p>
-                          <span className="flex items-center gap-1 text-[10px] text-white/40 border border-white/10 px-2 py-0.5">
+                          <p className={`text-sm font-semibold ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{selectedProduct.storeName}</p>
+                          <span className={`flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5 ${isLightBg ? 'bg-green-50 border border-green-200 text-green-600' : 'border border-green-500/30 text-green-400'}`}>
                             <CheckCircle className="w-3 h-3" /> Verificado
                           </span>
                         </div>
-                        <p className="text-[11px] text-white/40 mt-0.5">Tienda oficial · Envíos a todo Colombia</p>
+                        <p className={`text-[11px] mt-0.5 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tienda oficial · Envíos a todo Colombia</p>
                       </div>
                     </div>
                   )}
@@ -2527,50 +2681,62 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     )}
 
-                    {/* Quantity */}
+                    {/* Quantity + Wishlist */}
                     <div className="flex items-center gap-3">
-                      <span className={`text-xs uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Cantidad</span>
-                      <div className={`flex items-center border ${isLightBg ? 'border-black/15' : 'border-white/10'}`}>
+                      <div className={`flex items-center rounded-lg border ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
                         <button
                           onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
-                          className={`w-8 h-8 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                          className={`w-10 h-10 flex items-center justify-center transition-colors rounded-l-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className={`w-9 text-center text-sm font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
+                        <span className={`w-10 text-center text-sm font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                         <button
                           onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
-                          className={`w-8 h-8 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                          className={`w-10 h-10 flex items-center justify-center transition-colors rounded-r-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      {/* Wishlist */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(selectedProduct.id) }}
+                        className={`ml-auto w-10 h-10 rounded-lg border flex items-center justify-center transition-all ${
+                          favorites.has(selectedProduct.id)
+                            ? 'border-red-400/40 text-red-400 bg-red-50'
+                            : isLightBg
+                              ? 'border-black/15 text-black/40 hover:text-red-400 hover:border-red-400/40'
+                              : 'border-white/15 text-white/40 hover:text-red-400 hover:border-red-400/40'
+                        }`}
+                      >
+                        <Heart className={`w-4 h-4 ${favorites.has(selectedProduct.id) ? 'fill-current' : ''}`} />
+                      </button>
                     </div>
 
                     {/* CTA buttons */}
                     {selectedProduct.stock === 0 ? (
-                      <div className={`w-full py-4 text-sm uppercase tracking-[0.2em] font-semibold text-center border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
+                      <div className={`w-full py-4 text-sm uppercase tracking-[0.2em] font-semibold text-center rounded-xl border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
                         Agotado
                       </div>
                     ) : (
                       <div className="flex gap-3">
                         <button
                           onClick={addFromModal}
-                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 border ${
+                          className={`flex-1 py-3.5 text-sm uppercase tracking-[0.12em] font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 border ${
                             isLightBg
-                              ? 'border-black text-black bg-transparent hover:bg-black hover:text-white'
-                              : 'border-white text-white bg-transparent hover:bg-white hover:text-black'
+                              ? 'border-black/20 text-black bg-transparent hover:bg-black/5'
+                              : 'border-white/20 text-white bg-transparent hover:bg-white/5'
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          Agregar al carrito
+                          Añadir al carrito
                         </button>
                         <button
                           onClick={() => { addFromModal(); setShowCheckout(true) }}
                           style={{ color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' }}
-                          className="flex-1 py-3.5 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 opacity-100 hover:opacity-80"
+                          className="flex-1 py-3.5 text-sm uppercase tracking-[0.12em] font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 hover:opacity-85"
                         >
                           Comprar ahora
                         </button>
@@ -2578,87 +2744,74 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     )}
 
                     {/* Trust badges */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                        <Zap className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
-                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Envío a todo Colombia</p>
+                    <div className={`grid grid-cols-3 gap-2 rounded-xl border p-1 ${isLightBg ? 'border-black/8 bg-black/[0.02]' : 'border-white/8 bg-white/[0.02]'}`}>
+                      <div className={`flex flex-col items-center gap-1.5 py-3 text-center rounded-lg ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                        <Zap className="w-4 h-4" />
+                        <p className="text-[10px] leading-tight">Envío Colombia</p>
                       </div>
-                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                        <ShieldCheck className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
-                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Pago 100% seguro</p>
+                      <div className={`flex flex-col items-center gap-1.5 py-3 text-center rounded-lg border-x ${isLightBg ? 'border-black/8 text-black/50' : 'border-white/8 text-white/50'}`}>
+                        <ShieldCheck className="w-4 h-4" />
+                        <p className="text-[10px] leading-tight">Pago seguro</p>
                       </div>
-                      <div className={`flex flex-col items-center gap-1.5 p-3 border text-center ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                        <RotateCcw className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
-                        <p className={`text-[10px] leading-tight ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Devoluciones fáciles</p>
+                      <div className={`flex flex-col items-center gap-1.5 py-3 text-center rounded-lg ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                        <RotateCcw className="w-4 h-4" />
+                        <p className="text-[10px] leading-tight">Devoluciones</p>
                       </div>
                     </div>
 
                     {/* Personas viendo */}
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isLightBg ? 'bg-black/5 text-black/60' : 'bg-white/5 text-white/50'}`}>
+                    <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm ${isLightBg ? 'bg-black/[0.04] text-black/60' : 'bg-white/[0.04] text-white/50'}`}>
                       <Eye className="w-4 h-4 flex-shrink-0" />
-                      <span><strong className={isLightBg ? 'text-black/80' : 'text-white/80'}>{viewerCount}</strong> personas viendo este producto ahora</span>
+                      <span><strong className={isLightBg ? 'text-black/80' : 'text-white/80'}>{viewerCount}</strong> personas viendo ahora</span>
                     </div>
 
-                    {/* Share buttons */}
+                    {/* Share */}
                     {(() => {
                       const productUrl = typeof window !== 'undefined'
                         ? `${window.location.origin}${window.location.pathname}?product=${selectedProduct.id}`
                         : ''
                       const shareText = `${selectedProduct.name} — ${formatCOP(selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)}`
-                      const btnClass = (hoverColor: string) =>
-                        `flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors whitespace-nowrap ${
-                          isLightBg
-                            ? `border-black/15 text-black/60 hover:text-white hover:border-transparent ${hoverColor}`
-                            : `border-white/10 text-white/50 hover:text-white hover:border-transparent ${hoverColor}`
-                        }`
                       return (
-                        <div className={`pt-3 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                          <div className="flex items-center justify-between mb-2.5">
-                            <p className={`text-[10px] uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
-                            {/* Copy link button */}
+                        <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                          <p className={`text-[10px] uppercase tracking-widest mb-3 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
-                              onClick={() => { navigator.clipboard.writeText(productUrl); }}
-                              className={`flex items-center gap-1 text-[10px] transition-colors ${isLightBg ? 'text-black/40 hover:text-black' : 'text-white/30 hover:text-white'}`}
+                              onClick={() => { navigator.clipboard.writeText(productUrl) }}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-black/5' : 'border-white/15 text-white/50 hover:bg-white/5'}`}
                             >
-                              <Share2 className="w-3 h-3" />
+                              <Share2 className="w-3.5 h-3.5" />
                               Copiar enlace
                             </button>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {/* Facebook */}
                             <a
                               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`}
                               target="_blank" rel="noopener noreferrer"
-                              className={btnClass('hover:bg-blue-600')}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-blue-600 hover:text-white hover:border-blue-600' : 'border-white/15 text-white/50 hover:bg-blue-600 hover:text-white hover:border-blue-600'}`}
                             >
-                              <Facebook className="w-3.5 h-3.5 shrink-0" />
+                              <Facebook className="w-3.5 h-3.5" />
                               Facebook
                             </a>
-                            {/* WhatsApp */}
                             <a
                               href={`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + productUrl)}`}
                               target="_blank" rel="noopener noreferrer"
-                              className={btnClass('hover:bg-[#25D366]')}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]' : 'border-white/15 text-white/50 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]'}`}
                             >
-                              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                              <MessageCircle className="w-3.5 h-3.5" />
                               WhatsApp
                             </a>
-                            {/* Telegram */}
                             <a
                               href={`https://t.me/share/url?url=${encodeURIComponent(productUrl)}&text=${encodeURIComponent(shareText)}`}
                               target="_blank" rel="noopener noreferrer"
-                              className={btnClass('hover:bg-[#229ED9]')}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]' : 'border-white/15 text-white/50 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]'}`}
                             >
-                              <Send className="w-3.5 h-3.5 shrink-0" />
+                              <Send className="w-3.5 h-3.5" />
                               Telegram
                             </a>
-                            {/* Instagram — link to profile */}
                             <a
                               href="https://www.instagram.com"
                               target="_blank" rel="noopener noreferrer"
-                              className={btnClass('hover:bg-[#E1306C]')}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]' : 'border-white/15 text-white/50 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]'}`}
                             >
-                              <Instagram className="w-3.5 h-3.5 shrink-0" />
+                              <Instagram className="w-3.5 h-3.5" />
                               Instagram
                             </a>
                           </div>
@@ -2897,7 +3050,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {/* MAIN CONTENT */}
             <main className="flex-1 min-w-0">
               {/* Header */}
-              <div className="sticky top-16 z-10 landing-sidebar-blur backdrop-blur-sm border-b border-white/10 px-4 sm:px-6 lg:px-8 py-4">
+              <div className="sticky top-16 z-10 bg-zinc-950/95 backdrop-blur border-b border-white/8 px-4 sm:px-6 lg:px-8 py-4">
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <h1 className="text-xl sm:text-2xl font-light text-white tracking-wide">
                     {sedesViewMode && !activeSede ? 'Sedes'
@@ -3097,7 +3250,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   </div>
                 ) : (
-                  <div className={`grid gap-3 sm:gap-4 ${productCardStyle === 'style2' ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>
+                  <div className={`grid ${productCardStyle === 'style2' ? 'gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 gap-3 max-w-2xl mx-auto px-3 py-4'}`}>
                     {catalogFilteredProducts.map(product => {
                       const inCart = carrito.find(c => c.id === product.id)
                       const isOffer = product.isOnOffer && product.offerPrice
@@ -3198,22 +3351,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       return (
                         <div
                           key={product.id}
-                          className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/60 transition-all duration-500"
+                          className="group relative rounded-2xl bg-white/4 border border-white/8 overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
                           onClick={() => openProductModal(product)}
                         >
                           {/* Image — portrait ratio */}
-                          <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
+                          <div data-dark className="relative aspect-[3/4] overflow-hidden">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-white/3">
-                                <Sparkles className="w-10 h-10 text-white/10" />
+                              <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-white/5">
+                                <UtensilsCrossed className="h-10 w-10 text-white/15" />
                               </div>
                             )}
 
                             {/* Permanent bottom gradient for readability */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
                             {/* Offer badge — top left */}
                             {isOffer && (
@@ -3225,8 +3378,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Brand tag — top right */}
                             {product.brand && (
-                              <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/60 uppercase tracking-[0.2em]">
-                                {product.brand}
+                              <div className="absolute top-2 right-2 z-20 bg-black/50 backdrop-blur-sm rounded-full p-1.5">
+                                <span className="text-[10px] text-white/80 leading-none">{product.brand}</span>
                               </div>
                             )}
 
@@ -3248,19 +3401,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </button>
 
                             {/* Info overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
-                              <h3 className="text-xs sm:text-sm font-light text-white leading-snug line-clamp-2 mb-1">
+                            <div className="absolute bottom-0 inset-x-0 px-3 pb-3 pt-6 z-10">
+                              <h3 className="font-bold text-sm leading-tight text-white line-clamp-2 drop-shadow">
                                 {product.name}
                               </h3>
-                              {product.size && <p className="text-[9px] text-white/35 mb-1">{product.size}</p>}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 mt-1">
                                 {isOffer ? (
                                   <>
-                                    <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                    <span className="text-base font-black text-amber-400 tabular-nums drop-shadow">{formatCOP(product.offerPrice!)}</span>
                                     <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-base font-black text-amber-400 tabular-nums drop-shadow">{formatCOP(product.salePrice)}</span>
                                 )}
                               </div>
                             </div>
@@ -3283,6 +3435,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               </button>
                             </div>
                           </div>
+                          {product.description && (
+                            <div className="px-3 py-2 text-[11px] text-white/45 line-clamp-2 leading-snug">
+                              {product.description}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -3373,7 +3530,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           </div>
 
           {/* Search bar */}
-          <div className="sticky top-16 z-10 landing-sidebar-blur backdrop-blur-sm border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3">
+          <div className="sticky top-16 z-10 bg-zinc-950/95 backdrop-blur border-b border-white/8 px-4 sm:px-6 lg:px-8 py-3">
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400/50" />
               <input
@@ -3554,7 +3711,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           </div>
 
           {/* Search bar */}
-          <div className="sticky top-16 z-10 landing-sidebar-blur backdrop-blur-sm border-b border-white/10 px-4 sm:px-6 lg:px-8 py-3">
+          <div className="sticky top-16 z-10 bg-zinc-950/95 backdrop-blur border-b border-white/8 px-4 sm:px-6 lg:px-8 py-3">
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400/50" />
               <input
@@ -5581,33 +5738,35 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== CART SIDEBAR ========== */}
       {showCart && (
         <>
-          <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-md z-[65] landing-sidebar border-l border-white/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="fixed inset-0 z-[65] bg-black/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
+          <div className="fixed top-0 right-0 h-full w-full max-w-md z-[65] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <ShoppingCart className="w-5 h-5 text-amber-400" />
-                <h2 className="text-lg font-light tracking-wide text-white">
-                  Mi Carrito <span className="text-white/40 text-sm">({totalItems})</span>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-black/8">
+              <div className="flex items-center gap-2.5">
+                <ShoppingCart className="w-5 h-5 text-black/70" />
+                <h2 className="text-base font-semibold text-black tracking-wide">
+                  Mi Carrito <span className="text-black/40 font-normal text-sm">({totalItems})</span>
                 </h2>
               </div>
-              <button onClick={() => setShowCart(false)} className="p-2 text-white/40 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setShowCart(false)}
+                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-black/50 hover:text-black hover:border-black/30 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Items */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-1" style={{ scrollbarWidth: 'none' }}>
               {carrito.length === 0 ? (
-                <div className="text-center py-16">
-                  <ShoppingCart className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                  <p className="text-white/40 text-sm font-light">Tu carrito está vacío</p>
-                  <button onClick={() => { setShowCart(false); scrollToPerfumes() }} className="mt-4 text-amber-400 text-sm font-light hover:text-amber-300 transition-colors underline underline-offset-4">
-                    Explorar perfumes
+                <div className="text-center py-20">
+                  <ShoppingCart className="w-12 h-12 text-black/10 mx-auto mb-4" />
+                  <p className="text-black/40 text-sm">Tu carrito está vacío</p>
+                  <button onClick={() => { setShowCart(false); scrollToPerfumes() }} className="mt-4 text-black/60 text-sm hover:text-black transition-colors underline underline-offset-4">
+                    Explorar productos
                   </button>
                 </div>
               ) : (() => {
-                // Group items by store for display
                 const storeGroups = new Map<string, ProductoCarrito[]>()
                 for (const item of carrito) {
                   const key = item.storeName || 'Tienda'
@@ -5619,48 +5778,52 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 return Array.from(storeGroups.entries()).map(([storeName, items]) => (
                   <div key={storeName}>
                     {hasMultipleStores && (
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-amber-500/20">
-                        <Store className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="text-[11px] text-amber-400 uppercase tracking-wider font-medium">{storeName}</span>
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-black/8">
+                        <Store className="w-3.5 h-3.5 text-black/40" />
+                        <span className="text-[11px] text-black/50 uppercase tracking-wider font-medium">{storeName}</span>
                       </div>
                     )}
                     {items.map((item, index) => (
-                      <div key={`${item.id}-${index}`} className="flex gap-4 pb-4 border-b border-white/5 last:border-0 mb-2">
-                        <div className="w-16 h-16 bg-white/5 flex-shrink-0 overflow-hidden">
+                      <div key={`${item.id}-${index}`} className="flex gap-4 py-5 border-b border-black/8 last:border-0">
+                        {/* Image */}
+                        <div className="w-[72px] h-[72px] rounded-lg bg-black/5 flex-shrink-0 overflow-hidden">
                           {item.imagen ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-4 h-4 text-white/10" /></div>
+                            <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-5 h-5 text-black/10" /></div>
                           )}
                         </div>
+                        {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-light text-white truncate">{item.nombre}</h4>
-                          {item.perfumeSeleccionado && <p className="text-xs text-white/50">Perfume: {item.perfumeSeleccionado}</p>}
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-black leading-tight">{item.nombre}</h4>
+                            <button onClick={() => removerProducto(item)} className="p-0.5 text-black/25 hover:text-black/60 transition-colors flex-shrink-0">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {item.perfumeSeleccionado && <p className="text-xs text-black/40 mt-0.5">Perfume: {item.perfumeSeleccionado}</p>}
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-amber-400/70">{formatCOP(item.precio)} c/u</span>
+                            <span className="text-xs text-black/60 font-medium">{formatCOP(item.precio)} c/u</span>
                             {item.precioOriginal && item.precioOriginal > item.precio && (
-                              <span className="text-[10px] text-white/30 line-through">{formatCOP(item.precioOriginal)}</span>
+                              <span className="text-[10px] text-black/30 line-through">{formatCOP(item.precioOriginal)}</span>
                             )}
                             {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
-                              <span className="text-[10px] text-green-400">-{item.descuentoPorcentaje}%</span>
+                              <span className="text-[10px] text-black/40 font-medium">-{item.descuentoPorcentaje}%</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            <button onClick={() => actualizarCantidad(item.id, -1, item.tempId)} className="w-7 h-7 border border-white/10 text-white/50 flex items-center justify-center hover:border-white/30 hover:text-white transition-colors">
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-sm text-white font-light w-6 text-center">{item.cantidad}</span>
-                            <button onClick={() => actualizarCantidad(item.id, 1, item.tempId)} className="w-7 h-7 border border-white/10 text-white/50 flex items-center justify-center hover:border-white/30 hover:text-white transition-colors">
-                              <Plus className="w-3 h-3" />
-                            </button>
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="flex items-center border border-black/15 rounded-lg overflow-hidden">
+                              <button data-dark onClick={() => actualizarCantidad(item.id, -1, item.tempId)} className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-black/80 transition-colors">
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-sm font-medium text-black w-9 text-center">{item.cantidad}</span>
+                              <button data-dark onClick={() => actualizarCantidad(item.id, 1, item.tempId)} className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-black/80 transition-colors">
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <span className="text-sm font-semibold text-black">{formatCOP(item.precio * item.cantidad)}</span>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end justify-between">
-                          <button onClick={() => removerProducto(item)} className="p-1 text-white/20 hover:text-red-400 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
-                          <span className="text-sm font-light text-white">{formatCOP(item.precio * item.cantidad)}</span>
                         </div>
                       </div>
                     ))}
@@ -5674,22 +5837,29 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               const uniqueStores = new Set(carrito.map(i => i.tenantId).filter(Boolean))
               const multiStore = uniqueStores.size > 1
               return (
-                <div className="border-t border-white/10 p-6 space-y-4">
+                <div className="border-t border-black/8 px-6 py-5 space-y-4 bg-white">
                   {multiStore && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 p-3 text-center">
-                      <p className="text-[11px] text-amber-400">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                      <p className="text-[11px] text-gray-600">
                         Tienes productos de {uniqueStores.size} tiendas. Se crearán pedidos separados por tienda.
                       </p>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/50 font-light uppercase tracking-wider">Total</span>
-                    <span className="text-xl text-white font-light">{formatCOP(totalCarrito)}</span>
+                    <span className="text-xs font-semibold text-black/40 uppercase tracking-widest">Total</span>
+                    <span className="text-xl font-semibold text-black">{formatCOP(totalCarrito)}</span>
                   </div>
-                  <button onClick={() => { setShowCart(false); handleIrAlCheckout() }} className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black py-4 font-medium uppercase tracking-[0.2em] text-xs transition-all duration-300">
+                  <button
+                    data-dark
+                    onClick={() => { setShowCart(false); handleIrAlCheckout() }}
+                    className="w-full bg-black hover:bg-black/85 text-white py-4 text-xs font-bold uppercase tracking-[0.18em] transition-colors rounded-none"
+                  >
                     {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
-                  <button onClick={() => { setShowCart(false); scrollToPerfumes() }} className="w-full text-center text-white/40 text-xs font-light hover:text-white/60 transition-colors py-2">
+                  <button
+                    onClick={() => { setShowCart(false); scrollToPerfumes() }}
+                    className="w-full border border-black/20 text-black/60 hover:border-black/40 hover:text-black py-3.5 text-xs font-bold uppercase tracking-[0.18em] transition-colors"
+                  >
                     Seguir comprando
                   </button>
                 </div>

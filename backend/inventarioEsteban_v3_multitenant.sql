@@ -2232,6 +2232,21 @@ CALL sp_pending_migrations();
 DROP PROCEDURE IF EXISTS sp_pending_migrations;
 
 -- ============================================
+-- Media Library — imágenes subidas a Cloudinary
+-- ============================================
+CREATE TABLE IF NOT EXISTS media_library (
+  id           VARCHAR(36)  NOT NULL DEFAULT (UUID()),
+  tenant_id    VARCHAR(36)  NULL,
+  url          TEXT         NOT NULL,
+  public_id    VARCHAR(255) NULL,
+  uploaded_by  VARCHAR(36)  NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_media_tenant (tenant_id),
+  INDEX idx_media_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
 -- ============================================
 -- CREDENCIALES POR DEFECTO:

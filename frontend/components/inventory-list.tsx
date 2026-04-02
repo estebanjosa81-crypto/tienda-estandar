@@ -792,11 +792,21 @@ export function InventoryList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {categories.filter(cat => usedCategories.has(cat.id) && !cat.isHidden).map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
+                  {(() => {
+                    // Categories that exist in the store (non-hidden)
+                    const storeCategories = categories.filter(cat => !cat.isHidden && usedCategories.has(cat.id))
+                    const storeCategoryIds = new Set(storeCategories.map(c => c.id))
+                    // Fallback: category IDs used by products but not in the store
+                    const orphanIds = [...usedCategories].filter(id => !storeCategoryIds.has(id))
+                    return [
+                      ...storeCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      )),
+                      ...orphanIds.map(id => (
+                        <SelectItem key={id} value={id}>{id}</SelectItem>
+                      )),
+                    ]
+                  })()}
                 </SelectContent>
               </Select>
               <Select value={stockFilter} onValueChange={setStockFilter}>

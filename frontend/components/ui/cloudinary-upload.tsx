@@ -1,9 +1,15 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react'
+import { Upload, X, Loader2, Image as ImageIcon, Images } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface CloudinaryUploadProps {
   value: string
@@ -25,9 +31,8 @@ async function getCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset:
   }
   // 2. Try fetching from backend (platform_settings — set by superadmin)
   try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
-    const res = await fetch(`${API_URL}/chatbot/superadmin/integrations`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    const res = await fetch(`${API_URL}/chatbot/cloudinary-config`, {
+      credentials: 'include',
     })
     if (res.ok) {
       const json = await res.json()
@@ -47,10 +52,120 @@ async function getCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset:
   }
 }
 
+async function saveToMediaLibrary(url: string, publicId: string) {
+  try {
+    await fetch(`${API_URL}/media-library`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, publicId }),
+    })
+  } catch { /* non-critical */ }
+}
+
 /** Call this after superadmin updates Cloudinary credentials to force a refresh */
 export function clearCloudinaryCache() {
   _cloudinaryCache = null
 }
+
+// ── Media Picker Modal ────────────────────────────────────────────────────────
+
+interface MediaImage {
+  id: string
+  url: string
+  created_at: string
+}
+
+function MediaPickerModal({
+  open,
+  onClose,
+  onSelect,
+}: {
+  open: boolean
+  onClose: () => void
+  onSelect: (url: string) => void
+}) {
+  const [images, setImages] = useState<MediaImage[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchImages = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/media-library`, { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) setImages(json.data)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open) fetchImages()
+  }, [open, fetchImages])
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await fetch(`${API_URL}/media-library/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      setImages(prev => prev.filter(img => img.id !== id))
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Seleccionar imagen existente</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : images.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Images className="h-10 w-10 mb-2 opacity-40" />
+            <p className="text-sm">Aún no hay imágenes subidas</p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto flex-1 pr-1">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 p-1">
+              {images.map(img => (
+                <div
+                  key={img.id}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden border border-transparent hover:border-primary transition-all"
+                  onClick={() => { onSelect(img.url); onClose() }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.url}
+                    alt=""
+                    className="w-full h-24 object-cover"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => handleDelete(img.id, e)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export function CloudinaryUpload({
   value,
@@ -62,6 +177,7 @@ export function CloudinaryUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -95,7 +211,7 @@ export function CloudinaryUpload({
         const data = await res.json()
         const msg = data?.error?.message ?? 'Error al subir la imagen'
         if (res.status === 400) {
-          _cloudinaryCache = null // force re-fetch next time
+          _cloudinaryCache = null
           throw new Error(`${msg} — Verifica que el Upload Preset esté en modo "Unsigned"`)
         }
         throw new Error(msg)
@@ -103,6 +219,7 @@ export function CloudinaryUpload({
 
       const data = await res.json()
       onChange(data.secure_url)
+      await saveToMediaLibrary(data.secure_url, data.public_id)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al subir la imagen')
     } finally {
@@ -137,6 +254,16 @@ export function CloudinaryUpload({
             <Upload className="h-4 w-4 mr-2" />
           )}
           {uploading ? 'Subiendo...' : 'Subir imagen'}
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setPickerOpen(true)}
+        >
+          <Images className="h-4 w-4 mr-2" />
+          Seleccionar existente
         </Button>
 
         <Input
@@ -184,6 +311,12 @@ export function CloudinaryUpload({
           <span className="text-xs">Click para seleccionar imagen</span>
         </div>
       )}
+
+      <MediaPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={onChange}
+      />
     </div>
   )
 }
