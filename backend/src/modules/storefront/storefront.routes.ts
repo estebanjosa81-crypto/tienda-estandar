@@ -723,10 +723,19 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       ) as any;
       storeInfoData = storeInfo[0] || null;
     } catch {
-      // Fallback without extended columns
+      // Fallback without contact_page columns
       try {
         const [storeInfo] = await pool.query(
-          `SELECT si.name, si.address, si.phone, si.email, si.logo_url as logoUrl
+          `SELECT si.name, si.address, si.phone, si.email, si.logo_url as logoUrl,
+                  si.schedule, si.location_map_url as locationMapUrl,
+                  si.terms_url as termsContent, si.privacy_url as privacyContent,
+                  si.shipping_terms as shippingTerms,
+                  si.payment_methods as paymentMethods,
+                  si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
+                  si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
+                  si.product_card_style as productCardStyle,
+                  si.show_info_module as showInfoModule,
+                  si.info_module_description as infoModuleDescription
            FROM store_info si
            WHERE si.tenant_id = ?`,
           [tenantId]
@@ -973,8 +982,15 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
                   si.shipping_terms as shippingTerms,
                   si.payment_methods as paymentMethods,
                   si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
-                  si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp
+                  si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
+                  si.department, si.municipality,
+                  si.product_card_style as productCardStyle,
+                  si.allow_contraentrega as allowContraentrega,
+                  si.show_info_module as showInfoModule,
+                  si.info_module_description as infoModuleDescription,
+                  t.slug as storeSlug
            FROM store_info si
+           LEFT JOIN tenants t ON t.id = si.tenant_id
            WHERE si.tenant_id = ?`,
           [tenantId]
         ) as any;
