@@ -2498,25 +2498,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </div>
             </div>
 
-            <div className="hidden sm:block max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {/* Top bar — Volver + Close — sticky below nav */}
+            <div className={`hidden sm:flex sticky top-16 z-20 items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur ${isLightBg ? 'border-black/8 bg-white/90' : 'border-white/8 bg-black/80'}`}>
+              <button
+                onClick={closeProductModal}
+                className={`flex items-center gap-2 text-sm font-medium transition-colors ${isLightBg ? 'text-black/60 hover:text-black' : 'text-white/50 hover:text-white'}`}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Volver
+              </button>
+              <button
+                onClick={closeProductModal}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-md ${isLightBg ? 'bg-black/10 text-black hover:bg-black/20' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              {/* Top bar — Volver + Close */}
-              <div className="flex items-center justify-between mb-8">
-                <button
-                  onClick={closeProductModal}
-                  className={`flex items-center gap-2 text-sm font-medium transition-colors ${isLightBg ? 'text-black/60 hover:text-black' : 'text-white/50 hover:text-white'}`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Volver
-                </button>
-                <button
-                  onClick={closeProductModal}
-                  className="w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-white hover:bg-black transition-all shadow-md"
-                  aria-label="Cerrar"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+            <div className="hidden sm:block max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
               {/* ── Two-column layout ── */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
