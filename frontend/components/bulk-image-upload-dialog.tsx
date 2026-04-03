@@ -3,9 +3,10 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { useStore } from '@/lib/store'
-import { Upload, CheckCircle2, XCircle, AlertTriangle, Loader2, Images } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, AlertTriangle, Loader2, Images, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 
 const CLOUDINARY_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -77,11 +78,17 @@ export function BulkImageUploadDialog({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
-  const { products, fetchProducts } = useStore()
+  const { products, fetchProducts, categories } = useStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<ImageRow[]>([])
   const [processing, setProcessing] = useState(false)
   const [cloudConfig, setCloudConfig] = useState<{ cloudName: string; uploadPreset: string } | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+
+  // Products filtered by selected category
+  const scopedProducts = selectedCategory === 'all'
+    ? products
+    : products.filter(p => p.category === selectedCategory)
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -93,9 +100,9 @@ export function BulkImageUploadDialog({
       const fileName = file.name.replace(/\.[^/.]+$/, '') // remove extension
       const normFile = normalize(fileName)
 
-      // Try exact match first, then includes
-      let matched = products.find(p => normalize(p.name) === normFile) ?? null
-      if (!matched) matched = products.find(p => normalize(p.name).includes(normFile) || normFile.includes(normalize(p.name))) ?? null
+      // Search only within scoped products (filtered by category)
+      let matched = scopedProducts.find(p => normalize(p.name) === normFile) ?? null
+      if (!matched) matched = scopedProducts.find(p => normalize(p.name).includes(normFile) || normFile.includes(normalize(p.name))) ?? null
 
       return {
         file,
@@ -129,7 +136,7 @@ export function BulkImageUploadDialog({
         const url = await uploadToCloudinary(row.file, config.cloudName, config.uploadPreset)
 
         // Find the current product to check if it already has a main image
-        const product = products.find(p => p.id === row.matchedProductId)
+        const product = scopedProducts.find(p => p.id === row.matchedProductId)
         let updatePayload: Record<string, unknown>
 
         if (product?.imageUrl) {
@@ -180,6 +187,35 @@ export function BulkImageUploadDialog({
         <p className="text-sm text-muted-foreground -mt-1">
           Selecciona las imágenes de tus carpetas. Cada archivo debe tener el mismo nombre que el producto en inventario (sin importar mayúsculas ni tildes).
         </p>
+
+        {/* Category filter */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm font-medium shrink-0">
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            Carpeta / Categoría:
+          </div>
+          <Select
+            value={selectedCategory}
+            onValueChange={v => { setSelectedCategory(v); setRows([]) }}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Todas las categorías" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {categories.map(cat => (
+                <SelectItem key={cat.id} value={cat.name}>
+                  {cat.name} ({products.filter(p => p.category === cat.name).length} productos)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedCategory !== 'all' && (
+            <span className="text-xs text-muted-foreground">
+              Buscando en <strong>{scopedProducts.length}</strong> productos
+            </span>
+          )}
+        </div>
 
         {/* Drop / select zone */}
         <div
@@ -239,7 +275,7 @@ export function BulkImageUploadDialog({
                     </td>
                     <td className="px-3 py-2">
                       {row.matchedProductId ? (() => {
-                        const p = products.find(x => x.id === row.matchedProductId)
+                        const p = scopedProducts.find(x => x.id === row.matchedProductId)
                         return p?.imageUrl
                           ? <span className="text-xs text-blue-500">+ Galería</span>
                           : <span className="text-xs text-green-600">★ Principal</span>
