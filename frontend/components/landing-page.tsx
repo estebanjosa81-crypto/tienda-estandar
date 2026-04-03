@@ -990,29 +990,101 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             let resumeTimer: ReturnType<typeof setTimeout>
             let rafId: number
 
-            const onTouchStart: EventListener = () => { paused = true; clearTimeout(resumeTimer) }
-            const onTouchEnd: EventListener = () => { resumeTimer = setTimeout(() => { paused = false }, 2000) }
-            const onMouseEnter: EventListener = () => {
+            // ── Drag state ────────────────────────────────────────────────
+            let isDragging = false
+            let dragStartX = 0
+            let dragStartPos = 0
+            let lastDragX = 0
+            let dragVelocity = 0 // px/s — used for momentum on release
+
+            const startDrag = (clientX: number) => {
+              isDragging = true
               paused = true
               clearTimeout(resumeTimer)
-              // Snap out of clone zone so user always interacts with original items
-              if (pos > safeZoneEnd) {
-                pos = safeZoneEnd
-                el.style.transform = `translateX(${-pos}px)`
+              dragStartX = clientX
+              dragStartPos = pos
+              lastDragX = clientX
+              dragVelocity = 0
+              el.style.cursor = 'grabbing'
+            }
+
+            const moveDrag = (clientX: number) => {
+              if (!isDragging) return
+              const delta = clientX - dragStartX
+              dragVelocity = (clientX - lastDragX) * 60 // approx px/s
+              lastDragX = clientX
+              pos = dragStartPos - delta
+              // wrap modularly so pos stays in [0, oneSetWidth)
+              pos = ((pos % oneSetWidth) + oneSetWidth) % oneSetWidth
+              el.style.transform = `translateX(${-pos}px)`
+            }
+
+            const endDrag = () => {
+              if (!isDragging) return
+              isDragging = false
+              el.style.cursor = ''
+              // Momentum: if dragged fast, keep direction for a bit before handing back to auto-scroll
+              // Negative velocity = dragged right → scrolled backward
+              if (Math.abs(dragVelocity) > 80) {
+                // adjust SPEED direction for one second of momentum
+                const momentumDir = dragVelocity < 0 ? -1 : 1
+                let momentumFrames = 45 // ~0.75s at 60fps
+                const momentumTick = () => {
+                  if (momentumFrames-- <= 0 || !isDragging === false) {
+                    resumeTimer = setTimeout(() => { paused = false }, 300)
+                    return
+                  }
+                  pos -= momentumDir * Math.abs(dragVelocity) / 60
+                  pos = ((pos % oneSetWidth) + oneSetWidth) % oneSetWidth
+                  el.style.transform = `translateX(${-pos}px)`
+                  requestAnimationFrame(momentumTick)
+                }
+                requestAnimationFrame(momentumTick)
+              } else {
+                resumeTimer = setTimeout(() => { paused = false }, 600)
               }
             }
-            const onMouseLeave: EventListener = () => { resumeTimer = setTimeout(() => { paused = false }, 600) }
-            el.addEventListener('touchstart', onTouchStart, { passive: true })
-            el.addEventListener('touchend', onTouchEnd, { passive: true })
+
+            // Touch events
+            const onTouchStart = (e: TouchEvent) => { startDrag(e.touches[0].clientX) }
+            const onTouchMove = (e: TouchEvent) => { moveDrag(e.touches[0].clientX) }
+            const onTouchEnd = () => { endDrag() }
+
+            // Mouse events (desktop drag)
+            const onMouseDown = (e: MouseEvent) => { startDrag(e.clientX) }
+            const onMouseMove = (e: MouseEvent) => { moveDrag(e.clientX) }
+            const onMouseUp = () => { endDrag() }
+            const onMouseLeave = () => {
+              if (isDragging) endDrag()
+              else { resumeTimer = setTimeout(() => { paused = false }, 600) }
+            }
+            const onMouseEnter: EventListener = () => {
+              if (!isDragging) {
+                paused = true
+                clearTimeout(resumeTimer)
+                if (pos > safeZoneEnd) {
+                  pos = safeZoneEnd
+                  el.style.transform = `translateX(${-pos}px)`
+                }
+              }
+            }
+
+            el.style.cursor = 'grab'
+            el.addEventListener('touchstart', onTouchStart as EventListener, { passive: true })
+            el.addEventListener('touchmove', onTouchMove as EventListener, { passive: true })
+            el.addEventListener('touchend', onTouchEnd)
+            el.addEventListener('mousedown', onMouseDown as EventListener)
+            el.addEventListener('mousemove', onMouseMove as EventListener)
+            el.addEventListener('mouseup', onMouseUp)
             el.addEventListener('mouseenter', onMouseEnter)
-            el.addEventListener('mouseleave', onMouseLeave)
+            el.addEventListener('mouseleave', onMouseLeave as EventListener)
 
             const tick = (now: number) => {
               const dt = lastTime !== null ? (now - lastTime) / 1000 : 0
               lastTime = now
-              if (!paused) {
+              if (!paused && !isDragging) {
                 pos += SPEED * dt
-                if (pos >= oneSetWidth) pos -= oneSetWidth // modular — no visual jump
+                if (pos >= oneSetWidth) pos -= oneSetWidth
                 el.style.transform = `translateX(${-pos}px)`
               }
               rafId = requestAnimationFrame(tick)
@@ -1022,14 +1094,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             cleanups.push(() => {
               cancelAnimationFrame(rafId)
               clearTimeout(resumeTimer)
-              el.removeEventListener('touchstart', onTouchStart)
+              el.removeEventListener('touchstart', onTouchStart as EventListener)
+              el.removeEventListener('touchmove', onTouchMove as EventListener)
               el.removeEventListener('touchend', onTouchEnd)
+              el.removeEventListener('mousedown', onMouseDown as EventListener)
+              el.removeEventListener('mousemove', onMouseMove as EventListener)
+              el.removeEventListener('mouseup', onMouseUp)
               el.removeEventListener('mouseenter', onMouseEnter)
-              el.removeEventListener('mouseleave', onMouseLeave)
+              el.removeEventListener('mouseleave', onMouseLeave as EventListener)
               clones.forEach(c => c.remove())
               el.style.overflow = ''
               el.style.transform = ''
               el.style.willChange = ''
+              el.style.cursor = ''
               if (parent) parent.style.overflow = prevOverflow
             })
           })
@@ -2363,6 +2440,61 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Share — mobile */}
+                {(() => {
+                  const productUrl = typeof window !== 'undefined'
+                    ? `${window.location.origin}${window.location.pathname}?product=${selectedProduct.id}`
+                    : ''
+                  const shareText = `${selectedProduct.name} — ${formatCOP(selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)}`
+                  return (
+                    <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                      <p className={`text-[10px] uppercase tracking-widest mb-3 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Compartir</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(productUrl) }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-black/5' : 'border-white/15 text-white/50 hover:bg-white/5'}`}
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          Copiar enlace
+                        </button>
+                        <a
+                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-blue-600 hover:text-white hover:border-blue-600' : 'border-white/15 text-white/50 hover:bg-blue-600 hover:text-white hover:border-blue-600'}`}
+                        >
+                          <Facebook className="w-3.5 h-3.5" />
+                          Facebook
+                        </a>
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + productUrl)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]' : 'border-white/15 text-white/50 hover:bg-[#25D366] hover:text-white hover:border-[#25D366]'}`}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          WhatsApp
+                        </a>
+                        <a
+                          href={`https://t.me/share/url?url=${encodeURIComponent(productUrl)}&text=${encodeURIComponent(shareText)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]' : 'border-white/15 text-white/50 hover:bg-[#229ED9] hover:text-white hover:border-[#229ED9]'}`}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Telegram
+                        </a>
+                        <a
+                          href="https://www.instagram.com"
+                          target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${isLightBg ? 'border-black/15 text-black/60 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]' : 'border-white/15 text-white/50 hover:bg-[#E1306C] hover:text-white hover:border-[#E1306C]'}`}
+                        >
+                          <Instagram className="w-3.5 h-3.5" />
+                          Instagram
+                        </a>
+                      </div>
+                    </div>
+                  )
+                })()}
+
               </div>
             </div>
 
@@ -2414,57 +2546,107 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     )}
 
-                    {/* Hero image */}
-                    <div className="flex-1 relative overflow-hidden lg:max-h-[520px] rounded-md" style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor }}>
-                      {activeUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={activeUrl}
-                          src={ensureAbsoluteUrl(activeUrl)}
-                          alt={selectedProduct.name}
-                          className="w-full h-full object-contain transition-opacity duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Sparkles className="w-20 h-20 text-white/10" />
-                        </div>
-                      )}
+                    {/* Hero image — with magnifier on desktop */}
+                    {(() => {
+                      const ZOOM = 2.5
+                      const LENS = 140 // lens diameter px
+                      return (
+                        <div
+                          className="flex-1 relative lg:max-h-[520px] rounded-md select-none"
+                          style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor, overflow: 'hidden' }}
+                          onMouseMove={e => {
+                            const el = e.currentTarget
+                            const lens = el.querySelector<HTMLElement>('[data-lens]')
+                            if (!lens) return
+                            const rect = el.getBoundingClientRect()
+                            const x = e.clientX - rect.left
+                            const y = e.clientY - rect.top
+                            const half = LENS / 2
+                            const lx = Math.max(half, Math.min(rect.width - half, x))
+                            const ly = Math.max(half, Math.min(rect.height - half, y))
+                            lens.style.left = `${lx}px`
+                            lens.style.top = `${ly}px`
+                            // background-position centers the zoomed region under the cursor
+                            const bx = ((x / rect.width) * 100)
+                            const by = ((y / rect.height) * 100)
+                            lens.style.backgroundPosition = `${bx}% ${by}%`
+                            lens.style.opacity = '1'
+                          }}
+                          onMouseLeave={e => {
+                            const lens = e.currentTarget.querySelector<HTMLElement>('[data-lens]')
+                            if (lens) lens.style.opacity = '0'
+                          }}
+                        >
+                          {activeUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                key={activeUrl}
+                                src={ensureAbsoluteUrl(activeUrl)}
+                                alt={selectedProduct.name}
+                                className="w-full h-full object-contain transition-opacity duration-300"
+                                draggable={false}
+                              />
+                              {/* Magnifier lens — desktop only */}
+                              <div
+                                data-lens
+                                className="hidden sm:block pointer-events-none absolute rounded-full border-2 border-white/60 shadow-xl shadow-black/40 ring-1 ring-black/20"
+                                style={{
+                                  width: LENS,
+                                  height: LENS,
+                                  transform: 'translate(-50%, -50%)',
+                                  opacity: 0,
+                                  transition: 'opacity 0.15s',
+                                  backgroundImage: `url(${ensureAbsoluteUrl(activeUrl)})`,
+                                  backgroundSize: `${ZOOM * 100}%`,
+                                  backgroundRepeat: 'no-repeat',
+                                  zIndex: 20,
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Sparkles className="w-20 h-20 text-white/10" />
+                            </div>
+                          )}
 
-                      {/* Mobile dots */}
-                      {gallery.length > 1 && (
-                        <div className="sm:hidden absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                          {gallery.map((_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setActiveImageIdx(i)}
-                              className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-amber-400 w-3' : 'bg-white/40'}`}
-                            />
-                          ))}
-                        </div>
-                      )}
+                          {/* Mobile dots */}
+                          {gallery.length > 1 && (
+                            <div className="sm:hidden absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                              {gallery.map((_, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setActiveImageIdx(i)}
+                                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-amber-400 w-3' : 'bg-white/40'}`}
+                                />
+                              ))}
+                            </div>
+                          )}
 
-                      {/* Offer badge */}
-                      {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
-                        <div className="absolute top-4 left-4 flex flex-col gap-2">
-                          <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg shadow-red-500/30">
-                            <Flame className="w-4 h-4" />
-                            -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
-                          </div>
-                          {selectedProduct.offerLabel && (
-                            <div className="bg-black/75 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1 uppercase tracking-wider">
-                              {selectedProduct.offerLabel}
+                          {/* Offer badge */}
+                          {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
+                            <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
+                              <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg shadow-red-500/30">
+                                <Flame className="w-4 h-4" />
+                                -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
+                              </div>
+                              {selectedProduct.offerLabel && (
+                                <div className="bg-black/75 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1 uppercase tracking-wider">
+                                  {selectedProduct.offerLabel}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Delivery badge */}
+                          {selectedProduct.availableForDelivery && (
+                            <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/70 text-[10px] font-medium px-2.5 py-1.5 uppercase tracking-wider pointer-events-none">
+                              <MapPin className="w-3 h-3" /> Domicilio disponible
                             </div>
                           )}
                         </div>
-                      )}
-
-                      {/* Delivery badge */}
-                      {selectedProduct.availableForDelivery && (
-                        <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/70 text-[10px] font-medium px-2.5 py-1.5 uppercase tracking-wider">
-                          <MapPin className="w-3 h-3" /> Domicilio disponible
-                        </div>
-                      )}
-                    </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Store info */}
@@ -3025,7 +3207,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="pt-16 min-h-screen" style={{ backgroundColor: effectiveBgColor }}>
           <div className="flex">
             {/* LEFT SIDEBAR — Desktop */}
-            <aside className="hidden lg:block w-72 shrink-0 border-r border-white/10 landing-sidebar sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
+            <aside className={`hidden lg:block w-72 shrink-0 border-r landing-sidebar sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
               <CatalogSidebar
                 categories={categories}
                 availableBrands={availableBrands}
@@ -3044,15 +3226,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 setPriceMin={setCatalogPriceMin}
                 setPriceMax={setCatalogPriceMax}
                 onClear={clearCatalogFilters}
+                isLightBg={isLightBg}
               />
             </aside>
 
             {/* MAIN CONTENT */}
             <main className="flex-1 min-w-0">
               {/* Header */}
-              <div className="sticky top-16 z-10 bg-zinc-950/95 backdrop-blur border-b border-white/8 px-4 sm:px-6 lg:px-8 py-4">
+              <div className={`sticky top-16 z-10 backdrop-blur border-b px-4 sm:px-6 lg:px-8 py-4 ${isLightBg ? 'border-black/8' : 'border-white/8'}`} style={{ backgroundColor: isLightBg ? 'rgba(255,255,255,0.95)' : 'rgba(9,9,11,0.95)' }}>
                 <div className="flex items-center justify-between gap-4 mb-3">
-                  <h1 className="text-xl sm:text-2xl font-light text-white tracking-wide">
+                  <h1 className={`text-xl sm:text-2xl font-light tracking-wide ${isLightBg ? 'text-black' : 'text-white'}`}>
                     {sedesViewMode && !activeSede ? 'Sedes'
                       : sedesViewMode && activeSede ? (storeSedes.find(s => s.id === activeSede)?.name ?? 'Sede')
                       : catalogSpecialFilter === 'trending' ? 'Tendencia'
@@ -3062,12 +3245,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       : 'Catálogo'}
                   </h1>
                   <div className="flex items-center gap-3">
-                    {!(sedesViewMode && !activeSede) && <span className="text-xs text-white/40">{catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}</span>}
-                    {sedesViewMode && !activeSede && <span className="text-xs text-white/40">{storeSedes.length} sede{storeSedes.length !== 1 ? 's' : ''}</span>}
+                    {!(sedesViewMode && !activeSede) && <span className={`text-xs ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>{catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}</span>}
+                    {sedesViewMode && !activeSede && <span className={`text-xs ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>{storeSedes.length} sede{storeSedes.length !== 1 ? 's' : ''}</span>}
                     {/* Mobile filter toggle */}
                     <button
                       onClick={() => setCatalogSidebarOpen(true)}
-                      className="lg:hidden flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 text-white text-xs hover:bg-white/10 transition-colors"
+                      className={`lg:hidden flex items-center gap-2 px-3 py-2 border text-xs transition-colors ${isLightBg ? 'bg-black/5 border-black/10 text-black hover:bg-black/10' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}
                     >
                       <Target className="w-4 h-4" />
                       Filtros
@@ -3076,13 +3259,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
                 {/* Search bar (hidden in sede picker view) */}
                 {!(sedesViewMode && !activeSede) && <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                  <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
                   <input
                     type="text"
                     placeholder="Buscar productos..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-amber-500/50 focus:outline-none"
+                    className={`w-full pl-10 pr-4 py-2.5 border font-light text-sm focus:outline-none ${isLightBg ? 'bg-black/[0.03] border-black/10 text-black placeholder-black/30 focus:border-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-amber-500/50'}`}
                   />
                 </div>}
                 {/* Sede selector (only when store has 2+ sedes and not in sedes view mode or a sede is active) */}
@@ -3453,10 +3636,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {catalogSidebarOpen && (
             <>
               <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm lg:hidden" onClick={() => setCatalogSidebarOpen(false)} />
-              <div className="fixed top-0 left-0 h-full w-[300px] landing-sidebar border-r border-white/10 z-[70] overflow-y-auto lg:hidden">
-                <div className="sticky top-0 landing-sidebar border-b border-white/10 p-4 flex items-center justify-between">
-                  <h3 className="text-sm uppercase tracking-wider text-white">Filtros</h3>
-                  <button onClick={() => setCatalogSidebarOpen(false)} className="text-white/50 hover:text-white">
+              <div className={`fixed top-0 left-0 h-full w-[300px] landing-sidebar border-r z-[70] overflow-y-auto lg:hidden ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
+                <div className={`sticky top-0 landing-sidebar border-b p-4 flex items-center justify-between ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
+                  <h3 className={`text-sm uppercase tracking-wider ${isLightBg ? 'text-black' : 'text-white'}`}>Filtros</h3>
+                  <button onClick={() => setCatalogSidebarOpen(false)} className={isLightBg ? 'text-black/50 hover:text-black' : 'text-white/50 hover:text-white'}>
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -3478,6 +3661,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   setPriceMin={setCatalogPriceMin}
                   setPriceMax={setCatalogPriceMax}
                   onClear={clearCatalogFilters}
+                  isLightBg={isLightBg}
                 />
                 <div className="sticky bottom-0 p-4 border-t border-white/10 landing-sidebar">
                   <button
@@ -4588,19 +4772,23 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {storeConfig && storeConfig.featuredProducts.length > 0 && (
         <RevealSection className="py-10 sm:py-14 landing-section-bg relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="flex-1 h-px bg-current opacity-10" />
-              <div className="flex items-center gap-2 shrink-0">
-                <Star className="w-3.5 h-3.5 text-amber-500" />
-                <span className="text-sm font-light uppercase tracking-[0.3em]">Productos Destacados</span>
+            <div className="mb-8 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-current opacity-10" />
+                <div className="flex items-center gap-2 shrink-0">
+                  <Star className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="text-xs sm:text-sm font-light uppercase tracking-[0.2em] sm:tracking-[0.3em]">Productos Destacados</span>
+                </div>
+                <div className="flex-1 h-px bg-current opacity-10" />
               </div>
-              <div className="flex-1 h-px bg-current opacity-10" />
-              <button
-                onClick={() => openCatalogWithFilter('featured')}
-                className="shrink-0 inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
-              >
-                Ver todos <ArrowRight className="w-3 h-3" />
-              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => openCatalogWithFilter('featured')}
+                  className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                >
+                  Ver todos <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
             </div>
             <div className="relative">
               <div ref={carouselFeaturedRef} className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth">
@@ -6477,20 +6665,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== MOBILE: SEARCH OVERLAY ========== */}
       {mobileActiveTab === 'buscar' && (
         <div className="fixed inset-0 z-[60] md:hidden flex flex-col" style={{ backgroundColor: effectiveBgColor, top: storeConfig?.announcementBar?.isActive ? '104px' : '64px', bottom: '64px' }}>
-          <div className="p-4 border-b border-white/10">
+          <div className={`p-4 border-b ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
               <input
                 ref={globalSearchInputRef}
                 type="text"
                 value={globalSearchQuery}
                 onChange={(e) => handleGlobalSearch(e.target.value)}
                 placeholder="Buscar productos en todas las tiendas..."
-                className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500/50"
+                className={`w-full pl-10 pr-10 py-3 border text-sm focus:outline-none focus:border-amber-500/50 ${isLightBg ? 'bg-black/[0.04] border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`}
                 autoFocus
               />
               {globalSearchQuery && (
-                <button onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
+                <button onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]) }} className={`absolute right-3 top-1/2 -translate-y-1/2 ${isLightBg ? 'text-black/30 hover:text-black' : 'text-white/30 hover:text-white'}`}>
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -6499,19 +6687,71 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {!globalSearchQuery ? (
-              <div className="text-center py-16">
-                <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                <p className="text-white/40 text-sm font-light">Busca productos, marcas o categorías</p>
-              </div>
+              (() => {
+                const featured = [
+                  ...(storeConfig?.featuredProducts ?? []),
+                  ...platformFeatured,
+                ].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i).slice(0, 12)
+                return featured.length > 0 ? (
+                  <div className="space-y-4">
+                    <p className={`text-[10px] uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Destacados</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {featured.map(product => {
+                        const isOffer = product.isOnOffer && product.offerPrice
+                        const inCart = carrito.find(c => c.id === product.id)
+                        return (
+                          <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-orange-500/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
+                            <div className={`relative aspect-square overflow-hidden cursor-pointer ${isLightBg ? 'bg-black/5' : 'bg-black/50'}`} onClick={() => openProductModal(product)}>
+                              {product.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center"><Sparkles className={`w-8 h-8 ${isLightBg ? 'text-black/10' : 'text-white/10'}`} /></div>
+                              )}
+                              <div className="absolute top-2 right-2 z-10">
+                                <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                                  <ShoppingCart className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              {isOffer && (
+                                <div className="absolute top-2 left-2 z-20 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">OFERTA</div>
+                              )}
+                              {inCart && (
+                                <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                              )}
+                            </div>
+                            <div className="p-3 space-y-1">
+                              <h3 className={`text-xs font-light truncate ${isLightBg ? 'text-black' : 'text-white'}`}>{product.name}</h3>
+                              {isOffer ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-orange-500 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
+                                  <span className={`text-[10px] line-through ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(product.salePrice)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-amber-500 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <Search className={`w-12 h-12 mx-auto mb-4 ${isLightBg ? 'text-black/10' : 'text-white/10'}`} />
+                    <p className={`text-sm font-light ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Busca productos, marcas o categorías</p>
+                  </div>
+                )
+              })()
             ) : loadingGlobalSearch ? (
               <div className="text-center py-12">
                 <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-white/40 text-sm">Buscando...</p>
+                <p className={`text-sm ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Buscando...</p>
               </div>
             ) : globalSearchResults.length === 0 ? (
               <div className="text-center py-12">
-                <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                <p className="text-white/40 text-sm font-light">No se encontraron resultados para &quot;{globalSearchQuery}&quot;</p>
+                <Search className={`w-12 h-12 mx-auto mb-4 ${isLightBg ? 'text-black/10' : 'text-white/10'}`} />
+                <p className={`text-sm font-light ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>No se encontraron resultados para &quot;{globalSearchQuery}&quot;</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
@@ -6519,8 +6759,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   const isOffer = product.isOnOffer && product.offerPrice
                   const inCart = carrito.find(c => c.id === product.id)
                   return (
-                    <div key={product.id} className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden`}>
-                      <div data-dark className="relative aspect-square bg-black/50 overflow-hidden cursor-pointer" onClick={() => openProductModal(product)}>
+                    <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-orange-500/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
+                      <div className={`relative aspect-square overflow-hidden cursor-pointer ${isLightBg ? 'bg-black/5' : 'bg-black/50'}`} onClick={() => openProductModal(product)}>
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
@@ -6542,14 +6782,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         )}
                       </div>
                       <div className="p-3 space-y-1">
-                        <h3 className="text-xs font-light text-white truncate">{product.name}</h3>
+                        <h3 className={`text-xs font-light truncate ${isLightBg ? 'text-black' : 'text-white'}`}>{product.name}</h3>
                         {isOffer ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-orange-400 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
-                            <span className="text-white/30 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
+                            <span className="text-orange-500 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
+                            <span className={`text-[10px] line-through ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(product.salePrice)}</span>
                           </div>
                         ) : (
-                          <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                          <span className="text-amber-500 font-light text-sm">{formatCOP(product.salePrice)}</span>
                         )}
                       </div>
                     </div>
@@ -7113,7 +7353,7 @@ function CatalogSidebar({
   selectedBrands, setSelectedBrands,
   selectedGenders, setSelectedGenders,
   selectedSizes, setSelectedSizes,
-  priceMin, priceMax, setPriceMin, setPriceMax, onClear,
+  priceMin, priceMax, setPriceMin, setPriceMax, onClear, isLightBg,
 }: {
   categories: string[]; availableBrands: string[]; availableGenders: string[]; availableSizes: string[]
   selectedCategories: Set<string>; setSelectedCategories: (v: Set<string>) => void
@@ -7121,7 +7361,7 @@ function CatalogSidebar({
   selectedGenders: Set<string>; setSelectedGenders: (v: Set<string>) => void
   selectedSizes: Set<string>; setSelectedSizes: (v: Set<string>) => void
   priceMin: number; priceMax: number; setPriceMin: (v: number) => void; setPriceMax: (v: number) => void
-  onClear: () => void
+  onClear: () => void; isLightBg?: boolean
 }) {
   const toggle = (value: string, set: Set<string>, setter: (v: Set<string>) => void) => {
     const next = new Set(set)
@@ -7130,31 +7370,32 @@ function CatalogSidebar({
   }
 
   const hasFilters = selectedCategories.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || selectedSizes.size > 0 || priceMin > 0 || priceMax > 0
+  const t = (dark: string, light: string) => isLightBg ? light : dark
 
   return (
     <div className="p-5 space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs text-white/60 uppercase tracking-widest font-medium">Filtros</h3>
+        <h3 className={`text-xs uppercase tracking-widest font-medium ${t('text-white/60', 'text-black/60')}`}>Filtros</h3>
         {hasFilters && (
-          <button onClick={onClear} className="text-[10px] text-amber-400 hover:text-amber-300 uppercase tracking-wider">Limpiar</button>
+          <button onClick={onClear} className="text-[10px] text-amber-500 hover:text-amber-400 uppercase tracking-wider">Limpiar</button>
         )}
       </div>
 
       {/* Price */}
-      <div className="border-b border-white/5 pb-6">
-        <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-4">Precio</h4>
+      <div className={`border-b pb-6 ${t('border-white/5', 'border-black/8')}`}>
+        <h4 className={`text-[11px] uppercase tracking-widest mb-4 ${t('text-white/40', 'text-black/40')}`}>Precio</h4>
         {/* Range values */}
         <div className="flex items-center justify-between mb-5">
-          <span className="text-xs text-amber-400 font-light tabular-nums">{formatCOP(priceMin)}</span>
-          <span className="text-[10px] text-white/20">—</span>
-          <span className="text-xs text-amber-400 font-light tabular-nums">
+          <span className="text-xs text-amber-500 font-light tabular-nums">{formatCOP(priceMin)}</span>
+          <span className={`text-[10px] ${t('text-white/20', 'text-black/20')}`}>—</span>
+          <span className="text-xs text-amber-500 font-light tabular-nums">
             {priceMax > 0 ? formatCOP(priceMax) : '$500k+'}
           </span>
         </div>
         {/* Slider track */}
         <div className="relative px-0 py-2">
           {/* Background track */}
-          <div className="h-[3px] bg-white/10 rounded-full">
+          <div className={`h-[3px] rounded-full ${t('bg-white/10', 'bg-black/10')}`}>
             {/* Active fill */}
             <div
               className="absolute h-[3px] bg-amber-500 rounded-full top-2"
@@ -7166,12 +7407,12 @@ function CatalogSidebar({
           </div>
           {/* Min thumb indicator */}
           <div
-            className="absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40"
+            className={`absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40 ${t('border-black', 'border-white')}`}
             style={{ left: `${(priceMin / 500000) * 100}%` }}
           />
           {/* Max thumb indicator */}
           <div
-            className="absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40"
+            className={`absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40 ${t('border-black', 'border-white')}`}
             style={{ left: `${((priceMax || 500000) / 500000) * 100}%` }}
           />
           {/* Inputs overlay */}
@@ -7192,22 +7433,22 @@ function CatalogSidebar({
         </div>
         {/* Track labels */}
         <div className="flex justify-between mt-1">
-          <span className="text-[10px] text-white/20">$0</span>
-          <span className="text-[10px] text-white/20">$500k+</span>
+          <span className={`text-[10px] ${t('text-white/20', 'text-black/30')}`}>$0</span>
+          <span className={`text-[10px] ${t('text-white/20', 'text-black/30')}`}>$500k+</span>
         </div>
       </div>
 
       {/* Categories */}
       {categories.length > 0 && (
-        <div className="border-b border-white/5 pb-5">
-          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Categorías</h4>
+        <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
+          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Categorías</h4>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {categories.map(cat => (
               <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedCategories.has(cat) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
-                <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left">{cat}</button>
+                <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className={`text-xs transition-colors text-left ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{cat}</button>
               </label>
             ))}
           </div>
@@ -7216,15 +7457,15 @@ function CatalogSidebar({
 
       {/* Brands */}
       {availableBrands.length > 0 && (
-        <div className="border-b border-white/5 pb-5">
-          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Marcas</h4>
+        <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
+          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Marcas</h4>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {availableBrands.map(brand => (
               <label key={brand} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedBrands.has(brand) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
-                <button onClick={() => toggle(brand, selectedBrands, setSelectedBrands)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left">{brand}</button>
+                <button onClick={() => toggle(brand, selectedBrands, setSelectedBrands)} className={`text-xs transition-colors text-left ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{brand}</button>
               </label>
             ))}
           </div>
@@ -7233,15 +7474,15 @@ function CatalogSidebar({
 
       {/* Gender */}
       {availableGenders.length > 0 && (
-        <div className="border-b border-white/5 pb-5">
-          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Género</h4>
+        <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
+          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Género</h4>
           <div className="space-y-2">
             {availableGenders.map(g => (
               <label key={g} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedGenders.has(g) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
-                <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left capitalize">{g}</button>
+                <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className={`text-xs transition-colors text-left capitalize ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{g}</button>
               </label>
             ))}
           </div>
@@ -7251,11 +7492,11 @@ function CatalogSidebar({
       {/* Sizes */}
       {availableSizes.length > 0 && (
         <div className="pb-5">
-          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Tamaños</h4>
+          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Tamaños</h4>
           <div className="flex flex-wrap gap-2">
             {availableSizes.map(size => (
               <button key={size} onClick={() => toggle(size, selectedSizes, setSelectedSizes)}
-                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? 'bg-amber-500 text-black border-amber-500' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30'}`}>
+                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? 'bg-amber-500 text-black border-amber-500' : t('bg-white/5 text-white/60 border-white/10 hover:border-white/30', 'bg-black/[0.03] text-black/60 border-black/10 hover:border-black/30')}`}>
                 {size}
               </button>
             ))}
