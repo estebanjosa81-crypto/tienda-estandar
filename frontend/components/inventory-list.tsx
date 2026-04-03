@@ -69,6 +69,7 @@ import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
+import { BulkImageUploadDialog } from '@/components/bulk-image-upload-dialog'
 
 export function InventoryList() {
   const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
@@ -82,6 +83,7 @@ export function InventoryList() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
+  const [isBulkImageUploadOpen, setIsBulkImageUploadOpen] = useState(false)
   const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -743,6 +745,10 @@ export function InventoryList() {
             <Upload className="h-4 w-4 lg:h-5 lg:w-5" />
             Importar CSV
           </Button>
+          <Button variant="outline" onClick={() => setIsBulkImageUploadOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+            <Camera className="h-4 w-4 lg:h-5 lg:w-5" />
+            Imágenes masivas
+          </Button>
           <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <FileDown className="h-4 w-4 lg:h-5 lg:w-5" />
             {isExporting ? 'Exportando...' : 'Exportar CSV'}
@@ -1403,6 +1409,12 @@ export function InventoryList() {
       <BulkUploadDialog
         open={isBulkUploadOpen}
         onOpenChange={setIsBulkUploadOpen}
+      />
+
+      {/* Bulk Image Upload Dialog */}
+      <BulkImageUploadDialog
+        open={isBulkImageUploadOpen}
+        onOpenChange={setIsBulkImageUploadOpen}
       />
     </div>
   )
