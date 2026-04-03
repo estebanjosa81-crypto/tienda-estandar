@@ -55,6 +55,7 @@ import {
   MessageCircle,
   UtensilsCrossed,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
 import { ChatWidget } from '@/components/ChatWidget'
@@ -174,6 +175,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       paymentMethods: string | null; socialInstagram: string | null; socialFacebook: string | null
       socialTiktok: string | null; socialWhatsapp: string | null; productCardStyle?: string | null
       showInfoModule?: boolean | null; infoModuleDescription?: string | null
+      contactPageEnabled?: boolean | null; contactPageTitle?: string | null
+      contactPageDescription?: string | null; contactPageProducts?: string | null
+      contactPageLinks?: string | null
     } | null
     announcementBar: { text: string; linkUrl: string | null; bgColor: string; textColor: string; isActive: boolean } | null
     activeDrop: {
@@ -246,6 +250,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showServices, setShowServices] = useState(false)
   const [showNewLaunches, setShowNewLaunches] = useState(false)
   const [showOffers, setShowOffers] = useState(false)
+  const [showContact, setShowContact] = useState(false)
+  const [contactShareCopied, setContactShareCopied] = useState(false)
   const [offerSearch, setOfferSearch] = useState('')
   const [newLaunchSearch, setNewLaunchSearch] = useState('')
   const [publicServices, setPublicServices] = useState<any[]>([])
@@ -741,6 +747,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products])
+
+  // ====== OPEN CONTACT VIEW FROM URL PARAM (?view=contacto) ======
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('view') === 'contacto') {
+      setShowContact(true)
+      window.history.replaceState({}, '', window.location.pathname + (params.get('store') ? `?store=${params.get('store')}` : ''))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ====== FETCH STORES ======
   useEffect(() => {
@@ -2014,7 +2030,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
           )}
           <div className="hidden md:flex items-center gap-8 text-sm tracking-wide font-bold">
-            <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setSedesViewMode(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Inicio</button>
+            <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setShowContact(false); setSedesViewMode(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showContact && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Inicio</button>
             {offerProducts.length > 0 && <button onClick={() => { closeProductModal(); setShowOffers(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showOffers ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Ofertas</button>}
             {storeConfig?.newLaunches && storeConfig.newLaunches.length > 0 && (
               <button onClick={() => { closeProductModal(); setShowNewLaunches(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showNewLaunches ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>
@@ -2078,6 +2094,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
             {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Servicios</button>}
             {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Drop</button>}
+            {storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Contacto</button>}
           </div>
           <div className="flex items-center gap-3">
             {isAuthenticated && authUser ? (
@@ -2239,7 +2256,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
             </div>
             <div className="flex flex-col gap-6 text-sm font-bold tracking-widest text-white/70">
-              <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Inicio</button>
+              <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setShowContact(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showContact && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Inicio</button>
               <button onClick={() => { closeProductModal(); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Catálogo</button>
               {storeSedes.length >= 2 && (
                 <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 flex items-center gap-2 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>
@@ -2255,6 +2272,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Servicios</button>}
               {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Drop</button>}
               {offerProducts.length > 0 && <button onClick={() => { closeProductModal(); setShowOffers(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showOffers ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Ofertas</button>}
+              {storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Contacto</button>}
               {isAuthenticated && authUser ? (
                 <>
                   <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
@@ -4315,8 +4333,144 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </div>
       )}
 
+      {/* ========== CONTACTO VIEW (link-in-bio) ========== */}
+      {showContact && !showProductModal && (
+        <div className="pt-16 min-h-screen" style={{ backgroundColor: effectiveBgColor }}>
+          <div className="max-w-md mx-auto px-4 py-10 space-y-6">
+            {/* Header */}
+            <div className="text-center space-y-3 pt-4">
+              {storeConfig?.storeInfo?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={storeConfig.storeInfo.logoUrl} alt="" className="h-20 w-20 mx-auto object-cover rounded-full border-2 border-white/20" />
+              ) : (
+                <div className="h-20 w-20 mx-auto rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center">
+                  <Store className="w-8 h-8 text-white/50" />
+                </div>
+              )}
+              <h1 className="text-lg font-semibold text-white">
+                {storeConfig?.storeInfo?.contactPageTitle || storeConfig?.storeInfo?.name || 'Links'}
+              </h1>
+              {storeConfig?.storeInfo?.contactPageDescription && (
+                <p className="text-white/50 text-sm leading-relaxed">
+                  {storeConfig.storeInfo.contactPageDescription}
+                </p>
+              )}
+            </div>
+
+            {/* Custom links — full width buttons */}
+            {(() => {
+              const links: Array<{ label: string; url: string }> = (() => {
+                const raw = storeConfig?.storeInfo?.contactPageLinks
+                if (!raw) return []
+                try { return JSON.parse(raw) } catch { return [] }
+              })()
+              if (links.length === 0) return null
+              return (
+                <div className="space-y-3">
+                  {links.map((l, i) => (
+                    <a
+                      key={i}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full px-5 py-4 rounded-xl border border-white/15 bg-white/8 hover:bg-white/15 hover:border-white/30 transition-all text-white font-medium text-sm text-center"
+                      style={{ backdropFilter: 'blur(8px)' }}
+                    >
+                      {l.label}
+                    </a>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Selected products */}
+            {(() => {
+              const ids: string[] = (() => {
+                const raw = storeConfig?.storeInfo?.contactPageProducts
+                if (!raw) return []
+                try { return JSON.parse(raw) } catch { return [] }
+              })()
+              const contactProds = products.filter(p => ids.includes(String(p.id)))
+              if (contactProds.length === 0) return null
+              return (
+                <div className="space-y-3 pt-2">
+                  <p className="text-center text-xs uppercase tracking-[0.3em] text-white/30">Productos</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {contactProds.map(p => (
+                      <button
+                        key={p.id}
+                        className="group text-left rounded-xl overflow-hidden border border-white/10 bg-white/5 hover:border-white/25 transition-all"
+                        onClick={() => openProductModal(p)}
+                      >
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imageUrl} alt={p.name} className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ) : (
+                          <div className="w-full aspect-square bg-white/5 flex items-center justify-center">
+                            <Package className="w-7 h-7 text-white/20" />
+                          </div>
+                        )}
+                        <div className="p-2.5">
+                          <p className="text-xs text-white/80 truncate">{p.name}</p>
+                          <p className="text-sm font-semibold text-amber-400 mt-0.5">{formatCOP(p.salePrice)}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Share */}
+            {selectedStore && selectedStore !== 'all' && (() => {
+              const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${selectedStore}&view=contacto`
+              return (
+                <div className="pt-2 space-y-4 border-t border-white/10">
+                  <div className="flex justify-center">
+                    <div className="bg-white p-3 rounded-xl">
+                      <QRCodeSVG value={shareUrl} size={140} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareUrl)
+                        setContactShareCopied(true)
+                        setTimeout(() => setContactShareCopied(false), 2000)
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 text-white/80 text-xs transition-all"
+                    >
+                      {contactShareCopied ? <CheckCircle className="w-3.5 h-3.5 text-green-400" /> : <Share2 className="w-3.5 h-3.5" />}
+                      {contactShareCopied ? 'Copiado' : 'Copiar link'}
+                    </button>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(shareUrl)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-xs transition-all"
+                    >
+                      <Phone className="w-3.5 h-3.5" /> Compartir por WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Back */}
+            <div className="flex justify-center pb-6">
+              <button
+                onClick={() => setShowContact(false)}
+                className="text-white/30 hover:text-white/60 text-xs transition-colors flex items-center gap-1"
+              >
+                <ArrowLeft className="w-3 h-3" /> Volver a la tienda
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ========== HERO VIEW (Inicio) ========== */}
-      {!showCatalog && !showDrop && !showServices && !showOffers && !showProductModal && (
+      {!showCatalog && !showDrop && !showServices && !showOffers && !showContact && !showProductModal && (
       <>
       {/* ========== HERO 1 — Banner Principal (Editable) ========== */}
       <section

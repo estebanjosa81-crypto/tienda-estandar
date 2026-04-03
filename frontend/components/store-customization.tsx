@@ -35,7 +35,11 @@ import {
   MessageCircle,
   Bell,
   Package,
+  QrCode,
+  Link,
+  Copy,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { departamentosMunicipios } from '@/constants'
 
@@ -92,6 +96,12 @@ interface StoreExtendedInfo {
   allowContraentrega: boolean
   showInfoModule: boolean
   infoModuleDescription: string
+  contactPageEnabled: boolean
+  contactPageTitle: string
+  contactPageDescription: string
+  contactPageProducts: string[]
+  contactPageLinks: Array<{ label: string; url: string }>
+  storeSlug?: string
 }
 
 interface AnnouncementBar {
@@ -114,7 +124,7 @@ interface Drop {
   products?: Array<{ productId: string; customDiscount: number | null; name: string; imageUrl: string | null; salePrice: number }>
 }
 
-type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot'
+type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot' | 'contact'
 
 export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('banners')
@@ -133,6 +143,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     socialTiktok: '', socialWhatsapp: '',
     department: '', municipality: '', productCardStyle: 'style1',
     allowContraentrega: true, showInfoModule: false, infoModuleDescription: '',
+    contactPageEnabled: false, contactPageTitle: '', contactPageDescription: '',
+    contactPageProducts: [], contactPageLinks: [], storeSlug: '',
   })
 
   // Chatbot config
@@ -150,6 +162,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   })
   const [isSavingChatbot, setIsSavingChatbot] = useState(false)
   const [chatbotMsg, setChatbotMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  // Contact page — new link form
+  const [newContactLink, setNewContactLink] = useState({ label: '', url: '' })
 
   // Banner form
   const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
@@ -215,6 +230,20 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             allowContraentrega: result.data.storeInfo.allowContraentrega !== false,
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
+            contactPageEnabled: !!result.data.storeInfo.contactPageEnabled,
+            contactPageTitle: result.data.storeInfo.contactPageTitle || '',
+            contactPageDescription: result.data.storeInfo.contactPageDescription || '',
+            contactPageProducts: (() => {
+              const raw = result.data.storeInfo.contactPageProducts
+              if (!raw) return []
+              try { return JSON.parse(raw) } catch { return [] }
+            })(),
+            contactPageLinks: (() => {
+              const raw = result.data.storeInfo.contactPageLinks
+              if (!raw) return []
+              try { return JSON.parse(raw) } catch { return [] }
+            })(),
+            storeSlug: result.data.storeInfo.storeSlug || '',
           })
         }
       }
@@ -461,7 +490,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const handleSaveStoreInfo = async () => {
     setSaving(true)
     try {
-      const result = await api.updateStoreExtendedInfo(storeInfo)
+      const { storeSlug: _slug, ...storeInfoPayload } = storeInfo
+      const result = await api.updateStoreExtendedInfo(storeInfoPayload)
       if (result.success) {
         showMsg('success', 'Información de tienda actualizada')
       } else {
@@ -484,6 +514,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     { key: 'announcement', label: 'Anuncio', icon: <ExternalLink className="h-4 w-4" /> },
     { key: 'drops', label: 'Drops', icon: <Zap className="h-4 w-4" /> },
     { key: 'info', label: 'Info Tienda', icon: <Info className="h-4 w-4" /> },
+    { key: 'contact', label: 'Contacto', icon: <QrCode className="h-4 w-4" /> },
     { key: 'chatbot', label: 'Chatbot IA', icon: <Bot className="h-4 w-4" /> },
   ]
 
@@ -1544,6 +1575,223 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ──────────────────────────────────────────
+          TAB: CONTACTO
+      ────────────────────────────────────────── */}
+      {activeTab === 'contact' && (
+        <div className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Crea una mini landing page de links para compartir con tus clientes. Agrega cualquier enlace como botón: WhatsApp, catálogo, redes sociales, etc.
+          </p>
+
+          {/* Enable / basic info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <QrCode className="h-4 w-4" />
+                Configuración general
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                <div>
+                  <p className="text-sm font-medium">Activar página de links</p>
+                  <p className="text-xs text-muted-foreground">Aparece en el menú de tu tienda y tiene un enlace/QR propio</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStoreInfo(p => ({ ...p, contactPageEnabled: !p.contactPageEnabled }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${storeInfo.contactPageEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${storeInfo.contactPageEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Título</label>
+                <Input
+                  placeholder="Ej. @mitienda · Links"
+                  value={storeInfo.contactPageTitle}
+                  onChange={e => setStoreInfo(p => ({ ...p, contactPageTitle: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Descripción (opcional)</label>
+                <Textarea
+                  placeholder="Ej. ¡Hola! Aquí encontrarás todo sobre nuestra tienda 🛍️"
+                  value={storeInfo.contactPageDescription}
+                  onChange={e => setStoreInfo(p => ({ ...p, contactPageDescription: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Link manager */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Link className="h-4 w-4" />
+                Mis Links
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Cada link aparece como un botón en tu página. Puedes agregar WhatsApp, Instagram, catálogo, tienda, etc.
+              </p>
+
+              {/* Existing links */}
+              {storeInfo.contactPageLinks.length > 0 && (
+                <div className="space-y-2">
+                  {storeInfo.contactPageLinks.map((link, i) => (
+                    <div key={i} className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{link.label}</p>
+                        <p className="text-xs text-muted-foreground truncate">{link.url}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => setStoreInfo(p => ({
+                          ...p,
+                          contactPageLinks: p.contactPageLinks.filter((_, idx) => idx !== i),
+                        }))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add new link */}
+              <div className="border rounded-lg p-3 space-y-3 bg-background">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Agregar link</p>
+                <Input
+                  placeholder="Etiqueta del botón — Ej: 💬 WhatsApp, 📦 Ver catálogo"
+                  value={newContactLink.label}
+                  onChange={e => setNewContactLink(p => ({ ...p, label: e.target.value }))}
+                />
+                <Input
+                  placeholder="URL — Ej: https://wa.me/573001234567"
+                  value={newContactLink.url}
+                  onChange={e => setNewContactLink(p => ({ ...p, url: e.target.value }))}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!newContactLink.label.trim() || !newContactLink.url.trim()}
+                  onClick={() => {
+                    if (!newContactLink.label.trim() || !newContactLink.url.trim()) return
+                    setStoreInfo(p => ({
+                      ...p,
+                      contactPageLinks: [...p.contactPageLinks, { label: newContactLink.label.trim(), url: newContactLink.url.trim() }],
+                    }))
+                    setNewContactLink({ label: '', url: '' })
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Agregar botón
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Product selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Productos a mostrar (opcional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">Muestra una grilla de productos debajo de los links (máx. 12).</p>
+              <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
+                {publishedProducts.map(p => {
+                  const selected = storeInfo.contactPageProducts.includes(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${selected ? 'bg-primary/5' : ''}`}
+                      onClick={() => setStoreInfo(prev => {
+                        const ids = prev.contactPageProducts
+                        const next = selected
+                          ? ids.filter(id => id !== p.id)
+                          : ids.length < 12 ? [...ids, p.id] : ids
+                        return { ...prev, contactPageProducts: next }
+                      })}
+                    >
+                      {p.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.imageUrl} alt="" className="w-8 h-8 object-cover rounded" />
+                      )}
+                      <span className="flex-1 text-sm truncate">{p.name}</span>
+                      {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">{storeInfo.contactPageProducts.length} producto(s) seleccionado(s)</p>
+            </CardContent>
+          </Card>
+
+          {/* QR & share link */}
+          {storeInfo.storeSlug && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <QrCode className="h-4 w-4 text-primary" />
+                  Enlace y QR para compartir
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const url = typeof window !== 'undefined'
+                    ? `${window.location.origin}/?store=${storeInfo.storeSlug}&view=contacto`
+                    : ''
+                  return (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Input value={url} readOnly className="text-xs font-mono" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => { navigator.clipboard.writeText(url); showMsg('success', 'Enlace copiado') }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex justify-center p-4 bg-white rounded-xl border">
+                        <QRCodeSVG value={url} size={180} />
+                      </div>
+                      <p className="text-xs text-center text-muted-foreground">
+                        Guarda o imprime este QR para compartir tu página de links
+                      </p>
+                    </>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+          )}
+
+          <Button onClick={handleSaveStoreInfo} disabled={saving} className="w-full sm:w-auto gap-2">
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Guardar
+          </Button>
+          {msg && (
+            <span className={`text-sm font-medium flex items-center gap-1 ${msg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {msg.type === 'success' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+              {msg.text}
+            </span>
+          )}
         </div>
       )}
 

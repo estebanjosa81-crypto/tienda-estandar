@@ -908,6 +908,9 @@ class ApiService {
     socialTiktok?: string; socialWhatsapp?: string;
     department?: string; municipality?: string; productCardStyle?: string;
     allowContraentrega?: boolean; showInfoModule?: boolean; infoModuleDescription?: string;
+    contactPageEnabled?: boolean; contactPageTitle?: string; contactPageDescription?: string;
+    contactPageProducts?: string[];
+    contactPageLinks?: Array<{ label: string; url: string }>;
   }) {
     return this.request<any>('/storefront/store-extended-info', {
       method: 'PUT',
