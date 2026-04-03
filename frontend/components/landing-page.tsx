@@ -2652,8 +2652,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Store info */}
                   {selectedProduct.storeName && (
                     <div className={`flex items-center gap-3 py-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/6 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
-                        <Store className={`w-5 h-5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`} />
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden ${isLightBg ? 'bg-black/6 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
+                        {storeConfig?.storeInfo?.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={storeConfig.storeInfo.logoUrl} alt={selectedProduct.storeName} className="w-full h-full object-cover" />
+                        ) : (
+                          <Store className={`w-5 h-5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`} />
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
