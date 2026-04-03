@@ -127,7 +127,21 @@ export function BulkImageUploadDialog({
       setRows(prev => prev.map(r => r.file === row.file ? { ...r, status: 'uploading' } : r))
       try {
         const url = await uploadToCloudinary(row.file, config.cloudName, config.uploadPreset)
-        await api.updateProduct(row.matchedProductId!, { imageUrl: url })
+
+        // Find the current product to check if it already has a main image
+        const product = products.find(p => p.id === row.matchedProductId)
+        let updatePayload: Record<string, unknown>
+
+        if (product?.imageUrl) {
+          // Already has main image → add to gallery (images array)
+          const currentGallery: string[] = Array.isArray(product.images) ? product.images : []
+          updatePayload = { images: [...currentGallery, url] }
+        } else {
+          // No main image → set as main
+          updatePayload = { imageUrl: url }
+        }
+
+        await api.updateProduct(row.matchedProductId!, updatePayload)
         setRows(prev => prev.map(r => r.file === row.file ? { ...r, status: 'done', url } : r))
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error desconocido'
@@ -206,6 +220,7 @@ export function BulkImageUploadDialog({
                 <tr>
                   <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Archivo</th>
                   <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Producto encontrado</th>
+                  <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground w-28">Destino</th>
                   <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground w-24">Estado</th>
                 </tr>
               </thead>
@@ -221,6 +236,14 @@ export function BulkImageUploadDialog({
                       ) : (
                         <span className="text-xs text-amber-500 italic">Sin coincidencia</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.matchedProductId ? (() => {
+                        const p = products.find(x => x.id === row.matchedProductId)
+                        return p?.imageUrl
+                          ? <span className="text-xs text-blue-500">+ Galería</span>
+                          : <span className="text-xs text-green-600">★ Principal</span>
+                      })() : null}
                     </td>
                     <td className="px-3 py-2">
                       {row.status === 'matched' && (
