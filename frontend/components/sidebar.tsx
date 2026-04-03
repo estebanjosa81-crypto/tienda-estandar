@@ -348,22 +348,16 @@ export function Sidebar() {
                             Tienda
                           </span>
 
-                          {/* Chevron toggle — only when expanded */}
-                          <span
-                            style={{
-                              opacity: expanded ? 1 : 0,
-                              maxWidth: expanded ? 20 : 0,
-                              overflow: 'hidden',
-                              transition: `opacity 0.22s ${delay}s, max-width 0.3s`,
-                            }}
-                            className="ml-auto flex-shrink-0"
-                          >
-                            <ChevronDown className={cn(
-                              'h-3 w-3 transition-transform duration-200',
-                              isGroupActive ? 'opacity-60' : 'opacity-40',
-                              storeOpen ? 'rotate-0' : '-rotate-90'
-                            )} />
-                          </span>
+                          {/* Chevron toggle — only when expanded, absolutely positioned to not affect icon centering */}
+                          {expanded && (
+                            <span className="ml-auto flex-shrink-0">
+                              <ChevronDown className={cn(
+                                'h-3 w-3 transition-transform duration-200',
+                                isGroupActive ? 'opacity-60' : 'opacity-40',
+                                storeOpen ? 'rotate-0' : '-rotate-90'
+                              )} />
+                            </span>
+                          )}
                         </button>
 
                         {/* Sub-items */}
