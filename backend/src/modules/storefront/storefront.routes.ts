@@ -711,7 +711,12 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.product_card_style as productCardStyle,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription
+                si.info_module_description as infoModuleDescription,
+                si.contact_page_enabled as contactPageEnabled,
+                si.contact_page_title as contactPageTitle,
+                si.contact_page_description as contactPageDescription,
+                si.contact_page_products as contactPageProducts,
+                si.contact_page_links as contactPageLinks
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -946,8 +951,15 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
                 si.product_card_style as productCardStyle,
                 si.allow_contraentrega as allowContraentrega,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription
+                si.info_module_description as infoModuleDescription,
+                si.contact_page_enabled as contactPageEnabled,
+                si.contact_page_title as contactPageTitle,
+                si.contact_page_description as contactPageDescription,
+                si.contact_page_products as contactPageProducts,
+                si.contact_page_links as contactPageLinks,
+                t.slug as storeSlug
          FROM store_info si
+         LEFT JOIN tenants t ON t.id = si.tenant_id
          WHERE si.tenant_id = ?`,
         [tenantId]
       ) as any;
@@ -1229,10 +1241,18 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
+      contactPageEnabled, contactPageTitle, contactPageDescription, contactPageProducts, contactPageLinks,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
     const infoModule = showInfoModule ? 1 : 0;
+    const contactEnabled = contactPageEnabled ? 1 : 0;
+    const contactProducts = Array.isArray(contactPageProducts)
+      ? JSON.stringify(contactPageProducts)
+      : (contactPageProducts || null);
+    const contactLinks = Array.isArray(contactPageLinks)
+      ? JSON.stringify(contactPageLinks)
+      : (contactPageLinks || null);
 
     let result: any;
     try {
@@ -1243,14 +1263,18 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
-          show_info_module = ?, info_module_description = ?
+          show_info_module = ?, info_module_description = ?,
+          contact_page_enabled = ?, contact_page_title = ?, contact_page_description = ?,
+          contact_page_products = ?, contact_page_links = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
           department || null, municipality || null, productCardStyle || 'style1', allowCod,
-          infoModule, infoModuleDescription || null, tenantId,
+          infoModule, infoModuleDescription || null,
+          contactEnabled, contactPageTitle || null, contactPageDescription || null, contactProducts, contactLinks,
+          tenantId,
         ]
       ) as any;
     } catch {
