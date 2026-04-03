@@ -1278,20 +1278,23 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
         ]
       ) as any;
     } catch {
-      // Fallback: some columns may not exist in running DB yet
+      // Fallback: contact_page_* columns may not exist in running DB yet
       try {
         [result] = await pool.query(
           `UPDATE store_info SET
-            logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
+            logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
             payment_methods = ?, social_instagram = ?, social_facebook = ?,
             social_tiktok = ?, social_whatsapp = ?,
-            department = ?, municipality = ?
+            department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
+            show_info_module = ?, info_module_description = ?
            WHERE tenant_id = ?`,
           [
-            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
+            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
             paymentMethods || null, socialInstagram || null, socialFacebook || null,
             socialTiktok || null, socialWhatsapp || null,
-            department || null, municipality || null, tenantId,
+            department || null, municipality || null, productCardStyle || 'style1', allowCod,
+            infoModule, infoModuleDescription || null,
+            tenantId,
           ]
         ) as any;
       } catch {
