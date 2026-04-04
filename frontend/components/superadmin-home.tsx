@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -98,6 +99,8 @@ export function SuperadminHome() {
   // ── Login image settings ──
   const [loginImageUrl, setLoginImageUrl] = useState('')
   const [isSavingLogin, setIsSavingLogin] = useState(false)
+  const [showMerchantLoginLink, setShowMerchantLoginLink] = useState(true)
+  const [isSavingLoginPrompt, setIsSavingLoginPrompt] = useState(false)
 
   // ── Offers (products with isOnOffer) ──
   const [offers, setOffers] = useState<any[]>([])
@@ -148,6 +151,9 @@ export function SuperadminHome() {
       if (result.data.hero_title) setHeroTitle(result.data.hero_title)
       if (result.data.hero_subtitle) setHeroSubtitle(result.data.hero_subtitle)
       if (result.data.login_image_url) setLoginImageUrl(result.data.login_image_url)
+      if (result.data.show_merchant_login_link !== undefined) {
+        setShowMerchantLoginLink(result.data.show_merchant_login_link !== 'false')
+      }
     }
   }, [])
 
@@ -328,6 +334,20 @@ export function SuperadminHome() {
       toast.error(result.error || 'Error al guardar')
     }
     setIsSavingLogin(false)
+  }
+
+  const handleSaveLoginPrompt = async () => {
+    setIsSavingLoginPrompt(true)
+    const result = await api.updatePlatformSetting(
+      'show_merchant_login_link',
+      showMerchantLoginLink ? 'true' : 'false'
+    )
+    if (result.success) {
+      toast.success('Preferencia del login actualizada')
+    } else {
+      toast.error(result.error || 'Error al guardar')
+    }
+    setIsSavingLoginPrompt(false)
   }
 
   const openCreateDrop = () => {
@@ -511,8 +531,21 @@ export function SuperadminHome() {
               <p className="text-xs text-muted-foreground">
                 Acepta imágenes estáticas (.jpg, .png, .webp) o animadas (.gif). Se mostrará como fondo en la pantalla de login.
               </p>
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-background px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">Acceso al panel para comerciantes</p>
+                  <p className="text-xs text-muted-foreground">Muestra u oculta el enlace en el modal de login</p>
+                </div>
+                <Checkbox
+                  checked={showMerchantLoginLink}
+                  onCheckedChange={(checked) => setShowMerchantLoginLink(Boolean(checked))}
+                />
+              </div>
               <Button size="sm" onClick={handleSaveLoginImage} disabled={isSavingLogin}>
                 {isSavingLogin ? 'Guardando...' : 'Guardar imagen de login'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleSaveLoginPrompt} disabled={isSavingLoginPrompt}>
+                {isSavingLoginPrompt ? 'Guardando...' : 'Guardar preferencia del login'}
               </Button>
             </CardContent>
           </Card>
