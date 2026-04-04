@@ -4414,26 +4414,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Tab toggle */}
                   {hasLinks && hasShop && (
                     <div className={`flex rounded-full p-1 gap-1 ${isLightBg ? 'bg-black/6' : 'bg-white/8'}`}>
-                      <button
-                        onClick={() => setContactTab('links')}
-                        className={`flex-1 py-2 rounded-full text-xs font-medium tracking-wide transition-all ${
-                          contactTab === 'links'
-                            ? isLightBg ? 'bg-black text-white shadow-sm' : 'bg-white text-black shadow-sm'
-                            : isLightBg ? 'text-black/65 hover:text-black/85' : 'text-white/60 hover:text-white/85'
-                        }`}
-                      >
-                        Links
-                      </button>
-                      <button
-                        onClick={() => setContactTab('shop')}
-                        className={`flex-1 py-2 rounded-full text-xs font-medium tracking-wide transition-all ${
-                          contactTab === 'shop'
-                            ? isLightBg ? 'bg-black text-white shadow-sm' : 'bg-white text-black shadow-sm'
-                            : isLightBg ? 'text-black/65 hover:text-black/85' : 'text-white/60 hover:text-white/85'
-                        }`}
-                      >
-                        Shop
-                      </button>
+                      {(['links', 'shop'] as const).map(tab => {
+                        const isActive = contactTab === tab
+                        return (
+                          <button
+                            key={tab}
+                            onClick={() => setContactTab(tab)}
+                            className={`flex-1 py-2 rounded-full text-xs font-medium tracking-wide transition-all ${
+                              isActive ? 'shadow-sm' : ''
+                            }`}
+                            style={{
+                              backgroundColor: isActive ? (isLightBg ? '#000' : '#fff') : 'transparent',
+                              color: isActive
+                                ? (isLightBg ? '#fff' : '#000')
+                                : isLightBg ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
+                            }}
+                          >
+                            {tab === 'links' ? 'Links' : 'Shop'}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
 

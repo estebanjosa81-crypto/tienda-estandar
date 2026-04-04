@@ -1565,6 +1565,45 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             </CardContent>
           </Card>
 
+          {/* Catalog QR */}
+          {storeInfo.storeSlug && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <QrCode className="h-4 w-4 text-primary" />
+                  Enlace y QR del catálogo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const url = typeof window !== 'undefined'
+                    ? `${window.location.origin}/?store=${storeInfo.storeSlug}`
+                    : ''
+                  return (
+                    <>
+                      <p className="text-xs text-muted-foreground">Comparte este link o QR para que tus clientes lleguen directo al catálogo de tu tienda.</p>
+                      <div className="flex items-center gap-2">
+                        <input value={url} readOnly className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-xs font-mono" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => { navigator.clipboard.writeText(url); showMsg('success', 'Enlace del catálogo copiado') }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex justify-center p-4 bg-white rounded-xl border">
+                        <QRCodeSVG value={url} size={160} />
+                      </div>
+                      <p className="text-xs text-center text-muted-foreground">Escanea para abrir el catálogo directamente</p>
+                    </>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex items-center gap-3 flex-wrap">
             <Button onClick={handleSaveStoreInfo} disabled={saving} className="w-full sm:w-auto">
               <Save className="h-4 w-4 mr-2" />
