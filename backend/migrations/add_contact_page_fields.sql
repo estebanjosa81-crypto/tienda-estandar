@@ -78,3 +78,13 @@ SET @sql = (SELECT IF(
   'SELECT ''[skip] contact_page_links ya existe'''
 ));
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+-- contact_page_image
+SET @col = 'contact_page_image';
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @tbl AND COLUMN_NAME = @col) = 0,
+  CONCAT('ALTER TABLE `', @tbl, '` ADD COLUMN `', @col, '` VARCHAR(500) NULL'),
+  'SELECT ''[skip] contact_page_image ya existe'''
+));
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;

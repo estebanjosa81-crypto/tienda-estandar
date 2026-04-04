@@ -99,6 +99,7 @@ interface StoreExtendedInfo {
   contactPageEnabled: boolean
   contactPageTitle: string
   contactPageDescription: string
+  contactPageImage: string
   contactPageProducts: string[]
   contactPageLinks: Array<{ label: string; url: string }>
   storeSlug?: string
@@ -144,7 +145,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     department: '', municipality: '', productCardStyle: 'style1',
     allowContraentrega: true, showInfoModule: false, infoModuleDescription: '',
     contactPageEnabled: false, contactPageTitle: '', contactPageDescription: '',
-    contactPageProducts: [], contactPageLinks: [], storeSlug: '',
+    contactPageImage: '', contactPageProducts: [], contactPageLinks: [], storeSlug: '',
   })
 
   // Chatbot config
@@ -233,6 +234,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             contactPageEnabled: !!result.data.storeInfo.contactPageEnabled,
             contactPageTitle: result.data.storeInfo.contactPageTitle || '',
             contactPageDescription: result.data.storeInfo.contactPageDescription || '',
+            contactPageImage: result.data.storeInfo.contactPageImage || '',
             contactPageProducts: (() => {
               const raw = result.data.storeInfo.contactPageProducts
               if (!raw) return []
@@ -1608,6 +1610,18 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${storeInfo.contactPageEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Foto de perfil</label>
+                <p className="text-xs text-muted-foreground">Imagen circular que aparece en tu página de links. Si no configuras una, se usa el logo de la tienda.</p>
+                <CloudinaryUpload
+                  label="Foto de perfil"
+                  value={storeInfo.contactPageImage}
+                  onChange={url => setStoreInfo(p => ({ ...p, contactPageImage: url }))}
+                  previewClassName="h-16 w-16 object-cover rounded-full"
+                  accept="image/*"
+                />
               </div>
 
               <div className="space-y-2">

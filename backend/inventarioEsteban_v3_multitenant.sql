@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS store_info (
     contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Activar página de links pública',
     contact_page_title VARCHAR(255) NULL COMMENT 'Título de la página de links',
     contact_page_description TEXT NULL COMMENT 'Descripción/subtítulo de la página de links',
+    contact_page_image VARCHAR(500) NULL COMMENT 'URL de la foto de perfil de la página de links (sobreescribe el logo)',
     contact_page_products TEXT NULL COMMENT 'JSON: array de IDs de productos a mostrar en la página de links',
     contact_page_links TEXT NULL COMMENT 'JSON: array de {label, url} para los botones de la página de links',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
