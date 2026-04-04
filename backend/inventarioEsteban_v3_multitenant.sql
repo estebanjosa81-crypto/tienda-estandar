@@ -133,6 +133,15 @@ CREATE TABLE IF NOT EXISTS store_info (
     invoice_greeting VARCHAR(255) NULL DEFAULT '¡Gracias por su compra!' COMMENT 'Mensaje de agradecimiento al pie de la factura',
     invoice_policy TEXT NULL COMMENT 'Política de cambios y devoluciones al pie de la factura',
     invoice_copies TINYINT NOT NULL DEFAULT 1 COMMENT 'Copias a imprimir por factura: 1 o 2',
+    -- Módulo de información
+    show_info_module TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Mostrar módulo de información en la tienda',
+    info_module_description TEXT NULL COMMENT 'Descripción del módulo de información',
+    -- Página de links (estilo Linktree)
+    contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Activar página de links pública',
+    contact_page_title VARCHAR(255) NULL COMMENT 'Título de la página de links',
+    contact_page_description TEXT NULL COMMENT 'Descripción/subtítulo de la página de links',
+    contact_page_products TEXT NULL COMMENT 'JSON: array de IDs de productos a mostrar en la página de links',
+    contact_page_links TEXT NULL COMMENT 'JSON: array de {label, url} para los botones de la página de links',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_store_tenant (tenant_id),
@@ -2247,48 +2256,11 @@ CREATE TABLE IF NOT EXISTS media_library (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Migración: contact_page en store_info
+-- Migración: contact_page + info_module en store_info
+-- (columnas ya incluidas en CREATE TABLE — este bloque
+--  cubre bases de datos existentes pre-migración)
 -- ============================================
-DROP PROCEDURE IF EXISTS sp_add_contact_page_fields;
-
-DELIMITER //
-CREATE PROCEDURE sp_add_contact_page_fields()
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_enabled'
-    ) THEN
-        ALTER TABLE store_info ADD COLUMN contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_title'
-    ) THEN
-        ALTER TABLE store_info ADD COLUMN contact_page_title VARCHAR(255) NULL;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_description'
-    ) THEN
-        ALTER TABLE store_info ADD COLUMN contact_page_description TEXT NULL;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_products'
-    ) THEN
-        ALTER TABLE store_info ADD COLUMN contact_page_products TEXT NULL;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_links'
-    ) THEN
-        ALTER TABLE store_info ADD COLUMN contact_page_links TEXT NULL;
-    END IF;
-END //
-DELIMITER ;
-
-CALL sp_add_contact_page_fields();
-DROP PROCEDURE IF EXISTS sp_add_contact_page_fields;
+-- Ver: backend/migrations/add_contact_page_fields.sql
 
 -- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
