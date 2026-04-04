@@ -155,6 +155,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ====== PLATFORM BG COLOR ======
   const [platformBgColor, setPlatformBgColor] = useState('#000000')
+  const [showMerchantLoginLink, setShowMerchantLoginLink] = useState(true)
 
   // ====== PLATFORM HERO SETTINGS ======
   const [platformHeroUrl, setPlatformHeroUrl] = useState('')
@@ -756,6 +757,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       setShowContact(true)
       window.history.replaceState({}, '', window.location.pathname + (params.get('store') ? `?store=${params.get('store')}` : ''))
     }
+    if (params.get('view') === 'catalogo') {
+      setShowCatalog(true)
+      window.history.replaceState({}, '', window.location.pathname + (params.get('store') ? `?store=${params.get('store')}` : ''))
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -805,6 +810,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           if (json.data.hero_image_url) setPlatformHeroUrl(json.data.hero_image_url)
           if (json.data.hero_title) setPlatformHeroTitle(json.data.hero_title)
           if (json.data.hero_subtitle) setPlatformHeroSubtitle(json.data.hero_subtitle)
+          if (json.data.show_merchant_login_link !== undefined) {
+            setShowMerchantLoginLink(json.data.show_merchant_login_link !== 'false')
+          }
         }
       } catch {}
     }
@@ -1906,12 +1914,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         .placeholder-white\\/20::placeholder { color: rgba(0,0,0,0.25) !important; }
         .placeholder-white\\/30::placeholder { color: rgba(0,0,0,0.35) !important; }
         /* ── Nav accent colors → negro en fondo claro ── */
-        nav .text-amber-400 { color: #111 !important; }
-        nav .text-orange-400 { color: #111 !important; }
         nav .text-red-400 { color: rgba(0,0,0,0.75) !important; }
-        nav .hover\\:text-amber-400:hover { color: #111 !important; }
-        nav .hover\\:text-orange-300:hover { color: rgba(0,0,0,0.8) !important; }
-        nav .hover\\:text-red-300:hover { color: rgba(0,0,0,0.8) !important; }
+        nav .hover\:text-red-300:hover { color: rgba(0,0,0,0.8) !important; }
         /* ── data-dark exemptions: preserve white on dark surfaces (category tiles, hero images) ── */
         [data-dark] .text-white,        [data-dark].text-white        { color: #fff !important; }
         [data-dark] .text-white\\/90,   [data-dark].text-white\\/90   { color: rgba(255,255,255,0.9) !important; }
@@ -1988,7 +1992,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className={`fixed top-0 left-0 right-0 z-[70] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium shadow-lg ${
           mpReturnMsg.type === 'success' ? 'bg-green-600 text-white' :
           mpReturnMsg.type === 'failure' ? 'bg-red-600 text-white' :
-          'bg-amber-500 text-black'
+          'bg-white text-black'
         }`}>
           <span>{mpReturnMsg.text}</span>
           <button onClick={() => setMpReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
@@ -2102,17 +2106,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <>
                 <button
                   onClick={() => { fetchClientOrders(); setAccountTab('pedidos'); setShowAccountPanel(true) }}
-                  className="hidden md:flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wider"
+                  className="hidden md:flex items-center gap-1 text-xs text-white/70 hover:text-white transition-colors uppercase tracking-wider"
                 >
                   <Package className="w-4 h-4" />
                   Mis Pedidos
                 </button>
                 <button
                   onClick={() => { setAccountTab('perfil'); setShowAccountPanel(true) }}
-                  className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-amber-500/20 border border-white/20 hover:border-amber-400/40 items-center justify-center transition-all duration-300 group"
+                  className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 hover:border-white/35 items-center justify-center transition-all duration-300 group"
                   title={authUser.name}
                 >
-                  <User className="w-4 h-4 text-white/70 group-hover:text-amber-400 transition-colors" />
+                  <User className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
                 </button>
               </>
             ) : null}
@@ -2129,7 +2133,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             >
               <ShoppingCart className="w-5 h-5" />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {totalItems}
                 </span>
               )}
@@ -2137,10 +2141,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {!isAuthenticated && (
               <button
                 onClick={() => { setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }}
-                className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-amber-500/20 border border-white/20 hover:border-amber-400/40 items-center justify-center transition-all duration-300 group"
+                className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 hover:border-white/35 items-center justify-center transition-all duration-300 group"
                 title="Mi Cuenta"
               >
-                <User className="w-4 h-4 text-white/70 group-hover:text-amber-400 transition-colors" />
+                <User className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
               </button>
             )}
           </div>
@@ -2170,7 +2174,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   value={globalSearchQuery}
                   onChange={(e) => handleGlobalSearch(e.target.value)}
                   placeholder="Buscar productos, marcas o categorías..."
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/15 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500/50 rounded-sm"
+                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/15 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/40 rounded-sm"
                 />
                 {globalSearchQuery ? (
                   <button
@@ -2194,7 +2198,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <p className="text-center text-white/30 text-sm py-6">Escribe para buscar productos...</p>
               ) : loadingGlobalSearch ? (
                 <div className="flex items-center justify-center gap-3 py-6">
-                  <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   <span className="text-white/40 text-sm">Buscando...</span>
                 </div>
               ) : globalSearchResults.length === 0 ? (
@@ -2207,7 +2211,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     return (
                       <div
                         key={product.id}
-                        className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors`}
+                        className={`group relative bg-white/5 border ${isOffer ? 'border-white/30' : 'border-white/10'} overflow-hidden cursor-pointer hover:border-white/50 transition-colors`}
                         onClick={() => { openProductModal(product); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]) }}
                       >
                         <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
@@ -2218,15 +2222,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-6 h-6 text-white/10" /></div>
                           )}
                           {isOffer && (
-                            <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5">OFERTA</div>
+                            <div className="absolute top-1.5 left-1.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5">OFERTA</div>
                           )}
                           {inCart && (
-                            <div className="absolute bottom-1.5 right-1.5 bg-amber-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                            <div className="absolute bottom-1.5 right-1.5 bg-white text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                           )}
                         </div>
                         <div className="p-2">
                           <p className="text-xs text-white/80 truncate leading-tight">{product.name}</p>
-                          <p className="text-xs text-amber-400 font-medium mt-0.5">
+                          <p className="text-xs text-white font-medium mt-0.5">
                             {isOffer ? formatCOP(product.offerPrice!) : formatCOP(product.salePrice)}
                           </p>
                         </div>
@@ -2276,11 +2280,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Contacto</button>}
               {isAuthenticated && authUser ? (
                 <>
-                  <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
+                  <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-white/80 hover:text-white transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
                   <button onClick={() => { handleClientLogout(); setMobileMenuOpen(false) }} className="text-left py-2 text-red-400 hover:text-red-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogOut className="w-4 h-4" />Cerrar Sesión ({authUser.name})</button>
                 </>
               ) : (
-                <button onClick={() => { setMobileMenuOpen(false); setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogIn className="w-4 h-4" />Mi Cuenta</button>
+                <button onClick={() => { setMobileMenuOpen(false); setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }} className="text-left py-2 text-white/80 hover:text-white transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogIn className="w-4 h-4" />Mi Cuenta</button>
               )}
             </div>
           </div>
@@ -2335,7 +2339,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
                 {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
-                  <div className="absolute top-4 left-4 flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg">
+                  <div className="absolute top-4 left-4 flex items-center gap-1.5 bg-white text-black text-sm font-bold px-3 py-1.5 shadow-lg shadow-black/40">
                     <Flame className="w-4 h-4" />
                     -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
                   </div>
@@ -2351,7 +2355,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       onClick={() => setActiveImageIdx(i)}
                       className={`w-16 h-16 flex-shrink-0 overflow-hidden transition-all duration-200 ${
                         i === activeImageIdx
-                          ? 'border-2 border-amber-400'
+                          ? 'border-2 border-white'
                           : 'border border-white/10 opacity-50'
                       }`}
                     >
@@ -2381,7 +2385,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Viewers */}
                 <div className="flex items-center gap-2 text-sm">
-                  <Eye className="w-4 h-4 text-amber-500/80 flex-shrink-0" />
+                  <Eye className="w-4 h-4 text-white/50 flex-shrink-0" />
                   <span className={isLightBg ? 'text-black/60' : 'text-white/60'}>
                     <strong className={isLightBg ? 'text-black' : 'text-white'}>{viewerCount}</strong> personas viendo este producto
                   </span>
@@ -2636,7 +2640,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <button
                                   key={i}
                                   onClick={() => setActiveImageIdx(i)}
-                                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-amber-400 w-3' : 'bg-white/40'}`}
+                                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-white w-3' : 'bg-white/40'}`}
                                 />
                               ))}
                             </div>
@@ -2645,7 +2649,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           {/* Offer badge */}
                           {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
                             <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-                              <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg shadow-red-500/30">
+                              <div className="flex items-center gap-1.5 bg-white text-black text-sm font-bold px-3 py-1.5 shadow-lg shadow-black/40">
                                 <Flame className="w-4 h-4" />
                                 -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
                               </div>
@@ -2706,7 +2710,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             if (isBullet) {
                               return (
                                 <div key={i} className="flex items-start gap-2.5">
-                                  <span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500/70" />
+                                  <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${isLightBg ? 'bg-black/40' : 'bg-white/40'}`} />
                                   <p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{cleanLine}</p>
                                 </div>
                               )
@@ -2854,7 +2858,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </div>
                       ) : selectedProduct.stock <= 5 ? (
                         <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
-                          <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
+                          <div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
                           ¡Últimas unidades!
                         </div>
                       ) : (
@@ -3035,7 +3039,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <h3 className="text-xs text-white/40 uppercase tracking-widest">Reseñas del producto</h3>
                   <button
                     onClick={() => { setShowReviewForm(p => !p); setReviewSuccess(false); setReviewError('') }}
-                    className="text-xs text-amber-400 border border-amber-400/30 px-3 py-1.5 hover:bg-amber-400/10 transition-colors"
+                    className={`text-xs border px-3 py-1.5 transition-colors ${isLightBg ? 'text-black/70 border-black/20 hover:bg-black/5' : 'text-white/70 border-white/20 hover:bg-white/5'}`}
                   >
                     {showReviewForm ? 'Cancelar' : '+ Escribir reseña'}
                   </button>
@@ -3049,7 +3053,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div>
                         <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu nombre *</label>
                         <input
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
                           placeholder="Nombre"
                           value={reviewForm.reviewerName}
                           onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))}
@@ -3059,7 +3063,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Email (opcional)</label>
                         <input
                           type="email"
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
                           placeholder="tu@email.com"
                           value={reviewForm.reviewerEmail}
                           onChange={e => setReviewForm(p => ({ ...p, reviewerEmail: e.target.value }))}
@@ -3071,7 +3075,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="flex gap-1">
                         {[1,2,3,4,5].map(n => (
                           <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))}>
-                            <Star size={22} className={n <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
+                            <Star size={22} className={n <= reviewForm.rating ? 'fill-current text-black' : 'text-black/20'} />
                           </button>
                         ))}
                       </div>
@@ -3079,7 +3083,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div>
                       <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Título (opcional)</label>
                       <input
-                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
                         placeholder="Resumen de tu reseña"
                         value={reviewForm.title}
                         onChange={e => setReviewForm(p => ({ ...p, title: e.target.value }))}
@@ -3089,7 +3093,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu reseña</label>
                       <textarea
                         rows={3}
-                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50 resize-none"
+                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40 resize-none"
                         placeholder="Cuéntanos qué te pareció el producto..."
                         value={reviewForm.body}
                         onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
@@ -3123,7 +3127,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           setReviewError(res.error || 'Error al enviar la reseña')
                         }
                       }}
-                      className="w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold bg-amber-500 hover:bg-amber-400 text-black disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className={`w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${isLightBg ? 'bg-black text-white hover:bg-black/85' : 'bg-white text-black hover:bg-white/90'}`}
                     >
                       {reviewSubmitting ? 'Enviando…' : 'Enviar reseña'}
                     </button>
@@ -3152,7 +3156,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                           <div className="flex gap-0.5">
                             {[1,2,3,4,5].map(n => (
-                              <Star key={n} size={14} className={n <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-white/15'} />
+                              <Star key={n} size={14} className={n <= r.rating ? 'fill-white text-white' : 'text-white/15'} />
                             ))}
                           </div>
                         </div>
@@ -3165,8 +3169,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         )}
                         {r.reply && (
-                          <div className="mt-2 pl-3 border-l-2 border-amber-400/40 text-xs text-white/40">
-                            <span className="text-amber-400/70 font-medium">Respuesta de la tienda: </span>{r.reply}
+                          <div className="mt-2 pl-3 border-l-2 border-white/20 text-xs text-white/40">
+                            <span className="text-white/60 font-medium">Respuesta de la tienda: </span>{r.reply}
                           </div>
                         )}
                       </div>
@@ -3289,7 +3293,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     placeholder="Buscar productos..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className={`w-full pl-10 pr-4 py-2.5 border font-light text-sm focus:outline-none ${isLightBg ? 'bg-black/[0.03] border-black/10 text-black placeholder-black/30 focus:border-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-amber-500/50'}`}
+                    className={`w-full pl-10 pr-4 py-2.5 border font-light text-sm focus:outline-none ${isLightBg ? 'bg-black/[0.03] border-black/10 text-black placeholder-black/30 focus:border-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-black/30'}`}
                   />
                 </div>}
                 {/* Sede selector (only when store has 2+ sedes and not in sedes view mode or a sede is active) */}
@@ -3308,7 +3312,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {!sedesViewMode && (
                       <button
                         onClick={() => setActiveSede(null)}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === null ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === null ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
                       >
                         Todas
                       </button>
@@ -3317,7 +3321,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <button
                         key={s.id}
                         onClick={() => setActiveSede(activeSede === s.id ? (sedesViewMode ? null : null) : s.id)}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === s.id ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === s.id ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
                       >
                         {s.name}
                       </button>
@@ -3342,7 +3346,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {(catalogPriceMin > 0 || catalogPriceMax > 0) && (
                       <FilterPill label={`${catalogPriceMin > 0 ? formatCOP(catalogPriceMin) : '$0'} — ${catalogPriceMax > 0 ? formatCOP(catalogPriceMax) : '∞'}`} onRemove={() => { setCatalogPriceMin(0); setCatalogPriceMax(0) }} />
                     )}
-                    <button onClick={clearCatalogFilters} className="text-[10px] text-amber-400 hover:text-amber-300 uppercase tracking-wider ml-2">Limpiar todo</button>
+                    <button onClick={clearCatalogFilters} className={`text-[10px] uppercase tracking-wider ml-2 ${isLightBg ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white'}`}>Limpiar todo</button>
                   </div>
                 )}
               </div>
@@ -3445,14 +3449,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 ) : loadingProducts ? (
                   <div className="text-center py-20">
-                    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">Cargando productos...</p>
                   </div>
                 ) : catalogFilteredProducts.length === 0 ? (
                   <div className="text-center py-20">
                     <Sparkles className="w-12 h-12 text-white/10 mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">No se encontraron productos con estos filtros</p>
-                    <button onClick={clearCatalogFilters} className="mt-4 text-amber-400 text-sm font-light hover:text-amber-300 transition-colors underline underline-offset-4">
+                    <button onClick={clearCatalogFilters} className={`mt-4 text-sm font-light transition-colors underline underline-offset-4 ${isLightBg ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}>
                       Limpiar filtros
                     </button>
                   </div>
@@ -3483,14 +3487,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                               {/* Discount badge */}
                               {isOffer && (
-                                <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">
+                                <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">
                                   -{discount}%
                                 </div>
                               )}
 
                               {/* In-cart indicator */}
                               {inCart && (
-                                <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                                <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                                   <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                                 </div>
                               )}
@@ -3500,7 +3504,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors"
+                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors"
                                     title="Agregar al carrito"
                                   >
                                     <ShoppingCart className="w-4 h-4" />
@@ -3546,7 +3550,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 )}
                               </div>
                               <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                                <span className={`w-1.5 h-1.5 rounded-full inline-block ${isLightBg ? 'bg-black/40' : 'bg-white/40'}`} />
                                 1 Opción disponible
                               </div>
                             </div>
@@ -3577,7 +3581,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Offer badge — top left */}
                             {isOffer && (
-                              <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                              <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                                 <Flame className="w-2.5 h-2.5" />
                                 -{discount}%
                               </div>
@@ -3592,7 +3596,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* In-cart indicator */}
                             {inCart && (
-                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />
                                 ×{inCart.cantidad}
                               </div>
@@ -3615,11 +3619,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="flex items-center gap-2 mt-1">
                                 {isOffer ? (
                                   <>
-                                    <span className="text-base font-black text-amber-400 tabular-nums drop-shadow">{formatCOP(product.offerPrice!)}</span>
+                                    <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                                     <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-base font-black text-amber-400 tabular-nums drop-shadow">{formatCOP(product.salePrice)}</span>
+                                  <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
                                 )}
                               </div>
                             </div>
@@ -3628,7 +3632,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                               <button
                                 onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                               >
                                 <ShoppingCart className="w-3 h-3" />
                                 Añadir
@@ -3690,7 +3694,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="sticky bottom-0 p-4 border-t border-white/10 landing-sidebar">
                   <button
                     onClick={() => setCatalogSidebarOpen(false)}
-                    className="w-full bg-amber-500 hover:bg-amber-400 text-black py-3 text-xs uppercase tracking-wider font-medium transition-colors"
+                    className={`w-full py-3 text-xs uppercase tracking-wider font-medium transition-colors ${isLightBg ? 'bg-black text-white hover:bg-black/85' : 'bg-white text-black hover:bg-white/90'}`}
                   >
                     Ver {catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}
                   </button>
@@ -3808,7 +3812,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                           {/* Offer badge */}
                           {isOffer && (
-                            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                               <Flame className="w-2.5 h-2.5" />
                               -{discount}%
                             </div>
@@ -3823,7 +3827,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                           {/* In-cart */}
                           {inCart && (
-                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                               <ShoppingCart className="w-2.5 h-2.5" />
                               ×{inCart.cantidad}
                             </div>
@@ -3845,11 +3849,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="flex items-center gap-2">
                               {isOffer ? (
                                 <>
-                                  <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                  <span className={`font-semibold text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                                   <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                 </>
                               ) : (
-                                <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                <span className={`font-light text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                           </div>
@@ -3858,7 +3862,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                             <button
                               onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                              className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                             >
                               <ShoppingCart className="w-3 h-3" />
                               Añadir
@@ -3886,20 +3890,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {showOffers && !showProductModal && (
         <div className="pt-16 min-h-screen" style={{ backgroundColor: effectiveBgColor }}>
           {/* Header */}
-          <div className="relative overflow-hidden border-b border-orange-500/20">
+          <div className="relative overflow-hidden border-b border-white/10">
             <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 left-1/4 w-96 h-32 bg-orange-500 rounded-full blur-[80px]" />
+              <div className="absolute top-0 left-1/4 w-96 h-32 bg-white/5 rounded-full blur-[80px]" />
               <div className="absolute top-0 right-1/4 w-72 h-32 bg-red-500 rounded-full blur-[60px]" />
             </div>
             <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="space-y-3">
-                  <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-3 py-1.5 rounded-full">
-                    <Flame className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-                    <span className="text-orange-400 uppercase tracking-[0.3em] text-[10px] font-medium">Precios Especiales</span>
+                  <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 px-3 py-1.5 rounded-full">
+                    <Flame className="w-3.5 h-3.5 text-white animate-pulse" />
+                    <span className="text-white uppercase tracking-[0.3em] text-[10px] font-medium">Precios Especiales</span>
                   </div>
                   <h1 className="text-3xl sm:text-5xl font-extralight tracking-tight">
-                    <span className="bg-gradient-to-r from-orange-400 via-orange-400 to-red-500 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-white via-white to-white bg-clip-text text-transparent">
                       Ofertas
                     </span>
                   </h1>
@@ -3921,13 +3925,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {/* Search bar */}
           <div className="sticky top-16 z-10 bg-zinc-950/95 backdrop-blur border-b border-white/8 px-4 sm:px-6 lg:px-8 py-3">
             <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400/50" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
               <input
                 type="text"
                 placeholder="Buscar en ofertas..."
                 value={offerSearch}
                 onChange={e => setOfferSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-orange-500/5 border border-orange-500/20 text-white placeholder-white/30 font-light text-sm focus:border-orange-500/50 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/20 text-white placeholder-white/30 font-light text-sm focus:border-white/40 focus:outline-none"
               />
             </div>
           </div>
@@ -3944,12 +3948,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               if (filtered.length === 0) {
                 return (
                   <div className="text-center py-24">
-                    <Flame className="w-12 h-12 text-orange-500/20 mx-auto mb-4" />
+                    <Flame className="w-12 h-12 text-white/20 mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">
                       {offerSearch ? 'No se encontraron ofertas con esa búsqueda' : 'No hay ofertas disponibles'}
                     </p>
                     {offerSearch && (
-                      <button onClick={() => setOfferSearch('')} className="mt-4 text-orange-400 text-sm hover:text-orange-300 transition-colors underline underline-offset-4">
+                      <button onClick={() => setOfferSearch('')} className="mt-4 text-white/70 text-sm hover:text-white transition-colors underline underline-offset-4">
                         Limpiar búsqueda
                       </button>
                     )}
@@ -3964,7 +3968,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     return (
                       <div
                         key={product.id}
-                        className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-orange-900/40 transition-all duration-500"
+                        className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50 transition-all duration-500"
                         onClick={() => openProductModal(product)}
                       >
                         <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
@@ -3972,13 +3976,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-orange-900/20">
+                            <div className="w-full h-full flex items-center justify-center bg-white/5">
                               <Flame className="w-10 h-10 text-white/10" />
                             </div>
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                           {discount > 0 && (
-                            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-bold px-2 py-0.5 shadow-lg shadow-orange-900/40">
+                            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                               <Flame className="w-2.5 h-2.5" />-{discount}%
                             </div>
                           )}
@@ -3986,7 +3990,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/55 uppercase tracking-[0.2em]">{product.brand}</div>
                           )}
                           {inCart && (
-                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                               <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                             </div>
                           )}
@@ -3999,22 +4003,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </button>
                           <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
                             <h3 className="text-xs sm:text-sm font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
-                            {product.offerLabel && <p className="text-[9px] text-orange-400/80 mb-1 uppercase tracking-wider">{product.offerLabel}</p>}
+                            {product.offerLabel && <p className="text-[9px] text-white/70 mb-1 uppercase tracking-wider">{product.offerLabel}</p>}
                             <div className="flex items-center gap-2">
                               {product.offerPrice ? (
                                 <>
-                                  <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice)}</span>
+                                  <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice)}</span>
                                   <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                 </>
                               ) : (
-                                <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                           </div>
                           <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                             <button
                               onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                              className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                             >
                               <ShoppingCart className="w-3 h-3" />Añadir
                             </button>
@@ -4055,12 +4059,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
-                  <p className="text-amber-400 text-xs uppercase tracking-[0.3em] mb-2 flex items-center gap-2"><Flame className="w-4 h-4" /> Drop Activo</p>
+                  <p className="text-white/70 text-xs uppercase tracking-[0.3em] mb-2 flex items-center gap-2"><Flame className="w-4 h-4" /> Drop Activo</p>
                   <h1 className="text-3xl sm:text-4xl font-light text-white tracking-wide">{storeConfig.activeDrop.name}</h1>
                   {storeConfig.activeDrop.description && <p className="text-white/50 font-light mt-2 max-w-xl">{storeConfig.activeDrop.description}</p>}
                 </div>
                 <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-5 py-3 shrink-0">
-                  <Timer className="w-5 h-5 text-amber-400" />
+                  <Timer className="w-5 h-5 text-white/70" />
                   <div>
                     <p className="text-[10px] text-white/40 uppercase tracking-widest">Termina en</p>
                     <p className="text-lg font-mono text-white tracking-wider">{countdownText}</p>
@@ -4074,7 +4078,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             {storeConfig.activeDrop.globalDiscount > 0 && (
               <div className="mb-8 text-center">
-                <span className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-6 py-2 text-sm font-light tracking-wide">
+                <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/70 px-6 py-2 text-sm font-light tracking-wide">
                   <Tag className="w-4 h-4" /> Hasta {storeConfig.activeDrop.globalDiscount}% de descuento en este drop
                 </span>
               </div>
@@ -4099,16 +4103,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
                         {discount > 0 && (
-                          <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
+                          <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-3 z-10">
                           <div className="flex items-center gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-4 h-4" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -4160,7 +4164,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                       {/* Discount badge — top left */}
                       {discount > 0 && (
-                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                           <Flame className="w-2.5 h-2.5" />
                           -{discount}%
                         </div>
@@ -4175,7 +4179,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                       {/* In-cart indicator */}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />
                           ×{inCart.cantidad}
                         </div>
@@ -4195,7 +4199,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <h3 className="text-xs sm:text-sm font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
                         {product.size && <p className="text-[9px] text-white/35 mb-1">{product.size}</p>}
                         <div className="flex items-center gap-2">
-                          <span className="text-amber-400 font-semibold text-sm">{formatCOP(finalPrice)}</span>
+                          <span className="text-white font-semibold text-sm">{formatCOP(finalPrice)}</span>
                           {discount > 0 && <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>}
                         </div>
                       </div>
@@ -4204,7 +4208,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                         >
                           <ShoppingCart className="w-3 h-3" />
                           Añadir
@@ -4243,7 +4247,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <ArrowLeft className="w-4 h-4" /> Volver
             </button>
             <div className="mb-10">
-              <p className="text-amber-400 uppercase text-xs tracking-[0.3em] mb-2">Nuestros Servicios</p>
+              <p className="text-white/70 uppercase text-xs tracking-[0.3em] mb-2">Nuestros Servicios</p>
               <h2 className="text-3xl font-light text-white">
                 {storeConfig?.storeInfo?.name || 'Servicios'}
               </h2>
@@ -4280,7 +4284,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {/* Service type badge — top left */}
                       <div className={`absolute top-2.5 left-2.5 z-20 flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.15em] shadow-lg ${
                         service.serviceType === 'cita'
-                          ? 'bg-amber-500 text-black'
+                            ? 'bg-white text-black'
                           : service.serviceType === 'asesoria'
                           ? 'bg-blue-600 text-white'
                           : 'bg-emerald-600 text-white'
@@ -4307,7 +4311,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           ) : service.priceType === 'cotizacion' ? (
                             <span className="text-white/50 text-sm font-light">A cotizar</span>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">
+                            <span className="text-white font-light text-sm">
                               {service.priceType === 'desde' && <span className="text-white/40 text-xs mr-1">Desde</span>}
                               {formatCOP(service.price)}
                             </span>
@@ -4319,7 +4323,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); setBookingService(service) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                         >
                           {service.serviceType === 'cita' ? 'Reservar' : service.serviceType === 'asesoria' ? 'Consultar' : 'Contactar'}
                           <ArrowRight className="w-3 h-3" />
@@ -4612,7 +4616,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
         {/* Scroll indicator */}
         <div className="hidden sm:block absolute bottom-20 left-1/2 -translate-x-1/2">
-          <button onClick={scrollToPerfumes} className="text-white/40 hover:text-amber-400 transition-colors animate-bounce">
+          <button onClick={scrollToPerfumes} className="text-white/40 hover:text-white transition-colors animate-bounce">
             <ChevronDown className="w-8 h-8" />
           </button>
         </div>
@@ -4624,7 +4628,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="landing-section-bg border-t border-white/5 py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-white/40 text-xs uppercase tracking-[0.2em]">
-              <Store className="w-4 h-4 text-amber-500/70" />
+              <Store className="w-4 h-4 text-white/50" />
               <span>Nuestras sedes</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -4642,9 +4646,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     setShowOffers(false)
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 hover:border-amber-500/40 hover:bg-amber-500/10 text-white/60 hover:text-white text-xs uppercase tracking-wider transition-all duration-200"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 hover:border-white/35 hover:bg-white/10 text-white/60 hover:text-white text-xs uppercase tracking-wider transition-all duration-200"
                 >
-                  <MapPin className="w-3 h-3 text-amber-500/60" />
+                  <MapPin className="w-3 h-3 text-white/40" />
                   {sede.name}
                   {sede.address && <span className="hidden sm:inline text-white/30">· {sede.address}</span>}
                 </button>
@@ -4662,7 +4666,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 setShowOffers(false)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
-              className="ml-auto flex items-center gap-1 text-amber-400/70 hover:text-amber-400 text-xs uppercase tracking-wider transition-colors"
+              className="ml-auto flex items-center gap-1 text-white/60 hover:text-white text-xs uppercase tracking-wider transition-colors"
             >
               Ver todas <ArrowRight className="w-3 h-3" />
             </button>
@@ -4680,7 +4684,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               : []
         const categoryGradients = [
           'from-red-900/60 to-red-950/80',
-          'from-amber-900/60 to-yellow-950/80',
+          'from-black/70 to-black/90',
           'from-red-900/60 to-red-950/80',
           'from-emerald-900/60 to-teal-950/80',
         ]
@@ -4690,7 +4694,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Mobile left arrow */}
               <button
                 onClick={() => carouselCategoriesRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg flex sm:hidden"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -4728,7 +4732,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                     {/* Nombre debajo — responde al fondo claro/oscuro */}
                     <div className="py-3 text-center">
-                      <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-amber-500 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
+                      <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors ${isLightBg ? 'text-black/70 group-hover:text-black' : 'text-white/80 group-hover:text-white'}`}>
                         {cat.displayName || cat.name}
                       </h3>
                     </div>
@@ -4738,7 +4742,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Mobile right arrow */}
               <button
                 onClick={() => carouselCategoriesRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg flex sm:hidden"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -4754,13 +4758,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex items-center gap-4 mb-8">
               <div className="flex-1 h-px bg-current opacity-10" />
               <div className="flex items-center gap-2 shrink-0">
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <Flame className="w-3.5 h-3.5 text-white/70" />
                 <span className="text-sm font-light uppercase tracking-[0.3em]">Tendencia</span>
               </div>
               <div className="flex-1 h-px bg-current opacity-10" />
               <button
                 onClick={() => openCatalogWithFilter('trending')}
-                className="shrink-0 inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                className={`shrink-0 inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.2em] transition-colors ${isLightBg ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
               >
                 Ver todos <ArrowRight className="w-3 h-3" />
               </button>
@@ -4786,16 +4790,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
                         {isOffer && (
-                          <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
+                          <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -4841,7 +4845,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       {isOffer && (
-                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                           <Flame className="w-2.5 h-2.5" />-{discount}%
                         </div>
                       )}
@@ -4849,7 +4853,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/60 uppercase tracking-[0.2em]">{product.brand}</div>
                       )}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                         </div>
                       )}
@@ -4866,18 +4870,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="flex items-center gap-2">
                           {isOffer ? (
                             <>
-                              <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                              <span className={`font-semibold text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className={`font-light text-sm ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -4948,7 +4952,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           href={hero4.linkUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black px-8 py-3 text-xs uppercase tracking-[0.2em] font-medium transition-all duration-300"
+                          className={`inline-flex items-center gap-2 px-8 py-3 text-xs uppercase tracking-[0.2em] font-medium transition-all duration-300 ${isLightBg ? 'bg-black text-white hover:bg-black/85' : 'bg-white text-black hover:bg-white/90'}`}
                         >
                           Ver más <ArrowRight className="w-4 h-4" />
                         </a>
@@ -4970,7 +4974,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-current opacity-10" />
                 <div className="flex items-center gap-2 shrink-0">
-                  <Star className="w-3.5 h-3.5 text-amber-500" />
+                  <Star className="w-3.5 h-3.5 text-white/70" />
                   <span className="text-xs sm:text-sm font-light uppercase tracking-[0.2em] sm:tracking-[0.3em]">Productos Destacados</span>
                 </div>
                 <div className="flex-1 h-px bg-current opacity-10" />
@@ -4978,7 +4982,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="flex justify-end">
                 <button
                   onClick={() => openCatalogWithFilter('featured')}
-                  className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                  className={`inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.2em] transition-colors ${isLightBg ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
                 >
                   Ver todos <ArrowRight className="w-3 h-3" />
                 </button>
@@ -5004,20 +5008,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
-                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                           <Star className="w-2.5 h-2.5" />
                         </div>
                         {isOffer && (
-                          <div className="absolute top-2 left-8 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
+                          <div className="absolute top-2 left-8 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -5064,18 +5068,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       {/* Top badges row */}
                       <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-bold px-2 py-0.5 shadow-lg shrink-0">
+                        <div className="flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5 shadow-lg shrink-0">
                           <Star className="w-2.5 h-2.5" />Destacado
                         </div>
                         {inCart && (
-                          <div className="flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5 shrink-0">
+                          <div className="flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5 shrink-0">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                       </div>
                       {/* Offer badge */}
                       {isOffer && (
-                        <div className="absolute top-8 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                        <div className="absolute top-8 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                           <Flame className="w-2.5 h-2.5" />-{discount}%
                         </div>
                       )}
@@ -5088,25 +5092,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
                         {product.brand && (
-                          <p className="text-[9px] text-amber-400/70 uppercase tracking-[0.2em] truncate mb-0.5">{product.brand}</p>
+                          <p className="text-[9px] text-white/60 uppercase tracking-[0.2em] truncate mb-0.5">{product.brand}</p>
                         )}
                         <h3 className="text-xs font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
                         {product.size && <p className="text-[9px] text-white/35 mb-1">{product.size}</p>}
                         <div className="flex items-center gap-2">
                           {isOffer ? (
                             <>
-                              <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                              <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -5133,7 +5137,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <RevealSection id="perfumes" className="py-10 sm:py-20 landing-section-alt relative">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8 space-y-2">
-              <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">Información</p>
+              <p className="text-white/60 uppercase tracking-[0.5em] text-xs">Información</p>
               <h2 className="text-3xl sm:text-4xl font-extralight tracking-tight">
                 {storeConfig.storeInfo?.name || stores.find(s => s.slug === selectedStore)?.name || 'Nuestra Tienda'}
               </h2>
@@ -5148,8 +5152,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Horario */}
               {storeConfig.storeInfo?.schedule && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Horario</p>
@@ -5161,8 +5165,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Dirección */}
               {storeConfig.storeInfo?.address && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Dirección</p>
@@ -5171,7 +5175,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         href={storeConfig.storeInfo.locationMapUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-amber-400/80 text-sm font-light hover:text-amber-400 transition-colors underline underline-offset-2"
+                        className="text-white/80 text-sm font-light hover:text-white transition-colors underline underline-offset-2"
                       >
                         {storeConfig.storeInfo.address}
                       </a>
@@ -5185,12 +5189,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Teléfono */}
               {storeConfig.storeInfo?.phone && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Teléfono</p>
-                    <a href={`tel:${storeConfig.storeInfo.phone}`} className="text-white/90 text-sm font-light hover:text-amber-400 transition-colors">
+                    <a href={`tel:${storeConfig.storeInfo.phone}`} className="text-white/90 text-sm font-light hover:text-white transition-colors">
                       {storeConfig.storeInfo.phone}
                     </a>
                   </div>
@@ -5220,8 +5224,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Métodos de pago */}
               {storeConfig.storeInfo?.paymentMethods && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Métodos de pago</p>
@@ -5233,8 +5237,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Redes sociales */}
               {(storeConfig.storeInfo?.socialInstagram || storeConfig.storeInfo?.socialFacebook || storeConfig.storeInfo?.socialTiktok) && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Star className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Star className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-2">Redes Sociales</p>
@@ -5280,12 +5284,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Email */}
               {storeConfig.storeInfo?.email && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-4 h-4 text-white/70" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Email</p>
-                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/90 text-sm font-light hover:text-amber-400 transition-colors">
+                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/90 text-sm font-light hover:text-white transition-colors">
                       {storeConfig.storeInfo.email}
                     </a>
                   </div>
@@ -5300,9 +5304,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeConfig.storeInfo.address)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 hover:border-amber-400/40 hover:bg-white/5 transition-all duration-300 group"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300 group"
                 >
-                  <MapPin className="w-5 h-5 text-amber-400 shrink-0" />
+                  <MapPin className="w-5 h-5 text-white/70 shrink-0" />
                   <span className="text-white/70 group-hover:text-white text-sm transition-colors">{storeConfig.storeInfo.address}</span>
                 </a>
               </div>
@@ -5313,7 +5317,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       <RevealSection id="perfumes" className="py-6 sm:py-14 landing-section-alt relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6 sm:mb-10 space-y-2 sm:space-y-4">
-            <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">
+            <p className="text-white/60 uppercase tracking-[0.5em] text-xs">
               {showStoresView && selectedStore === 'all' ? 'Epicentro' : 'Tienda Online'}
             </p>
             <h2 className="text-3xl sm:text-4xl font-extralight tracking-tight">
@@ -5342,7 +5346,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="mb-12">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-amber-400" />
+                      <Star className="w-4 h-4 text-white/70" />
                       <span className="text-white/60 text-sm font-light uppercase tracking-widest">Productos Destacados</span>
                     </div>
                   </div>
@@ -5366,34 +5370,34 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                             {isOffer && (
-                              <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                              <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                                 <Flame className="w-2.5 h-2.5" />-{discount}%
                               </div>
                             )}
-                            <div className="absolute top-2 right-2 z-20 bg-amber-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 flex items-center gap-0.5 rounded-sm">
+                            <div className="absolute top-2 right-2 z-20 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 flex items-center gap-0.5 rounded-sm">
                               <Star className="w-2.5 h-2.5" />Dest.
                             </div>
                             {inCart && (
-                              <div className="absolute top-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                               </div>
                             )}
                             <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
                               <p className="text-white font-light text-sm leading-snug line-clamp-2">{product.name}</p>
-                              {product.storeName && <p className="text-amber-400/70 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
+                              {product.storeName && <p className="text-white/60 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
                               <div className="flex items-center gap-2 mt-1.5">
                                 {isOffer ? (
                                   <>
                                     <span className="text-white/40 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                    <span className="text-amber-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                    <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-amber-400 font-semibold text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-white font-semibold text-sm">{formatCOP(product.salePrice)}</span>
                                 )}
                               </div>
                               <button
                                 onClick={e => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className="mt-2 w-full py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs uppercase tracking-wider hover:bg-amber-500 hover:text-black hover:border-amber-500 transition-colors"
+                                className="mt-2 w-full py-1.5 bg-white/10 border border-white/20 text-white/70 text-xs uppercase tracking-wider hover:bg-white hover:text-black hover:border-white transition-colors"
                               >
                                 Añadir
                               </button>
@@ -5411,12 +5415,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="mb-12">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4 text-orange-500" />
+                      <Tag className="w-4 h-4 text-white/60" />
                       <span className="text-white/60 text-sm font-light uppercase tracking-widest">Ofertas Activas</span>
                     </div>
                     <button
                       onClick={() => { setMobileActiveTab('ofertas'); fetchAllStoreOffers() }}
-                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                      className="flex items-center gap-1.5 text-white/70 hover:text-white text-xs uppercase tracking-[0.2em] transition-colors"
                     >
                       Ver todas <ArrowRight className="w-3.5 h-3.5" />
                     </button>
@@ -5439,24 +5443,24 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-10 h-10 text-white/10" /></div>
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5">
                               <Flame className="w-2.5 h-2.5" />-{discount}%
                             </div>
                             {inCart && (
-                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                               </div>
                             )}
                             <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
                               <p className="text-white font-light text-sm leading-snug line-clamp-2">{product.name}</p>
-                              {product.storeName && <p className="text-orange-400/70 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
+                              {product.storeName && <p className="text-white/60 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
                               <div className="flex items-center gap-2 mt-1.5">
                                 <span className="text-white/40 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
                               </div>
                               <button
                                 onClick={e => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className="mt-2 w-full py-1.5 bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs uppercase tracking-wider hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-colors"
+                                className="mt-2 w-full py-1.5 bg-white/10 border border-white/20 text-white/70 text-xs uppercase tracking-wider hover:bg-white hover:text-black hover:border-white transition-colors"
                               >
                                 Añadir
                               </button>
@@ -5477,7 +5481,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {selectedStore !== 'all' && stores.length > 1 && (
                 <button
                   onClick={() => { setSelectedStore('all'); setShowStoresView(true) }}
-                  className="flex items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-light hover:bg-amber-500/20 transition-colors whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-3 bg-white/10 border border-white/20 text-white/70 text-sm font-light hover:bg-white/15 transition-colors whitespace-nowrap"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Todas las tiendas
@@ -5490,7 +5494,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   placeholder="Buscar perfume..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-amber-500/50 focus:outline-none transition-colors rounded-none"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-white/40 focus:outline-none transition-colors rounded-none"
                 />
               </div>
             </div>
@@ -5502,13 +5506,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Stores carousel header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <Store className="w-4 h-4 text-amber-500" />
+                  <Store className="w-4 h-4 text-white/60" />
                   <span className="text-white/60 text-sm font-light uppercase tracking-widest">Comercios Activos en el Epicentro</span>
                 </div>
               </div>
               {/* Carousel */}
               <div className="relative">
-                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: -600, behavior: 'smooth' })} className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronLeft className="w-4 h-4" /></button>
+                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: -600, behavior: 'smooth' })} className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronLeft className="w-4 h-4" /></button>
                 <div ref={carouselStoresRef} className="flex gap-5 overflow-x-auto scrollbar-hide scroll-smooth">
                   {stores.map(store => (
                     <button
@@ -5519,7 +5523,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         setActiveSede(null)
                         setStoreSedes([])
                       }}
-                      className="group relative bg-white/5 border border-white/10 hover:border-amber-500/40 transition-all duration-500 overflow-hidden text-left flex-shrink-0 w-64 sm:w-72"
+                      className="group relative bg-white/5 border border-white/10 hover:border-white/35 transition-all duration-500 overflow-hidden text-left flex-shrink-0 w-64 sm:w-72"
                     >
                       {/* Services ribbon — direct child of card, outside any overflow-hidden child */}
                       {storesWithServices.has(store.slug) && (
@@ -5538,25 +5542,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </div>
                       )}
                       {/* Store Image/Logo */}
-                      <div className="relative h-40 bg-gradient-to-br from-amber-500/10 via-black to-white/5 overflow-hidden flex items-center justify-center">
+                      <div className="relative h-40 bg-gradient-to-br from-white/10 via-black to-white/5 overflow-hidden flex items-center justify-center">
                         {store.logoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                         ) : (
-                          <Store className="w-16 h-16 text-amber-500/20 group-hover:text-amber-500/40 transition-colors duration-500" />
+                          <Store className="w-16 h-16 text-white/20 group-hover:text-white/40 transition-colors duration-500" />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                         {/* Product count badge */}
-                        <div className="absolute top-3 right-3 bg-amber-500/90 text-black text-[10px] font-bold px-2 py-1 flex items-center gap-1">
+                        <div className="absolute top-3 right-3 bg-white text-black text-[10px] font-bold px-2 py-1 flex items-center gap-1">
                           <Package className="w-3 h-3" />
                           {store.productCount}
                         </div>
                       </div>
                       {/* Store Info */}
                       <div className="p-5 space-y-2">
-                        <h3 className="text-base font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
+                        <h3 className="text-base font-light text-white group-hover:text-white transition-colors truncate">{store.name}</h3>
                         {store.businessType && (
-                          <p className="text-[11px] text-amber-400/60 uppercase tracking-widest">{store.businessType}</p>
+                          <p className="text-[11px] text-white/60 uppercase tracking-widest">{store.businessType}</p>
                         )}
                         {store.address && (
                           <p className="text-xs text-white/30 font-light flex items-center gap-1.5 truncate">
@@ -5564,7 +5568,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             {store.address}
                           </p>
                         )}
-                        <div className="flex items-center gap-2 text-amber-400/70 text-xs uppercase tracking-[0.15em] font-light pt-2 group-hover:gap-3 transition-all">
+                        <div className="flex items-center gap-2 text-white/60 text-xs uppercase tracking-[0.15em] font-light pt-2 group-hover:gap-3 transition-all">
                           <span>Ver productos</span>
                           <ArrowRight className="w-3 h-3" />
                         </div>
@@ -5572,7 +5576,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   ))}
                 </div>
-                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: 600, behavior: 'smooth' })} className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronRight className="w-4 h-4" /></button>
+                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: 600, behavior: 'smooth' })} className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronRight className="w-4 h-4" /></button>
               </div>
             </div>
           )}
@@ -5581,7 +5585,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`shrink-0 px-4 py-2 text-xs uppercase tracking-wider border transition-all duration-300 ${selectedCategory === 'all'
-                  ? 'bg-amber-500 text-black border-amber-500'
+                    ? 'bg-white text-black border-white'
                   : 'bg-transparent text-white/50 border-white/10 hover:border-white/30'
                   }`}
               >
@@ -5592,7 +5596,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`shrink-0 px-4 py-2 text-xs uppercase tracking-wider border transition-all duration-300 ${selectedCategory === cat
-                    ? 'bg-amber-500 text-black border-amber-500'
+                    ? 'bg-white text-black border-white'
                     : 'bg-transparent text-white/50 border-white/10 hover:border-white/30'
                     }`}
                 >
@@ -5605,7 +5609,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {/* Products Carousel */}
           {showStoresView && selectedStore === 'all' ? null : loadingProducts ? (
             <div className="text-center py-20">
-              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="text-white/40 text-sm font-light">Cargando perfumes...</p>
             </div>
           ) : filteredProducts.length === 0 ? (
@@ -5638,16 +5642,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
                         {isOffer && (
-                          <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
+                          <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -5690,7 +5694,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       {isOffer && (
-                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-red-900/40">
+                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white text-black text-[10px] font-bold px-2 py-0.5 shadow-lg shadow-black/40">
                           <Flame className="w-2.5 h-2.5" />-{discount}%
                         </div>
                       )}
@@ -5698,7 +5702,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/60 uppercase tracking-[0.2em]">{product.brand}</div>
                       )}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                         </div>
                       )}
@@ -5715,18 +5719,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="flex items-center gap-2">
                           {isOffer ? (
                             <>
-                              <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                              <span className={`font-semibold text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className={`font-light text-sm ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -5787,7 +5791,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   )}
                   {storeConfig.storeInfo.email && (
-                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/30 hover:text-amber-400 transition-colors"><Mail className="w-5 h-5" /></a>
+                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/30 hover:text-white transition-colors"><Mail className="w-5 h-5" /></a>
                   )}
                 </div>
               </div>
@@ -5800,7 +5804,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Términos y condiciones', content: storeConfig.storeInfo!.termsContent! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <FileText className="w-3 h-3" />
                         Términos y condiciones
@@ -5811,7 +5815,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Política de privacidad', content: storeConfig.storeInfo!.privacyContent! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <Shield className="w-3 h-3" />
                         Política de privacidad
@@ -5822,7 +5826,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Términos de envío', content: storeConfig.storeInfo!.shippingTerms! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <Truck className="w-3 h-3" />
                         Términos de envío
@@ -5845,9 +5849,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <ul className="space-y-2 text-white/40 text-sm font-light">
                   {storeConfig.storeInfo.address && (
                     <li className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-amber-400/50" />
+                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-white/40" />
                       {storeConfig.storeInfo.locationMapUrl ? (
-                        <a href={storeConfig.storeInfo.locationMapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition-colors">
+                        <a href={storeConfig.storeInfo.locationMapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                           {storeConfig.storeInfo.address}
                         </a>
                       ) : (
@@ -5857,14 +5861,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )}
                   {storeConfig.storeInfo.phone && (
                     <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4 shrink-0 text-amber-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <svg className="w-4 h-4 shrink-0 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                       {storeConfig.storeInfo.phone}
                     </li>
                   )}
                   {storeConfig.storeInfo.email && (
                     <li className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 shrink-0 text-amber-400/50" />
-                      <a href={`mailto:${storeConfig.storeInfo.email}`} className="hover:text-amber-400 transition-colors">
+                      <Mail className="w-4 h-4 shrink-0 text-white/40" />
+                      <a href={`mailto:${storeConfig.storeInfo.email}`} className="hover:text-white transition-colors">
                         {storeConfig.storeInfo.email}
                       </a>
                     </li>
@@ -5890,10 +5894,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeConfig.storeInfo.address)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/10 hover:border-amber-400/40 hover:bg-white/5 transition-all duration-300 group"
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300 group"
                     title="Abrir en Google Maps"
                   >
-                    <MapPin className="w-5 h-5 text-amber-400 shrink-0" />
+                    <MapPin className="w-5 h-5 text-white/70 shrink-0" />
                     <span className="text-white/70 group-hover:text-white text-sm transition-colors">{storeConfig.storeInfo.address}</span>
                   </a>
                 </div>
@@ -5933,7 +5937,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <img src={storeConfig.activeDrop.bannerUrl} alt={storeConfig.activeDrop.name} className="w-full h-48 object-cover" />
               )}
               <div className="p-6 text-center space-y-4">
-                <div className="inline-flex items-center gap-2 text-amber-400 text-xs uppercase tracking-[0.3em]">
+                <div className="inline-flex items-center gap-2 text-white/70 text-xs uppercase tracking-[0.3em]">
                   <Flame className="w-4 h-4" /> Nuevo Drop
                 </div>
                 <h3 className="text-2xl font-light text-white">{storeConfig.activeDrop.name}</h3>
@@ -5941,15 +5945,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <p className="text-white/50 text-sm font-light">{storeConfig.activeDrop.description}</p>
                 )}
                 {storeConfig.activeDrop.globalDiscount > 0 && (
-                  <p className="text-lg text-amber-400 font-light">Hasta {storeConfig.activeDrop.globalDiscount}% OFF</p>
+                  <p className="text-lg text-white font-light">Hasta {storeConfig.activeDrop.globalDiscount}% OFF</p>
                 )}
                 <div className="flex items-center justify-center gap-2 text-white/60">
-                  <Timer className="w-4 h-4 text-amber-400" />
+                  <Timer className="w-4 h-4 text-white/70" />
                   <span className="font-mono text-sm">{countdownText}</span>
                 </div>
                 <button
                   onClick={() => { dismissDropPopup(); setShowDrop(true); setShowCatalog(false) }}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-black uppercase tracking-[0.2em] text-xs font-bold hover:from-amber-400 hover:to-yellow-400 transition-all"
+                  className="w-full py-3 bg-white text-black uppercase tracking-[0.2em] text-xs font-bold hover:bg-white/90 transition-all"
                 >
                   Ver Drop
                 </button>
@@ -5978,7 +5982,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {dropPopupSeen && !showDrop && storeConfig?.activeDrop && countdownText !== 'Finalizado' && (
         <button
           onClick={() => { setShowDrop(true); setShowCatalog(false) }}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-black border-r border-t border-b border-white/10 text-amber-400 px-2 py-4 shadow-lg shadow-black/50 hover:px-3 hover:border-amber-500/30 transition-all duration-300 group"
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-black border-r border-t border-b border-white/10 text-white/70 px-2 py-4 shadow-lg shadow-black/50 hover:px-3 hover:border-white/20 transition-all duration-300 group"
         >
           <div className="flex flex-col items-center gap-2 writing-vertical">
             <Flame className="w-4 h-4 shrink-0" />
@@ -5996,10 +6000,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {totalItems > 0 && !showCart && (
         <button
           onClick={() => setShowCart(true)}
-          className="hidden md:flex fixed bottom-6 right-6 z-40 bg-amber-500 hover:bg-amber-400 text-black p-4 rounded-full shadow-2xl shadow-amber-500/30 transition-all duration-300 hover:scale-110 group items-center justify-center"
+          className={`hidden md:flex fixed bottom-6 right-6 z-40 p-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 group items-center justify-center ${isLightBg ? 'bg-black text-white hover:bg-black/85 shadow-black/40' : 'bg-white text-black hover:bg-white/90 shadow-black/30'}`}
         >
           <ShoppingCart className="w-6 h-6" />
-          <span className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-amber-500">
+          <span className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
             {totalItems}
           </span>
           <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/90 text-white text-xs font-light px-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -6254,7 +6258,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== DECANT MODAL ========== */}
       {showDecantModal && decantProduct && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="landing-sidebar border border-white/10 w-full max-w-md p-6 sm:p-8 space-y-8 relative shadow-2xl shadow-amber-500/10">
+          <div className="landing-sidebar border border-white/10 w-full max-w-md p-6 sm:p-8 space-y-8 relative shadow-2xl shadow-white/10">
             <button
               onClick={() => setShowDecantModal(false)}
               className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"
@@ -6263,7 +6267,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </button>
 
             <div className="text-center space-y-2">
-              <p className="text-amber-500 text-xs uppercase tracking-[0.2em]">Personaliza tu</p>
+              <p className="text-white/70 text-xs uppercase tracking-[0.2em]">Personaliza tu</p>
               <h3 className="text-2xl font-light text-white">{decantProduct.name}</h3>
               <p className="text-white/40 text-xs font-light">Stock disponible (envases): {decantProduct.stock}</p>
             </div>
@@ -6278,7 +6282,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <select
                     value={selectedPerfumeId}
                     onChange={(e) => setSelectedPerfumeId(e.target.value)}
-                    className="w-full appearance-none bg-white/5 border border-white/10 text-white py-4 px-4 pr-10 focus:border-amber-500 focus:outline-none rounded-none text-sm font-light cursor-pointer"
+                    className="w-full appearance-none bg-white/5 border border-white/10 text-white py-4 px-4 pr-10 focus:border-white/40 focus:outline-none rounded-none text-sm font-light cursor-pointer"
                   >
                     <option value="" className="bg-zinc-900 text-white/50">Selecciona una fragancia...</option>
                     {products
@@ -6300,7 +6304,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               <Button
                 onClick={handleConfirmDecant}
-                className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black py-6 rounded-none uppercase tracking-[0.2em] text-xs font-bold mt-4"
+                className="w-full bg-white hover:bg-white/90 text-black py-6 rounded-none uppercase tracking-[0.2em] text-xs font-bold mt-4"
               >
                 Agregar al Carrito
               </Button>
@@ -6402,18 +6406,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </button>
                 </form>
 
-                {/* ¿Eres comerciante? */}
-                <div className="mt-5 pt-4 border-t border-border text-center">
-                  <button
-                    onClick={() => { setShowClientLogin(false); onGoToLogin() }}
-                    className="text-xs text-foreground/40 hover:text-foreground/70 transition-colors"
-                  >
-                    ¿Eres comerciante?{' '}
-                    <span className="text-foreground underline underline-offset-2">
-                      Accede al panel
-                    </span>
-                  </button>
-                </div>
+                {showMerchantLoginLink && (
+                  <div className="mt-5 pt-4 border-t border-border text-center">
+                    <button
+                      onClick={() => { setShowClientLogin(false); onGoToLogin() }}
+                      className="text-xs text-foreground/40 hover:text-foreground/70 transition-colors"
+                    >
+                      ¿Eres comerciante?{' '}
+                      <span className="text-foreground underline underline-offset-2">
+                        Accede al panel
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -6429,8 +6434,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                  <User className="w-5 h-5 text-amber-400" />
+                <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-white/70" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white leading-tight">{authUser.name}</p>
@@ -6454,7 +6459,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   onClick={() => { setAccountTab(tab.key); if (tab.key === 'pedidos') fetchClientOrders() }}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs uppercase tracking-wider transition-colors border-b-2 ${
                     accountTab === tab.key
-                      ? 'border-amber-400 text-amber-400'
+                      ? 'border-white text-white'
                       : 'border-transparent text-white/40 hover:text-white/70'
                   }`}
                 >
@@ -6518,7 +6523,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className={`flex items-center gap-2 px-3 py-2.5 border text-xs ${
                     authUser.profileCompleted
                       ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                      : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                      : 'bg-white/10 border-white/20 text-white/70'
                   }`}>
                     {authUser.profileCompleted
                       ? '✓ Perfil de entrega completo'
@@ -6528,7 +6533,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Edit button */}
                   <button
                     onClick={() => { setShowAccountPanel(false); setShowProfileModal(true) }}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/20 hover:border-amber-400/40 hover:bg-amber-500/10 text-white/70 hover:text-amber-400 text-sm transition-all uppercase tracking-wider"
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/20 hover:border-white/30 hover:bg-white/10 text-white/70 hover:text-white text-sm transition-all uppercase tracking-wider"
                   >
                     <Settings className="w-4 h-4" />
                     Editar datos de entrega
@@ -6541,7 +6546,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="p-6">
                   {clientOrdersLoading ? (
                     <div className="text-center py-16">
-                      <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                       <p className="text-white/40 text-sm">Cargando pedidos...</p>
                     </div>
                   ) : clientOrders.length === 0 ? (
@@ -6558,7 +6563,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <span className={`text-[10px] uppercase tracking-wider px-2 py-1 ${
                               order.status === 'entregado'  ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
                               order.status === 'en_camino'  ? 'bg-blue-500/10  text-blue-400  border border-blue-500/30'  :
-                              order.status === 'preparando' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                              order.status === 'preparando' ? 'bg-white/10 text-white/70 border border-white/20' :
                               order.status === 'cancelado'  ? 'bg-red-500/10   text-red-400   border border-red-500/30'   :
                               'bg-white/5 text-white/50 border border-white/10'
                             }`}>{order.status}</span>
@@ -6582,7 +6587,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               ))}
                             </div>
                           )}
-                          <div className="text-sm text-amber-400 font-medium">{formatCOP(order.total || 0)}</div>
+                          <div className="text-sm text-white/80 font-medium">{formatCOP(order.total || 0)}</div>
                           {order.deliveryStatus && order.deliveryStatus !== 'sin_asignar' && (
                             <div className="pt-2 border-t border-white/5">
                               <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Estado del envío</p>
@@ -6592,8 +6597,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   const cur = steps.indexOf(order.deliveryStatus || '')
                                   return (
                                     <div key={step} className="flex items-center gap-1 flex-1">
-                                      <div className={`w-2 h-2 rounded-full ${i <= cur ? 'bg-amber-400' : 'bg-white/10'}`} />
-                                      {i < 3 && <div className={`flex-1 h-px ${i < cur ? 'bg-amber-400' : 'bg-white/10'}`} />}
+                                      <div className={`w-2 h-2 rounded-full ${i <= cur ? 'bg-white' : 'bg-white/10'}`} />
+                                      {i < 3 && <div className={`flex-1 h-px ${i < cur ? 'bg-white' : 'bg-white/10'}`} />}
                                     </div>
                                   )
                                 })}
@@ -6626,7 +6631,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {products.filter(p => favorites.has(p.id)).map(product => {
                         const isOffer = product.isOnOffer && product.offerPrice
                         return (
-                          <div key={product.id} className="flex items-center gap-3 bg-white/5 border border-white/10 hover:border-amber-500/20 p-3 transition-all">
+                          <div key={product.id} className="flex items-center gap-3 bg-white/5 border border-white/10 hover:border-white/20 p-3 transition-all">
                             <div className="w-14 h-14 shrink-0 bg-black/40 overflow-hidden">
                               {product.imageUrl
                                 ? <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
@@ -6638,17 +6643,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <p className="text-xs text-white/40">{product.brand}</p>
                               {isOffer ? (
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-orange-400 text-xs font-medium">{formatCOP(product.offerPrice!)}</span>
+                                  <span className="text-white text-xs font-medium">{formatCOP(product.offerPrice!)}</span>
                                   <span className="text-white/20 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
                                 </div>
                               ) : (
-                                <span className="text-amber-400 text-xs">{formatCOP(product.salePrice)}</span>
+                                <span className="text-white text-xs">{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 shrink-0">
                               <button
                                 onClick={() => agregarAlCarrito(product)}
-                                className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500 flex items-center justify-center text-amber-400 hover:text-black transition-all"
+                                className="w-7 h-7 rounded-full bg-white/10 border border-white/20 hover:bg-white flex items-center justify-center text-white/70 hover:text-black transition-all"
                               >
                                 <ShoppingCart className="w-3 h-3" />
                               </button>
@@ -6690,7 +6695,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="landing-sidebar border border-white/10 w-full max-w-lg max-h-[80vh] flex flex-col relative shadow-2xl">
               <div className="flex items-center justify-between p-6 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <Package className="w-5 h-5 text-amber-400" />
+                  <Package className="w-5 h-5 text-white/70" />
                   <h3 className="text-lg font-light text-white tracking-wide">Mis Pedidos</h3>
                 </div>
                 <button onClick={() => setShowMyOrders(false)} className="text-white/30 hover:text-white transition-colors">
@@ -6701,7 +6706,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="flex-1 overflow-y-auto p-6">
                 {clientOrdersLoading ? (
                   <div className="text-center py-12">
-                    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                     <p className="text-white/40 text-sm">Cargando pedidos...</p>
                   </div>
                 ) : clientOrders.length === 0 ? (
@@ -6718,7 +6723,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <span className={`text-[10px] uppercase tracking-wider px-2 py-1 ${
                             order.status === 'entregado' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
                             order.status === 'enviado' || order.status === 'en_camino' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' :
-                            order.status === 'preparando' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                            order.status === 'preparando' ? 'bg-white/10 text-white/70 border border-white/20' :
                             order.status === 'cancelado' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
                             'bg-white/5 text-white/50 border border-white/10'
                           }`}>
@@ -6745,7 +6750,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             ))}
                           </div>
                         )}
-                        <div className="text-sm text-amber-400 font-medium">
+                        <div className="text-sm text-white/80 font-medium">
                           {formatCOP(order.total || order.totalAmount || 0)}
                         </div>
                         {/* Delivery status timeline */}
@@ -6759,8 +6764,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 const isActive = i <= currentIndex
                                 return (
                                   <div key={step} className="flex items-center gap-1 flex-1">
-                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-amber-400' : 'bg-white/10'}`} />
-                                    {i < 3 && <div className={`flex-1 h-px ${isActive && i < currentIndex ? 'bg-amber-400' : 'bg-white/10'}`} />}
+                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-white/10'}`} />
+                                    {i < 3 && <div className={`flex-1 h-px ${isActive && i < currentIndex ? 'bg-white' : 'bg-white/10'}`} />}
                                   </div>
                                 )
                               })}
@@ -6789,13 +6794,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="fixed inset-0 z-[60] overflow-y-auto md:hidden" style={{ backgroundColor: effectiveBgColor, top: storeConfig?.announcementBar?.isActive ? '104px' : '64px', bottom: '64px' }}>
           <div className="px-4 py-6">
             <div className="text-center mb-6 space-y-3">
-              <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-4 py-2 rounded-full">
-                <Flame className="w-4 h-4 text-orange-500 animate-pulse" />
-                <span className="text-orange-400 uppercase tracking-[0.3em] text-xs font-medium">Ofertas</span>
-                <Flame className="w-4 h-4 text-orange-500 animate-pulse" />
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 px-4 py-2 rounded-full">
+                <Flame className="w-4 h-4 text-white animate-pulse" />
+                <span className="text-white uppercase tracking-[0.3em] text-xs font-medium">Ofertas</span>
+                <Flame className="w-4 h-4 text-white animate-pulse" />
               </div>
               <h2 className="text-2xl font-extralight tracking-tight">
-                <span className="bg-gradient-to-r from-orange-400 via-red-400 to-orange-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-white via-white to-white bg-clip-text text-transparent">
                   Precios de Fuego
                 </span>
               </h2>
@@ -6803,7 +6808,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
             {loadingAllOffers ? (
               <div className="text-center py-12">
-                <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-white/40 text-sm">Cargando ofertas...</p>
               </div>
             ) : allStoreOffers.length === 0 ? (
@@ -6817,9 +6822,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   const discount = product.offerPrice ? Math.round(((product.salePrice - product.offerPrice) / product.salePrice) * 100) : 0
                   const inCart = carrito.find(c => c.id === product.id)
                   return (
-                    <div key={product.id} className="group relative bg-white/5 border border-orange-500/20 hover:border-orange-500/50 transition-all duration-500 overflow-hidden">
+                    <div key={product.id} className="group relative bg-white/5 border border-white/20 hover:border-white/40 transition-all duration-500 overflow-hidden">
                       <div data-dark className="relative aspect-square bg-black/50 overflow-hidden cursor-pointer" onClick={() => openProductModal(product)}>
-                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-gradient-to-r from-red-600 to-orange-600 text-white text-xs font-bold px-2 py-0.5 rounded-sm shadow-lg">
+                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-white text-black text-xs font-bold px-2 py-0.5 rounded-sm shadow-lg">
                           <Flame className="w-3 h-3" />
                           -{discount}%
                         </div>
@@ -6830,18 +6835,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                         )}
                         <div className="absolute top-2 right-2 z-10 flex flex-col gap-1.5">
-                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-orange-500 hover:text-black transition-all">
+                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white hover:text-black transition-all">
                             <ShoppingCart className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         {inCart && (
-                          <div className="absolute bottom-2 right-2 z-10 bg-orange-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                          <div className="absolute bottom-2 right-2 z-10 bg-white text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                         )}
                       </div>
                       <div className="p-3 space-y-1">
                         <h3 className="text-xs font-light text-white truncate">{product.name}</h3>
                         <div className="flex items-end gap-2">
-                          <span className="text-orange-400 font-medium text-sm">{formatCOP(product.offerPrice || product.salePrice)}</span>
+                          <span className="text-white font-medium text-sm">{formatCOP(product.offerPrice || product.salePrice)}</span>
                           {product.offerPrice && (
                             <span className="text-white/30 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
                           )}
@@ -6868,7 +6873,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 value={globalSearchQuery}
                 onChange={(e) => handleGlobalSearch(e.target.value)}
                 placeholder="Buscar productos en todas las tiendas..."
-                className={`w-full pl-10 pr-10 py-3 border text-sm focus:outline-none focus:border-amber-500/50 ${isLightBg ? 'bg-black/[0.04] border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`}
+                className={`w-full pl-10 pr-10 py-3 border text-sm focus:outline-none ${isLightBg ? 'bg-black/[0.04] border-black/10 text-black placeholder-black/30 focus:border-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-white/40'}`}
                 autoFocus
               />
               {globalSearchQuery && (
@@ -6894,7 +6899,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         const isOffer = product.isOnOffer && product.offerPrice
                         const inCart = carrito.find(c => c.id === product.id)
                         return (
-                          <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-orange-500/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
+                          <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-white/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
                             <div className={`relative aspect-square overflow-hidden cursor-pointer ${isLightBg ? 'bg-black/5' : 'bg-black/50'}`} onClick={() => openProductModal(product)}>
                               {product.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -6903,26 +6908,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <div className="w-full h-full flex items-center justify-center"><Sparkles className={`w-8 h-8 ${isLightBg ? 'text-black/10' : 'text-white/10'}`} /></div>
                               )}
                               <div className="absolute top-2 right-2 z-10">
-                                <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                                <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white hover:text-black transition-all">
                                   <ShoppingCart className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                               {isOffer && (
-                                <div className="absolute top-2 left-2 z-20 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">OFERTA</div>
+                                <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">OFERTA</div>
                               )}
                               {inCart && (
-                                <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                                <div className="absolute bottom-2 right-2 z-10 bg-white text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                               )}
                             </div>
                             <div className="p-3 space-y-1">
                               <h3 className={`text-xs font-light truncate ${isLightBg ? 'text-black' : 'text-white'}`}>{product.name}</h3>
                               {isOffer ? (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-orange-500 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
+                                  <span className={`font-medium text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                                   <span className={`text-[10px] line-through ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(product.salePrice)}</span>
                                 </div>
                               ) : (
-                                <span className="text-amber-500 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                <span className={`font-light text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                           </div>
@@ -6939,7 +6944,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               })()
             ) : loadingGlobalSearch ? (
               <div className="text-center py-12">
-                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className={`text-sm ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Buscando...</p>
               </div>
             ) : globalSearchResults.length === 0 ? (
@@ -6953,7 +6958,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   const isOffer = product.isOnOffer && product.offerPrice
                   const inCart = carrito.find(c => c.id === product.id)
                   return (
-                    <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-orange-500/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
+                    <div key={product.id} className={`group relative border overflow-hidden ${isOffer ? 'border-white/30' : isLightBg ? 'border-black/10' : 'border-white/10'} ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/5'}`}>
                       <div className={`relative aspect-square overflow-hidden cursor-pointer ${isLightBg ? 'bg-black/5' : 'bg-black/50'}`} onClick={() => openProductModal(product)}>
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -6962,28 +6967,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                         )}
                         <div className="absolute top-2 right-2 z-10">
-                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white hover:text-black transition-all">
                             <ShoppingCart className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         {isOffer && (
-                          <div className="absolute top-2 left-2 z-20 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">
+                          <div className="absolute top-2 left-2 z-20 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-sm">
                             OFERTA
                           </div>
                         )}
                         {inCart && (
-                          <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                          <div className="absolute bottom-2 right-2 z-10 bg-white text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                         )}
                       </div>
                       <div className="p-3 space-y-1">
                         <h3 className={`text-xs font-light truncate ${isLightBg ? 'text-black' : 'text-white'}`}>{product.name}</h3>
                         {isOffer ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-orange-500 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
+                            <span className={`font-medium text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
                             <span className={`text-[10px] line-through ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(product.salePrice)}</span>
                           </div>
                         ) : (
-                          <span className="text-amber-500 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                          <span className={`font-light text-sm ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
                         )}
                       </div>
                     </div>
@@ -7003,8 +7008,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="space-y-6">
                 {/* User Info */}
                 <div className="text-center space-y-3">
-                  <div className="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center mx-auto">
-                    <User className="w-10 h-10 text-amber-400" />
+                  <div className="w-20 h-20 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center mx-auto">
+                    <User className="w-10 h-10 text-white/70" />
                   </div>
                   <div>
                     <h2 className="text-lg font-light text-white">{authUser.name}</h2>
@@ -7017,9 +7022,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Mis Pedidos */}
                   <button
                     onClick={() => { fetchClientOrders(); setShowMyOrders(true) }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/25 transition-all"
                   >
-                    <Package className="w-5 h-5 text-amber-400" />
+                    <Package className="w-5 h-5 text-white/70" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Mis Pedidos</span>
                       <p className="text-[11px] text-white/40">Ver historial de pedidos</p>
@@ -7034,9 +7039,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       const el = document.getElementById('cuenta-location-picker')
                       if (el) el.scrollIntoView({ behavior: 'smooth' })
                     }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/25 transition-all"
                   >
-                    <MapPin className="w-5 h-5 text-amber-400" />
+                    <MapPin className="w-5 h-5 text-white/70" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Mi Ubicación</span>
                       <p className="text-[11px] text-white/40">Configurar dirección de entrega</p>
@@ -7047,9 +7052,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Favoritos */}
                   <button
                     onClick={() => { setMobileActiveTab('tienda'); setShowCatalog(true) }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/25 transition-all"
                   >
-                    <Heart className="w-5 h-5 text-amber-400" />
+                    <Heart className="w-5 h-5 text-white/70" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Favoritos</span>
                       <p className="text-[11px] text-white/40">{favorites.size} productos guardados</p>
@@ -7065,7 +7070,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {deliveryLat && deliveryLng ? (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm text-white/60">
-                          <MapPin className="w-4 h-4 text-amber-400" />
+                          <MapPin className="w-4 h-4 text-white/70" />
                           <span>Lat: {deliveryLat.toFixed(4)}, Lng: {deliveryLng.toFixed(4)}</span>
                         </div>
                         <button
@@ -7085,7 +7090,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )
                           }
                         }}
-                        className="w-full py-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm flex items-center justify-center gap-2 hover:bg-amber-500/20 transition-colors"
+                        className="w-full py-3 bg-white/10 border border-white/20 text-white/70 text-sm flex items-center justify-center gap-2 hover:bg-white/15 transition-colors"
                       >
                         <MapPin className="w-4 h-4" />
                         Establecer mi ubicación
@@ -7114,7 +7119,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
                 <button
                   onClick={() => { setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }}
-                  className="px-8 py-3 bg-amber-500 text-black text-sm font-medium uppercase tracking-wider hover:bg-amber-400 transition-colors"
+                  className="px-8 py-3 bg-white text-black text-sm font-medium uppercase tracking-wider hover:bg-white/90 transition-colors"
                 >
                   Iniciar Sesión
                 </button>
@@ -7137,10 +7142,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('ofertas'); fetchAllStoreOffers() }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? 'text-orange-400' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}
           >
             <Percent className="w-6 h-6" />
-            <span className={`text-[10px] leading-tight font-bold ${mobileActiveTab === 'ofertas' ? 'text-orange-400' : 'text-white/40'}`}>Ofertas</span>
+            <span className={`text-[10px] leading-tight font-bold ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}>Ofertas</span>
           </button>
 
           <button
@@ -7167,7 +7172,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('tienda'); setShowCatalog(false); setShowDrop(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? 'text-amber-400' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}
           >
             <Store className="w-6 h-6" />
             <span className="text-[10px] leading-tight">Tienda</span>
@@ -7534,7 +7539,7 @@ function CountUpStat({ value, suffix = '', label }: { value: number; suffix?: st
 
   return (
     <div ref={ref} className="text-center">
-      <p className="text-3xl font-light text-amber-400">{count}{suffix}</p>
+      <p className="text-3xl font-light text-white/80">{count}{suffix}</p>
       <p className="text-xs text-white/40 uppercase tracking-widest mt-1">{label}</p>
     </div>
   )
@@ -7571,7 +7576,7 @@ function CatalogSidebar({
       <div className="flex items-center justify-between">
         <h3 className={`text-xs uppercase tracking-widest font-medium ${t('text-white/60', 'text-black/60')}`}>Filtros</h3>
         {hasFilters && (
-          <button onClick={onClear} className="text-[10px] text-amber-500 hover:text-amber-400 uppercase tracking-wider">Limpiar</button>
+          <button onClick={onClear} className={`text-[10px] uppercase tracking-wider ${t('text-white/60 hover:text-white', 'text-black/60 hover:text-black')}`}>Limpiar</button>
         )}
       </div>
 
@@ -7580,9 +7585,9 @@ function CatalogSidebar({
         <h4 className={`text-[11px] uppercase tracking-widest mb-4 ${t('text-white/40', 'text-black/40')}`}>Precio</h4>
         {/* Range values */}
         <div className="flex items-center justify-between mb-5">
-          <span className="text-xs text-amber-500 font-light tabular-nums">{formatCOP(priceMin)}</span>
+          <span className={`text-xs font-light tabular-nums ${t('text-white/70', 'text-black/70')}`}>{formatCOP(priceMin)}</span>
           <span className={`text-[10px] ${t('text-white/20', 'text-black/20')}`}>—</span>
-          <span className="text-xs text-amber-500 font-light tabular-nums">
+          <span className={`text-xs font-light tabular-nums ${t('text-white/70', 'text-black/70')}`}>
             {priceMax > 0 ? formatCOP(priceMax) : '$500k+'}
           </span>
         </div>
@@ -7592,7 +7597,7 @@ function CatalogSidebar({
           <div className={`h-[3px] rounded-full ${t('bg-white/10', 'bg-black/10')}`}>
             {/* Active fill */}
             <div
-              className="absolute h-[3px] bg-amber-500 rounded-full top-2"
+              className={`absolute h-[3px] rounded-full top-2 ${t('bg-white', 'bg-black')}`}
               style={{
                 left: `${(priceMin / 500000) * 100}%`,
                 right: `${100 - ((priceMax || 500000) / 500000) * 100}%`,
@@ -7601,12 +7606,12 @@ function CatalogSidebar({
           </div>
           {/* Min thumb indicator */}
           <div
-            className={`absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40 ${t('border-black', 'border-white')}`}
+            className={`absolute top-2 w-3.5 h-3.5 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ${t('bg-white ring-white/40', 'bg-black ring-black/30')} ${t('border-black', 'border-white')}`}
             style={{ left: `${(priceMin / 500000) * 100}%` }}
           />
           {/* Max thumb indicator */}
           <div
-            className={`absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40 ${t('border-black', 'border-white')}`}
+            className={`absolute top-2 w-3.5 h-3.5 rounded-full border-2 shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ${t('bg-white ring-white/40', 'bg-black ring-black/30')} ${t('border-black', 'border-white')}`}
             style={{ left: `${((priceMax || 500000) / 500000) * 100}%` }}
           />
           {/* Inputs overlay */}
@@ -7639,7 +7644,7 @@ function CatalogSidebar({
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {categories.map(cat => (
               <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? t('bg-white border-white', 'bg-black border-black') : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedCategories.has(cat) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className={`text-xs transition-colors text-left ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{cat}</button>
@@ -7656,7 +7661,7 @@ function CatalogSidebar({
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {availableBrands.map(brand => (
               <label key={brand} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? t('bg-white border-white', 'bg-black border-black') : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedBrands.has(brand) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(brand, selectedBrands, setSelectedBrands)} className={`text-xs transition-colors text-left ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{brand}</button>
@@ -7673,7 +7678,7 @@ function CatalogSidebar({
           <div className="space-y-2">
             {availableGenders.map(g => (
               <label key={g} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? 'bg-amber-500 border-amber-500' : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? t('bg-white border-white', 'bg-black border-black') : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedGenders.has(g) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className={`text-xs transition-colors text-left capitalize ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{g}</button>
@@ -7690,7 +7695,7 @@ function CatalogSidebar({
           <div className="flex flex-wrap gap-2">
             {availableSizes.map(size => (
               <button key={size} onClick={() => toggle(size, selectedSizes, setSelectedSizes)}
-                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? 'bg-amber-500 text-black border-amber-500' : t('bg-white/5 text-white/60 border-white/10 hover:border-white/30', 'bg-black/[0.03] text-black/60 border-black/10 hover:border-black/30')}`}>
+                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? t('bg-white text-black border-white', 'bg-black text-white border-black') : t('bg-white/5 text-white/60 border-white/10 hover:border-white/30', 'bg-black/[0.03] text-black/60 border-black/10 hover:border-black/30')}`}>
                 {size}
               </button>
             ))}
@@ -7704,9 +7709,9 @@ function CatalogSidebar({
 /* ========== FilterPill ========== */
 function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-400">
+    <span className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 px-2.5 py-1 text-[11px] text-white/70">
       {label}
-      <button onClick={onRemove} className="hover:text-amber-200 transition-colors"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+      <button onClick={onRemove} className="hover:text-white transition-colors"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
     </span>
   )
 }

@@ -1577,7 +1577,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               <CardContent className="space-y-4">
                 {(() => {
                   const url = typeof window !== 'undefined'
-                    ? `${window.location.origin}/?store=${storeInfo.storeSlug}`
+                    ? `${window.location.origin}/?store=${storeInfo.storeSlug}&view=catalogo`
                     : ''
                   return (
                     <>
