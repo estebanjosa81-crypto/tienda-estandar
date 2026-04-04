@@ -313,6 +313,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const storeParam = params.get('store')
+    if (storeParam) {
+      setSelectedStore(storeParam)
+      setShowStoresView(false)
+    }
+  }, [])
+
   // Handle MercadoPago return URL (?mp=success|failure|pending&order=<id>)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
