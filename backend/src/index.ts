@@ -201,6 +201,7 @@ const startServer = async () => {
       await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_description TEXT NULL`);
       await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_products TEXT NULL`);
       await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_links TEXT NULL`);
+      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_image VARCHAR(500) NULL`);
       // Printers table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS printers (
