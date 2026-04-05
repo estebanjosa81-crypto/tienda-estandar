@@ -884,17 +884,23 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
       process.env.SISTECREDITO_API_KEY
     );
 
-    // Read per-tenant contraentrega setting from store_info
+    // Read per-tenant settings from store_info
     let contraentrega = true;
+    let onlineDiscountEnabled = false;
     try {
       const [siRows] = await pool.query(
-        'SELECT allow_contraentrega FROM store_info WHERE tenant_id = ? LIMIT 1',
+        'SELECT allow_contraentrega, online_discount_enabled FROM store_info WHERE tenant_id = ? LIMIT 1',
         [tenantId]
       ) as any;
-      if (siRows && siRows.length > 0 && siRows[0].allow_contraentrega !== undefined) {
-        contraentrega = siRows[0].allow_contraentrega === 1 || siRows[0].allow_contraentrega === true;
+      if (siRows && siRows.length > 0) {
+        if (siRows[0].allow_contraentrega !== undefined) {
+          contraentrega = siRows[0].allow_contraentrega === 1 || siRows[0].allow_contraentrega === true;
+        }
+        if (siRows[0].online_discount_enabled !== undefined) {
+          onlineDiscountEnabled = siRows[0].online_discount_enabled === 1 || siRows[0].online_discount_enabled === true;
+        }
       }
-    } catch { /* column may not exist yet — default to true */ }
+    } catch { /* columns may not exist yet — use defaults */ }
 
     res.json({
       success: true,
@@ -903,12 +909,55 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
         addi,
         sistecredito,
         contraentrega,
+        onlineDiscountEnabled,
       },
     });
   } catch (error) {
     console.error('Payment config error:', error);
     // On error, return safe defaults (only contraentrega)
     res.json({ success: true, data: { mercadopago: false, addi: false, sistecredito: false, contraentrega: true } });
+  }
+});
+
+// GET /api/storefront/online-discount-config — Authenticated
+router.get('/online-discount-config', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    // Ensure column exists
+    try {
+      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch { /* already exists */ }
+    const [rows] = await pool.query(
+      'SELECT online_discount_enabled FROM store_info WHERE tenant_id = ? LIMIT 1',
+      [tenantId]
+    ) as any;
+    const isEnabled = rows && rows.length > 0 ? (rows[0].online_discount_enabled === 1 || rows[0].online_discount_enabled === true) : false;
+    res.json({ success: true, data: { isEnabled } });
+  } catch (error) {
+    console.error('Get online discount config error:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener configuración' });
+  }
+});
+
+// PUT /api/storefront/online-discount-config — Authenticated
+router.put('/online-discount-config', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { isEnabled } = req.body;
+    // Ensure column exists
+    try {
+      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch { /* already exists */ }
+    const [existing] = await pool.query('SELECT id FROM store_info WHERE tenant_id = ? LIMIT 1', [tenantId]) as any;
+    if (existing && existing.length > 0) {
+      await pool.query('UPDATE store_info SET online_discount_enabled = ? WHERE tenant_id = ?', [isEnabled ? 1 : 0, tenantId]);
+    } else {
+      await pool.query('INSERT INTO store_info (tenant_id, online_discount_enabled) VALUES (?, ?)', [tenantId, isEnabled ? 1 : 0]);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update online discount config error:', error);
+    res.status(500).json({ success: false, error: 'Error al guardar configuración' });
   }
 });
 
@@ -1721,7 +1770,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
                   p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
                   p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
            FROM products p
-           WHERE p.id IN (${placeholders}) AND p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0
+           WHERE p.id IN (${placeholders}) AND p.tenant_id = ? AND p.published_in_store = 1
            LIMIT ?`,
           [...manualIds.slice(0, maxItems), tenantId, maxItems]
         ) as any;
@@ -1730,7 +1779,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
     } else {
       // Auto mode: same category as cart items
       const categories: string[] = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
-      let whereClause = 'p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0';
+      let whereClause = 'p.tenant_id = ? AND p.published_in_store = 1';
       const params: any[] = [tenantId];
 
       if (categories.length > 0) {
@@ -1761,7 +1810,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
 
       // If no products from same category, fallback to any published products
       if (products.length === 0 && categories.length > 0) {
-        let fallbackWhere = 'p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0';
+        let fallbackWhere = 'p.tenant_id = ? AND p.published_in_store = 1';
         const fallbackParams: any[] = [tenantId];
         if (excludeIds.length > 0) {
           const excP = excludeIds.map(() => '?').join(',');
@@ -1775,6 +1824,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
                   p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
            FROM products p WHERE ${fallbackWhere}
            ORDER BY p.is_on_offer DESC, p.updated_at DESC LIMIT ?`,
+          // fallback: same query, no category filter
           fallbackParams
         ) as any;
         products = fallback;

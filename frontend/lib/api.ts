@@ -856,6 +856,18 @@ class ApiService {
     return this.request<any>(`/storefront/order-bump?${params.toString()}`)
   }
 
+  // Online payment discount config
+  async getOnlineDiscountConfig() {
+    return this.request<any>('/storefront/online-discount-config')
+  }
+
+  async updateOnlineDiscountConfig(isEnabled: boolean) {
+    return this.request<any>('/storefront/online-discount-config', {
+      method: 'PUT',
+      body: JSON.stringify({ isEnabled }),
+    })
+  }
+
   // Store Customization endpoints
   async getStoreCustomization() {
     return this.request<any>('/storefront/customization')

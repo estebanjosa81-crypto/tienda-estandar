@@ -198,6 +198,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [modalUploadedImages, setModalUploadedImages] = useState<string[]>([])
   const [quantityMaxWarning, setQuantityMaxWarning] = useState(false)
+  const [productZoomPos, setProductZoomPos] = useState<{ xPct: number; yPct: number } | null>(null)
 
   // ====== PRODUCT VIEWERS COUNTER ======
   const [viewerCount, setViewerCount] = useState(() => Math.floor(Math.random() * 30) + 8)
@@ -242,8 +243,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ====== PAYMENT CONFIG STATE ======
   const [paymentConfig, setPaymentConfig] = useState<{
-    mercadopago: boolean; addi: boolean; sistecredito: boolean; contraentrega: boolean
-  }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true })
+    mercadopago: boolean; addi: boolean; sistecredito: boolean; contraentrega: boolean; onlineDiscountEnabled: boolean
+  }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true, onlineDiscountEnabled: false })
 
   // ====== CART STATE ======
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
@@ -1892,6 +1893,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarConAddi={paymentConfig.addi ? handlePagarConAddi : undefined}
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
           allowContraentrega={paymentConfig.contraentrega}
+          onlineDiscountEnabled={paymentConfig.onlineDiscountEnabled}
         />
       </div>
     )
@@ -2480,7 +2482,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       Añadir al carrito
                     </button>
                     <button
-                      onClick={() => { addFromModal(); setShowCheckout(true) }}
+                      onClick={() => { addFromModal(); fetchOrderBump(); setShowCheckout(true) }}
                       className="w-full py-4 rounded-xl text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform bg-zinc-900"
                       style={{ color: '#ffffff' }}
                     >
@@ -2614,7 +2616,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="lg:col-span-7 space-y-8">
 
                   {/* Gallery */}
-                  <div className="flex gap-3 lg:max-h-[520px]">
+                  <div className="flex gap-3 lg:max-h-[520px] relative overflow-visible">
                     {/* Vertical thumbnails */}
                     {gallery.length > 1 && (
                       <div className="hidden sm:flex flex-col gap-2 w-[68px] flex-shrink-0 overflow-y-auto scrollbar-hide">
@@ -2635,104 +2637,119 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     )}
 
-                    {/* Hero image — with magnifier on desktop */}
+                    {/* Hero image — Amazon-style zoom on desktop */}
                     {(() => {
-                      const ZOOM = 2.5
-                      const LENS = 140 // lens diameter px
+                      const ZOOM = 3
+                      const BOX_FRAC = 1 / ZOOM // crosshair box is 1/ZOOM of image
+                      const clampFrac = (v: number) => Math.max(0, Math.min(1 - BOX_FRAC, v - BOX_FRAC / 2))
                       return (
-                        <div
-                          className="flex-1 relative lg:max-h-[520px] rounded-md select-none"
-                          style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor, overflow: 'hidden' }}
-                          onMouseMove={e => {
-                            const el = e.currentTarget
-                            const lens = el.querySelector<HTMLElement>('[data-lens]')
-                            if (!lens) return
-                            const rect = el.getBoundingClientRect()
-                            const x = e.clientX - rect.left
-                            const y = e.clientY - rect.top
-                            const half = LENS / 2
-                            const lx = Math.max(half, Math.min(rect.width - half, x))
-                            const ly = Math.max(half, Math.min(rect.height - half, y))
-                            lens.style.left = `${lx}px`
-                            lens.style.top = `${ly}px`
-                            // Set bg-size in px so zoom is relative to the container, not the lens
-                            lens.style.backgroundSize = `${rect.width * ZOOM}px ${rect.height * ZOOM}px`
-                            // Shift the zoomed image so the cursor point is centered in the lens
-                            lens.style.backgroundPosition = `${-(x * ZOOM - half)}px ${-(y * ZOOM - half)}px`
-                            lens.style.opacity = '1'
-                          }}
-                          onMouseLeave={e => {
-                            const lens = e.currentTarget.querySelector<HTMLElement>('[data-lens]')
-                            if (lens) lens.style.opacity = '0'
-                          }}
-                        >
-                          {activeUrl ? (
-                            <>
+                        <>
+                          <div
+                            className="flex-1 relative lg:max-h-[520px] rounded-md select-none overflow-hidden"
+                            style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor, cursor: activeUrl ? 'crosshair' : 'default' }}
+                            onMouseMove={e => {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setProductZoomPos({
+                                xPct: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+                                yPct: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
+                              })
+                            }}
+                            onMouseLeave={() => setProductZoomPos(null)}
+                          >
+                            {activeUrl ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  key={activeUrl}
+                                  src={ensureAbsoluteUrl(activeUrl)}
+                                  alt={selectedProduct.name}
+                                  className="w-full h-full object-contain transition-opacity duration-300"
+                                  draggable={false}
+                                />
+                                {/* Crosshair selection box */}
+                                {productZoomPos && (
+                                  <div
+                                    className="hidden sm:block absolute pointer-events-none border-2 border-white bg-white/10"
+                                    style={{
+                                      width: `${BOX_FRAC * 100}%`,
+                                      height: `${BOX_FRAC * 100}%`,
+                                      left: `${clampFrac(productZoomPos.xPct) * 100}%`,
+                                      top: `${clampFrac(productZoomPos.yPct) * 100}%`,
+                                    }}
+                                  />
+                                )}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Sparkles className="w-20 h-20 text-white/10" />
+                              </div>
+                            )}
+
+                            {/* Mobile dots */}
+                            {gallery.length > 1 && (
+                              <div className="sm:hidden absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                                {gallery.map((_, i) => (
+                                  <button
+                                    key={i}
+                                    onClick={() => setActiveImageIdx(i)}
+                                    className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-white w-3' : 'bg-white/40'}`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Offer badge */}
+                            {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
+                              <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
+                                <div className="flex items-center gap-1.5 bg-white text-black text-sm font-bold px-3 py-1.5 shadow-lg shadow-black/40">
+                                  <Flame className="w-4 h-4" />
+                                  -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
+                                </div>
+                                {selectedProduct.offerLabel && (
+                                  <div className="bg-black/75 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1 uppercase tracking-wider">
+                                    {selectedProduct.offerLabel}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Delivery badge */}
+                            {selectedProduct.availableForDelivery && (
+                              <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/70 text-[10px] font-medium px-2.5 py-1.5 uppercase tracking-wider pointer-events-none">
+                                <MapPin className="w-3 h-3" /> Domicilio disponible
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Amazon-style zoom result panel */}
+                          {productZoomPos && activeUrl && (
+                            <div
+                              className="hidden sm:block absolute pointer-events-none z-50 overflow-hidden border shadow-2xl"
+                              style={{
+                                left: 'calc(100% + 16px)',
+                                top: 0,
+                                width: 380,
+                                aspectRatio: '4/5',
+                                backgroundColor: effectiveBgColor,
+                                borderColor: isLightBg ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
+                              }}
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                key={activeUrl}
                                 src={ensureAbsoluteUrl(activeUrl)}
-                                alt={selectedProduct.name}
-                                className="w-full h-full object-contain transition-opacity duration-300"
+                                alt=""
                                 draggable={false}
-                              />
-                              {/* Magnifier lens — desktop only */}
-                              <div
-                                data-lens
-                                className="hidden sm:block pointer-events-none absolute rounded-full border-2 border-white/60 shadow-xl shadow-black/40 ring-1 ring-black/20"
                                 style={{
-                                  width: LENS,
-                                  height: LENS,
-                                  transform: 'translate(-50%, -50%)',
-                                  opacity: 0,
-                                  transition: 'opacity 0.15s',
-                                  backgroundImage: `url(${ensureAbsoluteUrl(activeUrl)})`,
-                                  backgroundRepeat: 'no-repeat',
-                                  zIndex: 20,
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'contain',
+                                  transformOrigin: `${productZoomPos.xPct * 100}% ${productZoomPos.yPct * 100}%`,
+                                  transform: `scale(${ZOOM})`,
                                 }}
                               />
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Sparkles className="w-20 h-20 text-white/10" />
                             </div>
                           )}
-
-                          {/* Mobile dots */}
-                          {gallery.length > 1 && (
-                            <div className="sm:hidden absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                              {gallery.map((_, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => setActiveImageIdx(i)}
-                                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIdx ? 'bg-white w-3' : 'bg-white/40'}`}
-                                />
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Offer badge */}
-                          {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
-                            <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-                              <div className="flex items-center gap-1.5 bg-white text-black text-sm font-bold px-3 py-1.5 shadow-lg shadow-black/40">
-                                <Flame className="w-4 h-4" />
-                                -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
-                              </div>
-                              {selectedProduct.offerLabel && (
-                                <div className="bg-black/75 backdrop-blur-sm text-white/70 text-xs font-medium px-3 py-1 uppercase tracking-wider">
-                                  {selectedProduct.offerLabel}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Delivery badge */}
-                          {selectedProduct.availableForDelivery && (
-                            <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/70 text-[10px] font-medium px-2.5 py-1.5 uppercase tracking-wider pointer-events-none">
-                              <MapPin className="w-3 h-3" /> Domicilio disponible
-                            </div>
-                          )}
-                        </div>
+                        </>
                       )
                     })()}
                   </div>
@@ -3021,7 +3038,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           Añadir al carrito
                         </button>
                         <button
-                          onClick={() => { addFromModal(); setShowCheckout(true) }}
+                          onClick={() => { addFromModal(); fetchOrderBump(); setShowCheckout(true) }}
                           style={{ color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' }}
                           className="flex-1 py-3.5 text-sm uppercase tracking-[0.12em] font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 hover:opacity-85"
                         >

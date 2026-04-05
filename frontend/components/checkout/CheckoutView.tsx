@@ -74,6 +74,8 @@ interface CheckoutViewProps {
   onPagarConSistecredito?: () => Promise<void>;
   // Contraentrega toggle
   allowContraentrega?: boolean;
+  // Online payment discount (10% off when paying with MP)
+  onlineDiscountEnabled?: boolean;
 }
 
 export function CheckoutView({
@@ -106,6 +108,7 @@ export function CheckoutView({
   onPagarConAddi,
   onPagarConSistecredito,
   allowContraentrega = true,
+  onlineDiscountEnabled = false,
 }: CheckoutViewProps) {
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
@@ -301,8 +304,10 @@ export function CheckoutView({
     );
   };
 
-  const totalFinal = totalConDescuento ?? totalCarrito;
+  const baseTotal = totalConDescuento ?? totalCarrito;
   const descuentoAplicado = cuponAplicado?.valido ? cuponAplicado.descuento || 0 : 0;
+  const onlineDiscountAmt = (onlineDiscountEnabled && paymentMethod === 'mercadopago') ? Math.round(baseTotal * 0.10) : 0;
+  const totalFinal = baseTotal - onlineDiscountAmt;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -752,21 +757,37 @@ export function CheckoutView({
                 )}
 
                 <div className="pt-6 border-t border-gray-300">
-                  {descuentoAplicado > 0 && (
+                  {(descuentoAplicado > 0 || onlineDiscountAmt > 0) && (
                     <>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-light text-gray-600">Subtotal</span>
                         <span className="text-sm font-light text-gray-600">{formatCOP(totalCarrito)}</span>
                       </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-light text-green-600">Descuento</span>
-                        <span className="text-sm font-light text-green-600">-{formatCOP(descuentoAplicado)}</span>
-                      </div>
+                      {descuentoAplicado > 0 && (
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-light text-green-600">Cupón aplicado</span>
+                          <span className="text-sm font-light text-green-600">-{formatCOP(descuentoAplicado)}</span>
+                        </div>
+                      )}
+                      {onlineDiscountAmt > 0 && (
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-light text-blue-600 flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/></svg>
+                            10% descuento pago en línea
+                          </span>
+                          <span className="text-sm font-light text-blue-600">-{formatCOP(onlineDiscountAmt)}</span>
+                        </div>
+                      )}
                     </>
                   )}
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-light tracking-wide text-gray-600">TOTAL</span>
-                    <span className="text-xl font-light text-gray-900">{formatCOP(totalFinal)}</span>
+                    <div className="text-right">
+                      <span className="text-xl font-light text-gray-900">{formatCOP(totalFinal)}</span>
+                      {onlineDiscountAmt > 0 && (
+                        <p className="text-[10px] text-blue-500 font-medium">¡Ahorras {formatCOP(onlineDiscountAmt)}!</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -840,7 +861,9 @@ export function CheckoutView({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-semibold text-gray-900">Mercado Pago</span>
-                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 font-bold rounded shrink-0">10% DCTO</span>
+                              {onlineDiscountEnabled && (
+                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 font-bold rounded shrink-0">10% DCTO</span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-500 font-light mt-0.5">Tarjeta de crédito, débito o PSE</p>
                           </div>
