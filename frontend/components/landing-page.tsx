@@ -2491,6 +2491,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
 
+                {/* Presentation image — mobile */}
+                {selectedProduct.images?.[4] && (
+                  <div className="w-full rounded-xl overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={selectedProduct.images?.[4]} alt="Información del producto" className="w-full object-contain" />
+                  </div>
+                )}
+
                 {/* Store badge */}
                 {selectedProduct.storeName && (
                   <div className={`flex items-center gap-3 pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
@@ -3036,6 +3044,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <p className="text-[10px] leading-tight">Devoluciones</p>
                       </div>
                     </div>
+
+                    {/* Presentation image — desktop */}
+                    {selectedProduct.images?.[4] && (
+                      <div className="w-full rounded-xl overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedProduct.images?.[4]} alt="Información del producto" className="w-full object-contain" />
+                      </div>
+                    )}
 
                     {/* Personas viendo */}
                     <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm ${isLightBg ? 'bg-black/[0.04] text-black/60' : 'bg-white/[0.04] text-white/50'}`}>
