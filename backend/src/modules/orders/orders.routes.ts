@@ -183,11 +183,25 @@ router.post(
         tenantId = tenants[0].id;
       }
 
-      // Apply 10% online payment discount to each item
+      // Check if online payment discount is enabled for this tenant
+      let onlineDiscountEnabled = false;
+      try {
+        const [siRows] = await pool.query(
+          'SELECT online_discount_enabled FROM store_info WHERE tenant_id = ? LIMIT 1',
+          [tenantId]
+        ) as any;
+        if (siRows && siRows.length > 0) {
+          onlineDiscountEnabled = siRows[0].online_discount_enabled === 1 || siRows[0].online_discount_enabled === true;
+        }
+      } catch { /* column may not exist yet — default false */ }
+
+      // Apply 10% online payment discount only if enabled
       const ONLINE_DISCOUNT = 0.10;
       const discountedItems = items.map((item: any) => ({
         ...item,
-        unitPrice: Math.round(item.unitPrice * (1 - ONLINE_DISCOUNT)),
+        unitPrice: onlineDiscountEnabled
+          ? Math.round(item.unitPrice * (1 - ONLINE_DISCOUNT))
+          : item.unitPrice,
       }));
 
       const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
@@ -197,7 +211,8 @@ router.post(
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
-      const finalNotes = `[PAGO EN LÍNEA MP -10%] ${notes || ''}${couponNote}`.trim();
+      const onlineDiscountNote = onlineDiscountEnabled ? '[PAGO EN LÍNEA MP -10%] ' : '[PAGO EN LÍNEA MP] ';
+      const finalNotes = `${onlineDiscountNote}${notes || ''}${couponNote}`.trim();
 
       await pool.query(
         `INSERT INTO storefront_orders
@@ -210,14 +225,15 @@ router.post(
           subtotal, discount, total]
       );
 
+      const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
       for (const item of discountedItems) {
         await pool.query(
           `INSERT INTO storefront_order_items
             (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 10, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.productId, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
-            item.unitPrice * item.quantity]
+            itemDiscountPct, item.unitPrice * item.quantity]
         );
       }
 

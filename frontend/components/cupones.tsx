@@ -24,6 +24,8 @@ import {
     Check,
     AlertCircle,
     Gift,
+    CreditCard,
+    Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -49,6 +51,11 @@ export function Cupones() {
     const [showForm, setShowForm] = useState(false)
     const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
     const [saving, setSaving] = useState(false)
+
+    // Online payment discount toggle
+    const [onlineDiscountEnabled, setOnlineDiscountEnabled] = useState(false)
+    const [loadingOnlineDiscount, setLoadingOnlineDiscount] = useState(true)
+    const [togglingOnlineDiscount, setTogglingOnlineDiscount] = useState(false)
 
     // Form state
     const [formCode, setFormCode] = useState('')
@@ -76,6 +83,31 @@ export function Cupones() {
     useEffect(() => {
         fetchCoupons()
     }, [fetchCoupons])
+
+    useEffect(() => {
+        api.getOnlineDiscountConfig()
+            .then(res => { if (res?.success) setOnlineDiscountEnabled(res.data?.isEnabled ?? false) })
+            .catch(() => {})
+            .finally(() => setLoadingOnlineDiscount(false))
+    }, [])
+
+    const handleToggleOnlineDiscount = async () => {
+        setTogglingOnlineDiscount(true)
+        const next = !onlineDiscountEnabled
+        try {
+            const result = await api.updateOnlineDiscountConfig(next)
+            if (result?.success) {
+                setOnlineDiscountEnabled(next)
+                toast.success(next ? 'Descuento del 10% en pago en línea activado' : 'Descuento del 10% en pago en línea desactivado')
+            } else {
+                toast.error('Error al guardar configuración')
+            }
+        } catch {
+            toast.error('Error de conexión')
+        } finally {
+            setTogglingOnlineDiscount(false)
+        }
+    }
 
     const resetForm = () => {
         setFormCode('')
@@ -295,6 +327,41 @@ export function Cupones() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Online Payment Discount */}
+            <Card className={`border-2 transition-colors ${onlineDiscountEnabled ? 'border-blue-400/40 bg-blue-50/50 dark:bg-blue-900/10' : 'border-muted'}`}>
+                <CardContent className="p-5">
+                    <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl flex-shrink-0 ${onlineDiscountEnabled ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-muted'}`}>
+                            <CreditCard className={`h-6 w-6 ${onlineDiscountEnabled ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-semibold text-sm">Descuento 10% — Pago en línea</p>
+                                {onlineDiscountEnabled && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">
+                                        <Zap className="h-3 w-3" /> ACTIVO
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Ofrece un 10% de descuento automático a clientes que pagan con Mercado Pago u otro método en línea.
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleToggleOnlineDiscount}
+                            disabled={togglingOnlineDiscount || loadingOnlineDiscount}
+                            className="flex-shrink-0 disabled:opacity-50"
+                            title={onlineDiscountEnabled ? 'Desactivar descuento' : 'Activar descuento'}
+                        >
+                            {onlineDiscountEnabled
+                                ? <ToggleRight className="h-10 w-10 text-blue-500" />
+                                : <ToggleLeft className="h-10 w-10 text-muted-foreground" />
+                            }
+                        </button>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Search & Refresh */}
             <div className="flex gap-3">
