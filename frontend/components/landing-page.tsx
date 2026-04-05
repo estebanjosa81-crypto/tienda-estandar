@@ -54,6 +54,7 @@ import {
   Send,
   MessageCircle,
   UtensilsCrossed,
+  Upload,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
@@ -195,6 +196,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
   const [activeImageIdx, setActiveImageIdx] = useState(0)
+  const [modalUploadedImages, setModalUploadedImages] = useState<string[]>([])
+  const [quantityMaxWarning, setQuantityMaxWarning] = useState(false)
 
   // ====== PRODUCT VIEWERS COUNTER ======
   const [viewerCount, setViewerCount] = useState(() => Math.floor(Math.random() * 30) + 8)
@@ -1192,8 +1195,24 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
+    setModalUploadedImages([])
+    setQuantityMaxWarning(false)
     // Remove product param from URL
     window.history.replaceState({}, '', window.location.pathname)
+  }
+
+  const handleModalImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    Array.from(files).forEach(file => {
+      const reader = new FileReader()
+      reader.onload = ev => {
+        const result = ev.target?.result as string
+        if (result) setModalUploadedImages(prev => [...prev, result])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
   }
 
   const addFromModal = () => {
@@ -2401,10 +2420,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
 
                 {/* Quantity + Favorite */}
+                <div className="flex flex-col gap-1.5">
+                {quantityMaxWarning && (
+                  <p className="text-xs text-amber-500 font-medium">Solo quedan {selectedProduct.stock} unidades disponibles</p>
+                )}
                 <div className="flex items-center justify-between">
                   <div className={`flex items-center border rounded-lg overflow-hidden ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
                     <button
-                      onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
+                      onClick={() => { setProductQuantity(q => Math.max(1, q - 1)); setQuantityMaxWarning(false) }}
                       disabled={selectedProduct.stock === 0}
                       className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                     >
@@ -2412,7 +2435,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                     <span className={`w-11 text-center text-base font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                     <button
-                      onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
+                      onClick={() => {
+                        if (selectedProduct.stock && productQuantity >= selectedProduct.stock) {
+                          setQuantityMaxWarning(true)
+                        } else {
+                          setProductQuantity(q => Math.min(selectedProduct.stock ?? 999, q + 1))
+                          setQuantityMaxWarning(false)
+                        }
+                      }}
                       disabled={selectedProduct.stock === 0}
                       className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                     >
@@ -2431,6 +2461,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   >
                     <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-current' : ''}`} />
                   </button>
+                </div>
                 </div>
 
                 {/* CTA buttons */}
@@ -2457,6 +2488,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   </div>
                 )}
+
+                {/* Upload images — mobile */}
+                <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                  <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Tus fotos</p>
+                  <label className={`flex items-center gap-2 w-full py-3 rounded-xl border cursor-pointer transition-colors text-xs font-medium justify-center ${isLightBg ? 'border-black/15 text-black/50 hover:bg-black/5' : 'border-white/15 text-white/40 hover:bg-white/5'}`}>
+                    <Upload className="w-4 h-4" />
+                    Subir imágenes
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleModalImageUpload} />
+                  </label>
+                  {modalUploadedImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {modalUploadedImages.map((src, idx) => (
+                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`foto ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => setModalUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Store badge */}
                 {selectedProduct.storeName && (
@@ -2598,10 +2655,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             const ly = Math.max(half, Math.min(rect.height - half, y))
                             lens.style.left = `${lx}px`
                             lens.style.top = `${ly}px`
-                            // background-position centers the zoomed region under the cursor
-                            const bx = ((x / rect.width) * 100)
-                            const by = ((y / rect.height) * 100)
-                            lens.style.backgroundPosition = `${bx}% ${by}%`
+                            // Set bg-size in px so zoom is relative to the container, not the lens
+                            lens.style.backgroundSize = `${rect.width * ZOOM}px ${rect.height * ZOOM}px`
+                            // Shift the zoomed image so the cursor point is centered in the lens
+                            lens.style.backgroundPosition = `${-(x * ZOOM - half)}px ${-(y * ZOOM - half)}px`
                             lens.style.opacity = '1'
                           }}
                           onMouseLeave={e => {
@@ -2630,7 +2687,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   opacity: 0,
                                   transition: 'opacity 0.15s',
                                   backgroundImage: `url(${ensureAbsoluteUrl(activeUrl)})`,
-                                  backgroundSize: `${ZOOM * 100}%`,
                                   backgroundRepeat: 'no-repeat',
                                   zIndex: 20,
                                 }}
@@ -2901,10 +2957,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     )}
 
                     {/* Quantity + Wishlist */}
+                    <div className="flex flex-col gap-1.5">
+                    {quantityMaxWarning && (
+                      <p className="text-xs text-amber-500 font-medium">Solo quedan {selectedProduct.stock} unidades disponibles</p>
+                    )}
                     <div className="flex items-center gap-3">
                       <div className={`flex items-center rounded-lg border ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
                         <button
-                          onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
+                          onClick={() => { setProductQuantity(q => Math.max(1, q - 1)); setQuantityMaxWarning(false) }}
                           className={`w-10 h-10 flex items-center justify-center transition-colors rounded-l-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
@@ -2912,7 +2972,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </button>
                         <span className={`w-10 text-center text-sm font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                         <button
-                          onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
+                          onClick={() => {
+                            if (selectedProduct.stock && productQuantity >= selectedProduct.stock) {
+                              setQuantityMaxWarning(true)
+                            } else {
+                              setProductQuantity(q => Math.min(selectedProduct.stock ?? 999, q + 1))
+                              setQuantityMaxWarning(false)
+                            }
+                          }}
                           className={`w-10 h-10 flex items-center justify-center transition-colors rounded-r-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                           disabled={selectedProduct.stock === 0}
                         >
@@ -2932,6 +2999,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       >
                         <Heart className={`w-4 h-4 ${favorites.has(selectedProduct.id) ? 'fill-current' : ''}`} />
                       </button>
+                    </div>
                     </div>
 
                     {/* CTA buttons */}
@@ -2976,6 +3044,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <RotateCcw className="w-4 h-4" />
                         <p className="text-[10px] leading-tight">Devoluciones</p>
                       </div>
+                    </div>
+
+                    {/* Upload images — desktop */}
+                    <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                      <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Tus fotos</p>
+                      <label className={`flex items-center gap-2 w-full py-3 rounded-xl border cursor-pointer transition-colors text-xs font-medium justify-center ${isLightBg ? 'border-black/15 text-black/50 hover:bg-black/5' : 'border-white/15 text-white/40 hover:bg-white/5'}`}>
+                        <Upload className="w-4 h-4" />
+                        Subir imágenes
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleModalImageUpload} />
+                      </label>
+                      {modalUploadedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {modalUploadedImages.map((src, idx) => (
+                            <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={src} alt={`foto ${idx + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                onClick={() => setModalUploadedImages(prev => prev.filter((_, i) => i !== idx))}
+                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Personas viendo */}
@@ -4700,15 +4794,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         return heroCategories.length > 0 ? (
           <RevealSection className="pt-2 pb-6 sm:pt-3 sm:pb-10 landing-section-bg relative">
             <div className="relative">
-              {/* Mobile left arrow */}
-              <button
-                onClick={() => carouselCategoriesRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg flex sm:hidden"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {/* Mobile: horizontal scroll — Desktop: equal columns like the example */}
-              <div ref={carouselCategoriesRef} className="flex gap-2 sm:gap-3 overflow-x-auto sm:overflow-visible scrollbar-hide scroll-smooth px-2 sm:px-3">
+              {/* Mobile: 2-column grid — Desktop: equal columns */}
+              <div ref={carouselCategoriesRef} className="grid grid-cols-2 gap-2 sm:flex sm:gap-3 px-2 sm:px-3">
                 {heroCategories.map((cat, idx) => (
                   <button
                     key={cat.name}
@@ -4718,10 +4805,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       setShowDrop(false)
                       window.scrollTo({ top: 0, behavior: 'smooth' })
                     }}
-                    className="group flex flex-col flex-shrink-0 w-[42vw] sm:flex-1 sm:w-auto transition-all duration-300"
+                    className="group flex flex-col sm:flex-1 sm:w-auto transition-all duration-300"
                   >
                     {/* Image — data-dark solo en la imagen para preservar colores internos */}
-                    <div data-dark className="relative overflow-hidden w-full aspect-square sm:aspect-auto sm:h-[380px]">
+                    <div data-dark className="relative overflow-hidden w-full aspect-[3/4] sm:aspect-auto sm:h-[380px]">
                       {cat.imageUrl ? (
                         <>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -4748,13 +4835,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </button>
                 ))}
               </div>
-              {/* Mobile right arrow */}
-              <button
-                onClick={() => carouselCategoriesRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:border-white hover:text-black transition-all shadow-lg flex sm:hidden"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
           </RevealSection>
         ) : null
@@ -6075,7 +6155,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {!chatbotStatus?.enabled && storeConfig?.storeInfo?.socialWhatsapp && (
         <button
           onClick={() => setShowWhatsappModal(true)}
-          className={`hidden md:flex fixed ${totalItems > 0 && !showCart ? 'bottom-24' : 'bottom-6'} right-6 z-40 bg-green-500 hover:bg-green-400 text-white p-4 rounded-full shadow-2xl shadow-green-500/30 transition-all duration-300 hover:scale-110 group items-center justify-center`}
+          className={`flex fixed ${totalItems > 0 && !showCart ? 'bottom-24' : 'bottom-6'} right-6 z-40 bg-green-500 hover:bg-green-400 text-white p-4 rounded-full shadow-2xl shadow-green-500/30 transition-all duration-300 hover:scale-110 group items-center justify-center`}
           title="Enviar mensaje por WhatsApp"
         >
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
