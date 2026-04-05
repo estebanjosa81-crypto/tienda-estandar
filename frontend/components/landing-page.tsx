@@ -2341,12 +2341,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           .filter(p => p.id !== selectedProduct.id && (p.category === selectedProduct.category || p.brand === selectedProduct.brand))
           .slice(0, 8)
 
+        const hasAnnouncement = !!storeConfig?.announcementBar?.isActive
+        const headerH = hasAnnouncement ? 104 : 64
         return (
-          <div className="pt-16 min-h-screen animate-in fade-in duration-300">
+          <div className="min-h-screen animate-in fade-in duration-300" style={{ paddingTop: headerH }}>
             {/* Floating close button — mobile only, always visible */}
             <button
               onClick={closeProductModal}
-              className="sm:hidden fixed top-[104px] right-4 z-50 w-9 h-9 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-black transition-all shadow-lg backdrop-blur-sm"
+              className="sm:hidden fixed right-4 z-50 w-9 h-9 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-black transition-all shadow-lg backdrop-blur-sm"
+              style={{ top: headerH + 8 }}
               aria-label="Cerrar producto"
             >
               <X className="w-4 h-4" />
@@ -2572,7 +2575,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
 
             {/* Top bar — Volver + Close — sticky below nav */}
-            <div className={`hidden sm:flex sticky top-16 z-20 items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur ${isLightBg ? 'border-black/8 bg-white/90' : 'border-white/8 bg-black/80'}`}>
+            <div className={`hidden sm:flex sticky z-20 items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b backdrop-blur ${isLightBg ? 'border-black/8 bg-white/90' : 'border-white/8 bg-black/80'}`} style={{ top: storeConfig?.announcementBar?.isActive ? 104 : 64 }}>
               <button
                 onClick={closeProductModal}
                 className={`flex items-center gap-2 text-sm font-medium transition-colors ${isLightBg ? 'text-black/60 hover:text-black' : 'text-white/50 hover:text-white'}`}
@@ -3315,11 +3318,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       })()}
 
       {/* ========== CATALOG VIEW ========== */}
-      {showCatalog && !showProductModal && (
-        <div className="pt-16 min-h-screen" style={{ backgroundColor: effectiveBgColor }}>
+      {showCatalog && !showProductModal && (() => {
+        const hasAnnouncement = !!storeConfig?.announcementBar?.isActive
+        const headerH = hasAnnouncement ? 104 : 64 // 40 announcement + 64 nav, or just 64
+        return (
+        <div className="min-h-screen" style={{ backgroundColor: effectiveBgColor, paddingTop: headerH }}>
           <div className="flex">
             {/* LEFT SIDEBAR — Desktop */}
-            <aside className={`hidden lg:block w-72 shrink-0 border-r landing-sidebar sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
+            <aside className={`hidden lg:block w-72 shrink-0 border-r landing-sidebar overflow-y-auto ${isLightBg ? 'border-black/10' : 'border-white/10'}`} style={{ position: 'sticky', top: headerH, height: `calc(100vh - ${headerH}px)` }}>
               <CatalogSidebar
                 categories={categories}
                 availableBrands={availableBrands}
@@ -3345,7 +3351,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {/* MAIN CONTENT */}
             <main className="flex-1 min-w-0 pb-20 md:pb-0">
               {/* Header */}
-              <div className={`sticky top-16 z-10 backdrop-blur border-b px-4 sm:px-6 lg:px-8 py-4 ${isLightBg ? 'border-black/8' : 'border-white/8'}`} style={{ backgroundColor: isLightBg ? 'rgba(255,255,255,0.95)' : 'rgba(9,9,11,0.95)' }}>
+              <div className={`sticky z-10 backdrop-blur border-b px-4 sm:px-6 lg:px-8 py-4 ${isLightBg ? 'border-black/8' : 'border-white/8'}`} style={{ top: headerH, backgroundColor: isLightBg ? 'rgba(255,255,255,0.95)' : 'rgba(9,9,11,0.95)' }}>
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <h1 className={`text-xl sm:text-2xl font-light tracking-wide ${isLightBg ? 'text-black' : 'text-white'}`}>
                     {sedesViewMode && !activeSede ? 'Sedes'
@@ -3787,7 +3793,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* ========== NUEVOS LANZAMIENTOS VIEW ========== */}
       {showNewLaunches && !showProductModal && (
