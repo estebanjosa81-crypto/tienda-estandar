@@ -228,7 +228,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             department: result.data.storeInfo.department || '',
             municipality: result.data.storeInfo.municipality || '',
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
-            allowContraentrega: result.data.storeInfo.allowContraentrega !== false,
+            allowContraentrega: result.data.storeInfo.allowContraentrega == null ? true : Boolean(result.data.storeInfo.allowContraentrega),
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
             contactPageEnabled: !!result.data.storeInfo.contactPageEnabled,
