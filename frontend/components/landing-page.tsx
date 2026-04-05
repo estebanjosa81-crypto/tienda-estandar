@@ -2491,32 +2491,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
 
-                {/* Upload images — mobile */}
-                <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
-                  <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Tus fotos</p>
-                  <label className={`flex items-center gap-2 w-full py-3 rounded-xl border cursor-pointer transition-colors text-xs font-medium justify-center ${isLightBg ? 'border-black/15 text-black/50 hover:bg-black/5' : 'border-white/15 text-white/40 hover:bg-white/5'}`}>
-                    <Upload className="w-4 h-4" />
-                    Subir imágenes
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleModalImageUpload} />
-                  </label>
-                  {modalUploadedImages.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {modalUploadedImages.map((src, idx) => (
-                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt={`foto ${idx + 1}`} className="w-full h-full object-cover" />
-                          <button
-                            onClick={() => setModalUploadedImages(prev => prev.filter((_, i) => i !== idx))}
-                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 {/* Store badge */}
                 {selectedProduct.storeName && (
                   <div className={`flex items-center gap-3 pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
@@ -3061,32 +3035,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <RotateCcw className="w-4 h-4" />
                         <p className="text-[10px] leading-tight">Devoluciones</p>
                       </div>
-                    </div>
-
-                    {/* Upload images — desktop */}
-                    <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
-                      <p className={`text-[10px] uppercase tracking-widest mb-2 ${isLightBg ? 'text-black/40' : 'text-white/30'}`}>Tus fotos</p>
-                      <label className={`flex items-center gap-2 w-full py-3 rounded-xl border cursor-pointer transition-colors text-xs font-medium justify-center ${isLightBg ? 'border-black/15 text-black/50 hover:bg-black/5' : 'border-white/15 text-white/40 hover:bg-white/5'}`}>
-                        <Upload className="w-4 h-4" />
-                        Subir imágenes
-                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleModalImageUpload} />
-                      </label>
-                      {modalUploadedImages.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {modalUploadedImages.map((src, idx) => (
-                            <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={src} alt={`foto ${idx + 1}`} className="w-full h-full object-cover" />
-                              <button
-                                onClick={() => setModalUploadedImages(prev => prev.filter((_, i) => i !== idx))}
-                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     {/* Personas viendo */}
