@@ -1087,7 +1087,7 @@ export function InventoryList() {
 
       {/* Quick Image Upload Dialog */}
       <Dialog open={!!quickImageProduct} onOpenChange={(open) => { if (!open) setQuickImageProduct(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Camera className="h-4 w-4" />
@@ -1097,30 +1097,48 @@ export function InventoryList() {
           </DialogHeader>
           <div className="space-y-5 py-2">
             <div>
-              <p className="text-sm font-medium mb-2">★ Imagen Principal</p>
-              <CloudinaryUpload
-                value={quickImageProduct?.imageUrl || ''}
-                onChange={async (url) => {
-                  if (!quickImageProduct) return
-                  const imgs = Array.isArray(quickImageProduct.images) ? [...quickImageProduct.images] : []
-                  imgs[0] = url
-                  await updateProduct(quickImageProduct.id, { imageUrl: url, images: imgs })
-                  setQuickImageProduct({ ...quickImageProduct, imageUrl: url, images: imgs })
-                  toast.success('Imagen principal actualizada')
-                }}
-              />
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Galería del producto</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((idx) => {
+                  const imgsArr: string[] = Array.isArray(quickImageProduct?.images) ? quickImageProduct!.images! : []
+                  const slotValue = idx === 0
+                    ? (quickImageProduct?.imageUrl || imgsArr[0] || '')
+                    : (imgsArr[idx] || '')
+                  return (
+                    <div key={idx}>
+                      <p className="text-xs text-muted-foreground mb-1">{idx === 0 ? '★ Principal' : `Imagen ${idx + 1}`}</p>
+                      <CloudinaryUpload
+                        value={slotValue}
+                        previewClassName="h-24 w-full object-cover rounded border"
+                        onChange={async (url) => {
+                          if (!quickImageProduct) return
+                          const imgs = Array.isArray(quickImageProduct.images) ? [...quickImageProduct.images] : []
+                          imgs[idx] = url
+                          const updates: any = { images: imgs }
+                          if (idx === 0) updates.imageUrl = url
+                          await updateProduct(quickImageProduct.id, updates)
+                          setQuickImageProduct({ ...quickImageProduct, ...(idx === 0 ? { imageUrl: url } : {}), images: imgs })
+                          toast.success(idx === 0 ? 'Imagen principal actualizada' : `Imagen ${idx + 1} actualizada`)
+                        }}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium mb-2">Imagen Secundaria</p>
+            <div className="border-t pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Imagen de presentación</p>
+              <p className="text-xs text-muted-foreground mb-3">Se muestra debajo de los botones de compra en la tienda. Selecciona una imagen ya subida o sube una nueva.</p>
               <CloudinaryUpload
-                value={quickImageProduct?.images?.[1] || ''}
+                value={Array.isArray(quickImageProduct?.images) ? (quickImageProduct!.images![4] || '') : ''}
+                previewClassName="h-32 w-full object-contain rounded border"
                 onChange={async (url) => {
                   if (!quickImageProduct) return
                   const imgs = Array.isArray(quickImageProduct.images) ? [...quickImageProduct.images] : []
-                  imgs[1] = url
+                  imgs[4] = url
                   await updateProduct(quickImageProduct.id, { images: imgs })
                   setQuickImageProduct({ ...quickImageProduct, images: imgs })
-                  toast.success('Imagen secundaria actualizada')
+                  toast.success('Imagen de presentación actualizada')
                 }}
               />
             </div>

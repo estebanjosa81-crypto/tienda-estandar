@@ -1367,18 +1367,33 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           ]
         ) as any;
       } catch {
-        [result] = await pool.query(
-          `UPDATE store_info SET
-            logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
-            payment_methods = ?, social_instagram = ?, social_facebook = ?,
-            social_tiktok = ?, social_whatsapp = ?
-           WHERE tenant_id = ?`,
-          [
-            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
-            paymentMethods || null, socialInstagram || null, socialFacebook || null,
-            socialTiktok || null, socialWhatsapp || null, tenantId,
-          ]
-        ) as any;
+        try {
+          [result] = await pool.query(
+            `UPDATE store_info SET
+              logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
+              payment_methods = ?, social_instagram = ?, social_facebook = ?,
+              social_tiktok = ?, social_whatsapp = ?, allow_contraentrega = ?
+             WHERE tenant_id = ?`,
+            [
+              logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
+              paymentMethods || null, socialInstagram || null, socialFacebook || null,
+              socialTiktok || null, socialWhatsapp || null, allowCod, tenantId,
+            ]
+          ) as any;
+        } catch {
+          [result] = await pool.query(
+            `UPDATE store_info SET
+              logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
+              payment_methods = ?, social_instagram = ?, social_facebook = ?,
+              social_tiktok = ?, social_whatsapp = ?
+             WHERE tenant_id = ?`,
+            [
+              logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
+              paymentMethods || null, socialInstagram || null, socialFacebook || null,
+              socialTiktok || null, socialWhatsapp || null, tenantId,
+            ]
+          ) as any;
+        }
       }
     }
 
@@ -1386,6 +1401,14 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       res.status(404).json({ success: false, error: 'Información de tienda no encontrada' });
       return;
     }
+
+    // Always ensure allow_contraentrega is saved, regardless of which fallback ran above
+    try {
+      await pool.query(
+        'UPDATE store_info SET allow_contraentrega = ? WHERE tenant_id = ?',
+        [allowCod, tenantId]
+      );
+    } catch { /* column may not exist on older DBs — skip */ }
 
     res.json({ success: true });
   } catch (error) {
