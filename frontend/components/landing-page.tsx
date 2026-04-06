@@ -246,6 +246,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     mercadopago: boolean; addi: boolean; sistecredito: boolean; contraentrega: boolean; onlineDiscountEnabled: boolean
   }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true, onlineDiscountEnabled: false })
 
+  const toBool = (value: unknown, defaultValue = false) => {
+    if (value === undefined || value === null) return defaultValue
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (normalized === 'true' || normalized === '1') return true
+      if (normalized === 'false' || normalized === '0' || normalized === '') return false
+    }
+    return value === true || value === 1
+  }
+
   // ====== CART STATE ======
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [showCart, setShowCart] = useState(false)
@@ -900,7 +910,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const res = await fetch(`${API_URL}/storefront/payment-config/${selectedStore}`)
         const json = await res.json()
         if (json.success && json.data) {
-          setPaymentConfig(json.data)
+          setPaymentConfig({
+            mercadopago: toBool(json.data.mercadopago),
+            addi: toBool(json.data.addi),
+            sistecredito: toBool(json.data.sistecredito),
+            contraentrega: toBool(json.data.contraentrega, true),
+            onlineDiscountEnabled: toBool(json.data.onlineDiscountEnabled),
+          })
         }
       } catch (e) {
         console.error('Error fetching payment config:', e)

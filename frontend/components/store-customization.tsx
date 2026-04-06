@@ -128,6 +128,16 @@ interface Drop {
 type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot' | 'contact'
 
 export function StoreCustomization({ onBack }: { onBack: () => void }) {
+  const toBool = (value: unknown, defaultValue = false) => {
+    if (value === undefined || value === null) return defaultValue
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (normalized === 'true' || normalized === '1') return true
+      if (normalized === 'false' || normalized === '0' || normalized === '') return false
+    }
+    return value === true || value === 1
+  }
+
   const [activeTab, setActiveTab] = useState<Tab>('banners')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -228,7 +238,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             department: result.data.storeInfo.department || '',
             municipality: result.data.storeInfo.municipality || '',
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
-            allowContraentrega: result.data.storeInfo.allowContraentrega == null ? true : Boolean(result.data.storeInfo.allowContraentrega),
+            allowContraentrega: toBool(result.data.storeInfo.allowContraentrega, true),
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
             contactPageEnabled: !!result.data.storeInfo.contactPageEnabled,
