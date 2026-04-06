@@ -25,6 +25,18 @@ function parseImages(row: any): any {
   return { ...row, images: null };
 }
 
+function toBoolLike(value: any, defaultValue: boolean): boolean {
+  if (value === undefined || value === null) return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'y') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'n') return false;
+  }
+  return defaultValue;
+}
+
 // GET /api/storefront/products — Public endpoint, no auth required
 router.get(
   '/products',
@@ -894,10 +906,10 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
       ) as any;
       if (siRows && siRows.length > 0) {
         if (siRows[0].allow_contraentrega !== undefined) {
-          contraentrega = siRows[0].allow_contraentrega === 1 || siRows[0].allow_contraentrega === true;
+          contraentrega = toBoolLike(siRows[0].allow_contraentrega, true);
         }
         if (siRows[0].online_discount_enabled !== undefined) {
-          onlineDiscountEnabled = siRows[0].online_discount_enabled === 1 || siRows[0].online_discount_enabled === true;
+          onlineDiscountEnabled = toBoolLike(siRows[0].online_discount_enabled, false);
         }
       }
     } catch { /* columns may not exist yet — use defaults */ }
@@ -1312,7 +1324,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       contactPageProducts, contactPageLinks,
     } = req.body;
 
-    const allowCod = allowContraentrega === false ? 0 : 1;
+    const allowCod = toBoolLike(allowContraentrega, true) ? 1 : 0;
     const infoModule = showInfoModule ? 1 : 0;
     const contactEnabled = contactPageEnabled ? 1 : 0;
     const contactProducts = Array.isArray(contactPageProducts)
