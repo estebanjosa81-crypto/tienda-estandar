@@ -4,6 +4,15 @@ import {
   runSync,
   receiveSalesFromLocal,
   receivePurchasesFromLocal,
+  receiveCustomersFromLocal,
+  receiveProductsFromLocal,
+  receiveMovementsFromLocal,
+  receiveCashSessionsFromLocal,
+  receiveCreditPaymentsFromLocal,
+  receiveCategoriesFromLocal,
+  receiveOrdersFromLocal,
+  receiveRecipesFromLocal,
+  receiveSuppliersFromLocal,
   getChangesSince,
 } from './sync.service';
 import { config } from '../../config/env';
@@ -55,6 +64,152 @@ export async function receiveSales(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: result });
   } catch (err: any) {
     console.error('[Sync] Error recibiendo ventas:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// ─── Helpers para endpoints de recepción (NUBE) ──────────────────────────────
+
+function requireSyncSecret(req: Request, res: Response): boolean {
+  const secret = req.headers['x-sync-secret'];
+  if (!config.sync.secret || secret !== config.sync.secret) {
+    res.status(401).json({ success: false, error: 'No autorizado' });
+    return false;
+  }
+  return true;
+}
+
+export async function receiveCustomers(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { customers } = req.body;
+  if (!Array.isArray(customers) || customers.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveCustomersFromLocal(customers);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo clientes:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveProducts(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { products } = req.body;
+  if (!Array.isArray(products) || products.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveProductsFromLocal(products);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo productos:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveMovements(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { movements } = req.body;
+  if (!Array.isArray(movements) || movements.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveMovementsFromLocal(movements);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo movimientos:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveCashSessions(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { sessions } = req.body;
+  if (!Array.isArray(sessions) || sessions.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveCashSessionsFromLocal(sessions);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo sesiones de caja:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveCreditPayments(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { payments } = req.body;
+  if (!Array.isArray(payments) || payments.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveCreditPaymentsFromLocal(payments);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo pagos de crédito:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveCategories(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { categories } = req.body;
+  if (!Array.isArray(categories) || categories.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveCategoriesFromLocal(categories);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo categorías:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveOrders(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { orders } = req.body;
+  if (!Array.isArray(orders) || orders.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveOrdersFromLocal(orders);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo pedidos:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveRecipes(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { recipes } = req.body;
+  if (!Array.isArray(recipes) || recipes.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveRecipesFromLocal(recipes);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo recetas:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function receiveSuppliers(req: Request, res: Response): Promise<void> {
+  if (!requireSyncSecret(req, res)) return;
+  const { suppliers } = req.body;
+  if (!Array.isArray(suppliers) || suppliers.length === 0) {
+    res.status(400).json({ success: false, error: 'Sin datos' }); return;
+  }
+  try {
+    const result = await receiveSuppliersFromLocal(suppliers);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    console.error('[Sync] Error recibiendo proveedores:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 }
