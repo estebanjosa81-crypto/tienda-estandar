@@ -58,6 +58,18 @@ const pullCursors: Record<string, EntityCursor> = {
   recipes:        { since: EPOCH, afterId: '' },
 };
 
+// Cursores para PUSH (local → nube): cada entidad recuerda hasta dónde subió.
+const pushCursors: Record<string, EntityCursor> = {
+  customers:      { since: EPOCH, afterId: '' },
+  products:       { since: EPOCH, afterId: '' },
+  movements:      { since: EPOCH, afterId: '' },
+  cashSessions:   { since: EPOCH, afterId: '' },
+  creditPayments: { since: EPOCH, afterId: '' },
+  orders:         { since: EPOCH, afterId: '' },
+  recipes:        { since: EPOCH, afterId: '' },
+  suppliers:      { since: EPOCH, afterId: '' },
+};
+
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -182,6 +194,243 @@ async function pushPurchases(): Promise<number> {
   return ids.length;
 }
 
+// ─── Helpers de push con cursor ──────────────────────────────────────────────
+
+/** Avanza el cursor de push de una entidad tras enviar una página. */
+function advancePushCursor(entity: string, rows: any[], limit: number, dateField = 'updated_at'): void {
+  if (rows.length > 0) {
+    const last = rows[rows.length - 1];
+    pushCursors[entity].since   = new Date(last[dateField]).toISOString();
+    pushCursors[entity].afterId = rows.length >= limit ? (last.id ?? '') : '';
+  }
+}
+
+// ─── Push clientes locales → nube ────────────────────────────────────────────
+
+async function pushCustomers(): Promise<number> {
+  const LIMIT = 100;
+  const cur = pushCursors.customers;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
+         FROM customers WHERE updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
+         FROM customers WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-customers', { customers: rows });
+  if (!ok) return 0;
+  advancePushCursor('customers', rows, LIMIT);
+  return rows.length;
+}
+
+// ─── Push productos locales → nube ───────────────────────────────────────────
+
+async function pushProducts(): Promise<number> {
+  const LIMIT = 100;
+  const cur = pushCursors.products;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
+                description, purchase_price, sale_price, sku, barcode, stock,
+                reorder_point, supplier, supplier_id, entry_date, image_url, notes,
+                location_in_store, updated_at
+         FROM products WHERE updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
+                description, purchase_price, sale_price, sku, barcode, stock,
+                reorder_point, supplier, supplier_id, entry_date, image_url, notes,
+                location_in_store, updated_at
+         FROM products WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-products', { products: rows });
+  if (!ok) return 0;
+  advancePushCursor('products', rows, LIMIT);
+  return rows.length;
+}
+
+// ─── Push movimientos de stock locales → nube ────────────────────────────────
+
+async function pushMovements(): Promise<number> {
+  const LIMIT = 200;
+  const cur = pushCursors.movements;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
+                reason, reference_id, user_id, created_at
+         FROM stock_movements WHERE created_at > ? AND id > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
+                reason, reference_id, user_id, created_at
+         FROM stock_movements WHERE created_at > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-movements', { movements: rows });
+  if (!ok) return 0;
+  advancePushCursor('movements', rows, LIMIT, 'created_at');
+  return rows.length;
+}
+
+// ─── Push sesiones de caja locales → nube ───────────────────────────────────
+
+async function pushCashSessions(): Promise<number> {
+  const LIMIT = 50;
+  const cur = pushCursors.cashSessions;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
+                closed_by, closed_by_name, closed_at, status, observations,
+                total_sales_count, total_cash_sales, total_card_sales,
+                total_transfer_sales, total_fiado_sales, created_at, updated_at
+         FROM cash_sessions WHERE updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
+                closed_by, closed_by_name, closed_at, status, observations,
+                total_sales_count, total_cash_sales, total_card_sales,
+                total_transfer_sales, total_fiado_sales, created_at, updated_at
+         FROM cash_sessions WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-cash-sessions', { sessions: rows });
+  if (!ok) return 0;
+  advancePushCursor('cashSessions', rows, LIMIT);
+  return rows.length;
+}
+
+// ─── Push pagos de crédito locales → nube ───────────────────────────────────
+
+async function pushCreditPayments(): Promise<number> {
+  const LIMIT = 100;
+  const cur = pushCursors.creditPayments;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, sale_id, customer_id, amount, payment_method,
+                receipt_number, notes, received_by, created_at
+         FROM credit_payments WHERE created_at > ? AND id > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, sale_id, customer_id, amount, payment_method,
+                receipt_number, notes, received_by, created_at
+         FROM credit_payments WHERE created_at > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-credit-payments', { payments: rows });
+  if (!ok) return 0;
+  advancePushCursor('creditPayments', rows, LIMIT, 'created_at');
+  return rows.length;
+}
+
+// ─── Push categorías locales → nube (tabla pequeña, envío completo) ──────────
+
+async function pushCategories(): Promise<number> {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    `SELECT id, tenant_id, name, description, image_url, hidden_in_store
+     FROM categories ORDER BY name ASC LIMIT 500`
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-categories', { categories: rows });
+  if (!ok) return 0;
+  return rows.length;
+}
+
+// ─── Push pedidos del storefront locales → nube ──────────────────────────────
+
+async function pushOrders(): Promise<number> {
+  const LIMIT = 100;
+  const cur = pushCursors.orders;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, order_number, customer_name, customer_phone, customer_email,
+                customer_cedula, department, municipality, address, neighborhood,
+                subtotal, shipping_cost, discount, total, status, payment_method,
+                delivery_status, notes, created_at, updated_at
+         FROM storefront_orders WHERE updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, order_number, customer_name, customer_phone, customer_email,
+                customer_cedula, department, municipality, address, neighborhood,
+                subtotal, shipping_cost, discount, total, status, payment_method,
+                delivery_status, notes, created_at, updated_at
+         FROM storefront_orders WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+
+  const ordersWithItems = await Promise.all(
+    (rows as any[]).map(async (o: any) => {
+      const [items] = await db.execute<RowDataPacket[]>(
+        `SELECT id, order_id, product_id, product_name, product_image,
+                quantity, unit_price, original_price, discount_percent, total_price, size, color
+         FROM storefront_order_items WHERE order_id = ?`,
+        [o.id]
+      );
+      return { ...o, items };
+    })
+  );
+
+  const ok = await postToCloud('/api/sync/receive-orders', { orders: ordersWithItems });
+  if (!ok) return 0;
+  advancePushCursor('orders', rows, LIMIT);
+  return rows.length;
+}
+
+// ─── Push recetas BOM locales → nube ────────────────────────────────────────
+
+async function pushRecipes(): Promise<number> {
+  const LIMIT = 200;
+  const cur = pushCursors.recipes;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
+         FROM product_recipes WHERE created_at > ? AND id > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
+         FROM product_recipes WHERE created_at > ?
+         ORDER BY created_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-recipes', { recipes: rows });
+  if (!ok) return 0;
+  advancePushCursor('recipes', rows, LIMIT, 'created_at');
+  return rows.length;
+}
+
+// ─── Push proveedores locales → nube ────────────────────────────────────────
+
+async function pushSuppliers(): Promise<number> {
+  const LIMIT = 100;
+  const cur = pushCursors.suppliers;
+  const [rows] = await db.execute<RowDataPacket[]>(
+    cur.afterId
+      ? `SELECT id, tenant_id, name, contact_name, phone, email, address, city, country,
+                tax_id, payment_terms, notes, is_active, created_at, updated_at
+         FROM suppliers WHERE updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`
+      : `SELECT id, tenant_id, name, contact_name, phone, email, address, city, country,
+                tax_id, payment_terms, notes, is_active, created_at, updated_at
+         FROM suppliers WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT ?`,
+    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+  );
+  if (rows.length === 0) return 0;
+  const ok = await postToCloud('/api/sync/receive-suppliers', { suppliers: rows });
+  if (!ok) return 0;
+  advancePushCursor('suppliers', rows, LIMIT);
+  return rows.length;
+}
+
 // ─── Recibir ventas de un local (endpoint en la NUBE) ────────────────────────
 
 export async function receiveSalesFromLocal(sales: any[]): Promise<{ inserted: number; skipped: number }> {
@@ -299,6 +548,249 @@ export async function receivePurchasesFromLocal(purchases: any[]): Promise<{ ins
   } finally {
     connection.release();
   }
+}
+
+// ─── Recibir clientes de un local (endpoint en la NUBE) ─────────────────────
+
+export async function receiveCustomersFromLocal(customers: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  for (const c of customers) {
+    await db.execute(
+      `INSERT INTO customers (id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+         phone=IF(VALUES(updated_at)>updated_at,VALUES(phone),phone),
+         email=IF(VALUES(updated_at)>updated_at,VALUES(email),email),
+         address=IF(VALUES(updated_at)>updated_at,VALUES(address),address),
+         credit_limit=IF(VALUES(updated_at)>updated_at,VALUES(credit_limit),credit_limit),
+         notes=IF(VALUES(updated_at)>updated_at,VALUES(notes),notes),
+         updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+      [c.id, c.tenant_id, c.cedula||null, c.name, c.phone||null,
+       c.email||null, c.address||null, c.credit_limit||0, c.notes||null,
+       toMysqlDatetime(c.updated_at)]
+    );
+    upserted++;
+  }
+  return { upserted };
+}
+
+// ─── Recibir productos de un local (endpoint en la NUBE) ────────────────────
+
+export async function receiveProductsFromLocal(products: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  for (const p of products) {
+    await db.execute(
+      `INSERT INTO products
+         (id, tenant_id, name, articulo, category, product_type, brand, model,
+          description, purchase_price, sale_price, sku, barcode, stock,
+          reorder_point, supplier, supplier_id, entry_date, image_url, notes,
+          location_in_store, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         stock=IF(VALUES(updated_at)>updated_at,VALUES(stock),stock),
+         sale_price=IF(VALUES(updated_at)>updated_at,VALUES(sale_price),sale_price),
+         purchase_price=IF(VALUES(updated_at)>updated_at,VALUES(purchase_price),purchase_price),
+         name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+         updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+      [p.id, p.tenant_id, p.name, p.articulo||null, p.category,
+       p.product_type||'general', p.brand||null, p.model||null,
+       p.description||null, p.purchase_price, p.sale_price, p.sku,
+       p.barcode||null, p.stock, p.reorder_point||5,
+       p.supplier||null, p.supplier_id||null, toMysqlDate(p.entry_date),
+       p.image_url||null, p.notes||null, p.location_in_store||null,
+       toMysqlDatetime(p.updated_at)]
+    );
+    upserted++;
+  }
+  return { upserted };
+}
+
+// ─── Recibir movimientos de stock de un local (endpoint en la NUBE) ──────────
+
+export async function receiveMovementsFromLocal(movements: any[]): Promise<{ inserted: number }> {
+  let inserted = 0;
+  for (const m of movements) {
+    const [res] = await db.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO stock_movements
+         (id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
+          reason, reference_id, user_id, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [m.id, m.tenant_id, m.product_id, m.type, m.quantity,
+       m.previous_stock, m.new_stock, m.reason||null,
+       m.reference_id||null, m.user_id||null, m.created_at]
+    );
+    if (res.affectedRows > 0) inserted++;
+  }
+  return { inserted };
+}
+
+// ─── Recibir sesiones de caja de un local (endpoint en la NUBE) ─────────────
+
+export async function receiveCashSessionsFromLocal(sessions: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  for (const cs of sessions) {
+    await db.execute(
+      `INSERT INTO cash_sessions
+         (id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
+          closed_by, closed_by_name, closed_at, status, observations,
+          total_sales_count, total_cash_sales, total_card_sales,
+          total_transfer_sales, total_fiado_sales, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         status=IF(VALUES(updated_at)>updated_at,VALUES(status),status),
+         closed_by=IF(VALUES(updated_at)>updated_at,VALUES(closed_by),closed_by),
+         closed_by_name=IF(VALUES(updated_at)>updated_at,VALUES(closed_by_name),closed_by_name),
+         closed_at=IF(VALUES(updated_at)>updated_at,VALUES(closed_at),closed_at),
+         total_sales_count=IF(VALUES(updated_at)>updated_at,VALUES(total_sales_count),total_sales_count),
+         total_cash_sales=IF(VALUES(updated_at)>updated_at,VALUES(total_cash_sales),total_cash_sales),
+         total_card_sales=IF(VALUES(updated_at)>updated_at,VALUES(total_card_sales),total_card_sales),
+         total_transfer_sales=IF(VALUES(updated_at)>updated_at,VALUES(total_transfer_sales),total_transfer_sales),
+         total_fiado_sales=IF(VALUES(updated_at)>updated_at,VALUES(total_fiado_sales),total_fiado_sales),
+         updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+      [cs.id, cs.tenant_id, cs.opened_by, cs.opened_by_name,
+       cs.opening_amount||0, cs.opened_at, cs.closed_by||null,
+       cs.closed_by_name||null, cs.closed_at||null, cs.status||'cerrada',
+       cs.observations||null, cs.total_sales_count||0,
+       cs.total_cash_sales||0, cs.total_card_sales||0,
+       cs.total_transfer_sales||0, cs.total_fiado_sales||0,
+       cs.created_at, cs.updated_at]
+    );
+    upserted++;
+  }
+  return { upserted };
+}
+
+// ─── Recibir pagos de crédito de un local (endpoint en la NUBE) ─────────────
+
+export async function receiveCreditPaymentsFromLocal(payments: any[]): Promise<{ inserted: number }> {
+  let inserted = 0;
+  for (const cp of payments) {
+    const [res] = await db.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO credit_payments
+         (id, tenant_id, sale_id, customer_id, amount, payment_method,
+          receipt_number, notes, received_by, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [cp.id, cp.tenant_id, cp.sale_id, cp.customer_id, cp.amount,
+       cp.payment_method, cp.receipt_number||null, cp.notes||null,
+       cp.received_by||null, cp.created_at]
+    );
+    if (res.affectedRows > 0) inserted++;
+  }
+  return { inserted };
+}
+
+// ─── Recibir categorías de un local (endpoint en la NUBE) ───────────────────
+
+export async function receiveCategoriesFromLocal(categories: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  for (const cat of categories) {
+    await db.execute(
+      `INSERT INTO categories (id, tenant_id, name, description, image_url, hidden_in_store)
+       VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         name=VALUES(name), description=VALUES(description),
+         image_url=VALUES(image_url), hidden_in_store=VALUES(hidden_in_store)`,
+      [cat.id, cat.tenant_id, cat.name, cat.description||null,
+       cat.image_url||null, cat.hidden_in_store||0]
+    );
+    upserted++;
+  }
+  return { upserted };
+}
+
+// ─── Recibir pedidos del storefront de un local (endpoint en la NUBE) ────────
+
+export async function receiveOrdersFromLocal(orders: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const o of orders) {
+      await connection.execute(
+        `INSERT INTO storefront_orders
+           (id, tenant_id, order_number, customer_name, customer_phone, customer_email,
+            customer_cedula, department, municipality, address, neighborhood,
+            subtotal, shipping_cost, discount, total, status, payment_method,
+            delivery_status, notes, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           status=IF(VALUES(updated_at)>updated_at,VALUES(status),status),
+           delivery_status=IF(VALUES(updated_at)>updated_at,VALUES(delivery_status),delivery_status),
+           updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+        [o.id, o.tenant_id, o.order_number, o.customer_name, o.customer_phone,
+         o.customer_email||null, o.customer_cedula||null, o.department||null,
+         o.municipality||null, o.address||null, o.neighborhood||null,
+         o.subtotal, o.shipping_cost||0, o.discount||0, o.total,
+         o.status, o.payment_method||null, o.delivery_status||'sin_asignar',
+         o.notes||null, o.created_at, o.updated_at]
+      );
+      for (const oi of (o.items || [])) {
+        await connection.execute(
+          `INSERT IGNORE INTO storefront_order_items
+             (order_id, product_id, product_name, product_image,
+              quantity, unit_price, original_price, discount_percent, total_price, size, color)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [oi.order_id, oi.product_id||null, oi.product_name, oi.product_image||null,
+           oi.quantity, oi.unit_price, oi.original_price||null,
+           oi.discount_percent||0, oi.total_price, oi.size||null, oi.color||null]
+        );
+      }
+      upserted++;
+    }
+    await connection.commit();
+    return { upserted };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+// ─── Recibir recetas BOM de un local (endpoint en la NUBE) ──────────────────
+
+export async function receiveRecipesFromLocal(recipes: any[]): Promise<{ inserted: number }> {
+  let inserted = 0;
+  for (const pr of recipes) {
+    const [res] = await db.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO product_recipes
+         (id, tenant_id, product_id, ingredient_id, quantity, include_in_cost)
+       VALUES (?,?,?,?,?,?)`,
+      [pr.id, pr.tenant_id, pr.product_id, pr.ingredient_id,
+       pr.quantity, pr.include_in_cost ?? 1]
+    );
+    if (res.affectedRows > 0) inserted++;
+  }
+  return { inserted };
+}
+
+// ─── Recibir proveedores de un local (endpoint en la NUBE) ──────────────────
+
+export async function receiveSuppliersFromLocal(suppliers: any[]): Promise<{ upserted: number }> {
+  let upserted = 0;
+  for (const s of suppliers) {
+    await db.execute(
+      `INSERT INTO suppliers
+         (id, tenant_id, name, contact_name, phone, email, address, city, country,
+          tax_id, payment_terms, notes, is_active, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+         contact_name=IF(VALUES(updated_at)>updated_at,VALUES(contact_name),contact_name),
+         phone=IF(VALUES(updated_at)>updated_at,VALUES(phone),phone),
+         email=IF(VALUES(updated_at)>updated_at,VALUES(email),email),
+         address=IF(VALUES(updated_at)>updated_at,VALUES(address),address),
+         is_active=IF(VALUES(updated_at)>updated_at,VALUES(is_active),is_active),
+         updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+      [s.id, s.tenant_id, s.name, s.contact_name||null, s.phone||null,
+       s.email||null, s.address||null, s.city||null, s.country||'Colombia',
+       s.tax_id||null, s.payment_terms||null, s.notes||null,
+       s.is_active ?? 1, s.created_at, toMysqlDatetime(s.updated_at)]
+    );
+    upserted++;
+  }
+  return { upserted };
 }
 
 // ─── Pull: nube → local (productos y clientes actualizados) ──────────────────
@@ -862,11 +1354,20 @@ export async function runSync(): Promise<{ salesSynced: number; purchasesSynced:
       return { salesSynced: 0, purchasesSynced: 0, pulled: 0 };
     }
 
-    // 1. PUSH: subir datos locales pendientes a la nube
-    const salesSynced = await pushSales();
+    // 1. PUSH: subir todos los datos locales a la nube (backup completo)
+    const salesSynced     = await pushSales();
     const purchasesSynced = await pushPurchases();
+    await pushCustomers();
+    await pushProducts();
+    await pushMovements();
+    await pushCashSessions();
+    await pushCreditPayments();
+    await pushCategories();
+    await pushOrders();
+    await pushRecipes();
+    await pushSuppliers();
 
-    // 2. PULL: bajar cambios de la nube (productos, clientes)
+    // 2. PULL: bajar cambios de la nube (productos, clientes, etc.)
     const pulled = await pullFromCloud();
 
     // Actualizar contadores después del push
