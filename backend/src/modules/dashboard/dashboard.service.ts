@@ -43,7 +43,7 @@ interface SaleRow extends RowDataPacket {
 }
 
 interface WeeklySalesRow extends RowDataPacket {
-  date: string;
+  date: string | Date;
   total: number;
   count: number;
   fiado_total: number;

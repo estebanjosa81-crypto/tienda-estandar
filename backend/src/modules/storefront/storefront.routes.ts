@@ -896,23 +896,28 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
       process.env.SISTECREDITO_API_KEY
     );
 
-    // Read per-tenant settings from store_info
+    // Read per-tenant settings from store_info (each column queried separately so a missing column
+    // cannot silently prevent allow_contraentrega from being read correctly)
     let contraentrega = true;
     let onlineDiscountEnabled = false;
     try {
       const [siRows] = await pool.query(
-        'SELECT allow_contraentrega, online_discount_enabled FROM store_info WHERE tenant_id = ? LIMIT 1',
+        'SELECT allow_contraentrega FROM store_info WHERE tenant_id = ? LIMIT 1',
         [tenantId]
       ) as any;
-      if (siRows && siRows.length > 0) {
-        if (siRows[0].allow_contraentrega !== undefined) {
-          contraentrega = toBoolLike(siRows[0].allow_contraentrega, true);
-        }
-        if (siRows[0].online_discount_enabled !== undefined) {
-          onlineDiscountEnabled = toBoolLike(siRows[0].online_discount_enabled, false);
-        }
+      if (siRows && siRows.length > 0 && siRows[0].allow_contraentrega !== undefined) {
+        contraentrega = toBoolLike(siRows[0].allow_contraentrega, true);
       }
-    } catch { /* columns may not exist yet — use defaults */ }
+    } catch { /* column may not exist yet — use default */ }
+    try {
+      const [siRows] = await pool.query(
+        'SELECT online_discount_enabled FROM store_info WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      if (siRows && siRows.length > 0 && siRows[0].online_discount_enabled !== undefined) {
+        onlineDiscountEnabled = toBoolLike(siRows[0].online_discount_enabled, false);
+      }
+    } catch { /* column may not exist yet — use default */ }
 
     res.json({
       success: true,

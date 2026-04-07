@@ -40,6 +40,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   isActive: boolean;
+  canLogin?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -129,6 +130,7 @@ export interface Product {
   packageDimensions?: string;
   packageContents?: string;
   safetyWarnings?: string;
+  sedeId?: string;
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -176,6 +178,7 @@ export interface Sale {
   change: number;
   sellerId?: string;
   sellerName: string;
+  sedeId?: string;
   status: SaleStatus;
   creditStatus?: CreditStatus;
   dueDate?: Date;
