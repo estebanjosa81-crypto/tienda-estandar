@@ -46,6 +46,7 @@ interface EntityCursor { since: string; afterId: string; }
 const EPOCH = '2020-01-01T00:00:00.000Z';
 
 const pullCursors: Record<string, EntityCursor> = {
+  users:          { since: EPOCH, afterId: '' },  // debe ir ANTES que sales (FK seller_id)
   products:       { since: EPOCH, afterId: '' },
   customers:      { since: EPOCH, afterId: '' },
   sales:          { since: EPOCH, afterId: '' },
@@ -846,6 +847,7 @@ async function pullFromCloud(): Promise<number> {
     if (!res.ok) return 0;
     const data = await res.json() as {
       tenant?: any;
+      users?: any[];
       products?: any[];       customers?: any[];
       sales?: any[];          saleItems?: any[];
       purchases?: any[];      purchaseItems?: any[];
@@ -872,6 +874,25 @@ async function pullFromCloud(): Promise<number> {
          t.plan||'basico', t.max_users||5, t.max_products||500, t.bg_color||'#000000']
       );
     }
+
+    // ── Usuarios (necesario antes de ventas por FK seller_id) ───────────────
+    for (const u of (data.users || [])) {
+      await db.execute(
+        `INSERT INTO users
+           (id, tenant_id, name, email, password, role, is_active, updated_at)
+         VALUES (?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           name=IF(VALUES(updated_at)>updated_at,VALUES(name),name),
+           role=IF(VALUES(updated_at)>updated_at,VALUES(role),role),
+           is_active=IF(VALUES(updated_at)>updated_at,VALUES(is_active),is_active),
+           password=IF(VALUES(updated_at)>updated_at,VALUES(password),password),
+           updated_at=IF(VALUES(updated_at)>updated_at,VALUES(updated_at),updated_at)`,
+        [u.id, u.tenant_id, u.name, u.email, u.password, u.role,
+         u.is_active ?? 1, toMysqlDatetime(u.updated_at)]
+      );
+      applied++;
+    }
+    advanceCursor('users', data.users||[], 200);
 
     // ── Categorías ──────────────────────────────────────────────────────────
     for (const cat of (data.categories || [])) {
@@ -1170,6 +1191,19 @@ export async function getChangesSince(
     [tenantId]
   );
 
+  // ── Usuarios (necesario antes de ventas por FK seller_id) ────────────────
+  const cu = c('users');
+  const [users] = await db.execute<RowDataPacket[]>(
+    cu.afterId
+      ? `SELECT id, tenant_id, name, email, password, role, is_active, updated_at
+         FROM users WHERE tenant_id = ? AND updated_at > ? AND id > ?
+         ORDER BY updated_at ASC, id ASC LIMIT 200`
+      : `SELECT id, tenant_id, name, email, password, role, is_active, updated_at
+         FROM users WHERE tenant_id = ? AND updated_at > ?
+         ORDER BY updated_at ASC, id ASC LIMIT 200`,
+    cu.afterId ? [tenantId, cu.since, cu.afterId] : [tenantId, cu.since]
+  );
+
   // ── Categorías (solo en el primer sync — el cursor aún está en EPOCH) ───────
   // Las categorías no tienen updated_at; se envían una sola vez y el local las conserva.
   const catCursor = c('categories');
@@ -1337,6 +1371,7 @@ export async function getChangesSince(
 
   return {
     tenant: (tenantRows as any[])[0] || null,
+    users,
     categories, storeInfo: (storeRows as any[])[0] || null,
     products, customers,
     sales, saleItems,
