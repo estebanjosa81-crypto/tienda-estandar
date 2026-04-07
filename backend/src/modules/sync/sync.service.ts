@@ -214,11 +214,11 @@ async function pushCustomers(): Promise<number> {
     cur.afterId
       ? `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
          FROM customers WHERE updated_at > ? AND id > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
          FROM customers WHERE updated_at > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-customers', { customers: rows });
@@ -239,14 +239,14 @@ async function pushProducts(): Promise<number> {
                 reorder_point, supplier, supplier_id, entry_date, image_url, notes,
                 location_in_store, updated_at
          FROM products WHERE updated_at > ? AND id > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, name, articulo, category, product_type, brand, model,
                 description, purchase_price, sale_price, sku, barcode, stock,
                 reorder_point, supplier, supplier_id, entry_date, image_url, notes,
                 location_in_store, updated_at
          FROM products WHERE updated_at > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-products', { products: rows });
@@ -265,12 +265,12 @@ async function pushMovements(): Promise<number> {
       ? `SELECT id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
                 reason, reference_id, user_id, created_at
          FROM stock_movements WHERE created_at > ? AND id > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, product_id, type, quantity, previous_stock, new_stock,
                 reason, reference_id, user_id, created_at
          FROM stock_movements WHERE created_at > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-movements', { movements: rows });
@@ -291,14 +291,14 @@ async function pushCashSessions(): Promise<number> {
                 total_sales_count, total_cash_sales, total_card_sales,
                 total_transfer_sales, total_fiado_sales, created_at, updated_at
          FROM cash_sessions WHERE updated_at > ? AND id > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, opened_by, opened_by_name, opening_amount, opened_at,
                 closed_by, closed_by_name, closed_at, status, observations,
                 total_sales_count, total_cash_sales, total_card_sales,
                 total_transfer_sales, total_fiado_sales, created_at, updated_at
          FROM cash_sessions WHERE updated_at > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-cash-sessions', { sessions: rows });
@@ -317,12 +317,12 @@ async function pushCreditPayments(): Promise<number> {
       ? `SELECT id, tenant_id, sale_id, customer_id, amount, payment_method,
                 receipt_number, notes, received_by, created_at
          FROM credit_payments WHERE created_at > ? AND id > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, sale_id, customer_id, amount, payment_method,
                 receipt_number, notes, received_by, created_at
          FROM credit_payments WHERE created_at > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-credit-payments', { payments: rows });
@@ -356,14 +356,14 @@ async function pushOrders(): Promise<number> {
                 subtotal, shipping_cost, discount, total, status, payment_method,
                 delivery_status, notes, created_at, updated_at
          FROM storefront_orders WHERE updated_at > ? AND id > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, order_number, customer_name, customer_phone, customer_email,
                 customer_cedula, department, municipality, address, neighborhood,
                 subtotal, shipping_cost, discount, total, status, payment_method,
                 delivery_status, notes, created_at, updated_at
          FROM storefront_orders WHERE updated_at > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
 
@@ -394,11 +394,11 @@ async function pushRecipes(): Promise<number> {
     cur.afterId
       ? `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
          FROM product_recipes WHERE created_at > ? AND id > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, product_id, ingredient_id, quantity, include_in_cost, created_at
          FROM product_recipes WHERE created_at > ?
-         ORDER BY created_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY created_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-recipes', { recipes: rows });
@@ -417,12 +417,12 @@ async function pushSuppliers(): Promise<number> {
       ? `SELECT id, tenant_id, name, contact_name, phone, email, address, city, country,
                 tax_id, payment_terms, notes, is_active, created_at, updated_at
          FROM suppliers WHERE updated_at > ? AND id > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`
       : `SELECT id, tenant_id, name, contact_name, phone, email, address, city, country,
                 tax_id, payment_terms, notes, is_active, created_at, updated_at
          FROM suppliers WHERE updated_at > ?
-         ORDER BY updated_at ASC, id ASC LIMIT ?`,
-    cur.afterId ? [cur.since, cur.afterId, LIMIT] : [cur.since, LIMIT]
+         ORDER BY updated_at ASC, id ASC LIMIT ${LIMIT}`,
+    cur.afterId ? [cur.since, cur.afterId] : [cur.since]
   );
   if (rows.length === 0) return 0;
   const ok = await postToCloud('/api/sync/receive-suppliers', { suppliers: rows });
@@ -884,7 +884,13 @@ async function pullFromCloud(): Promise<number> {
          cat.image_url||null, cat.hidden_in_store||0]
       );
     }
-    if ((data.categories||[]).length) advanceCursor('categories', data.categories!, 200);
+    if ((data.categories||[]).length) {
+      advanceCursor('categories', data.categories!, 200);
+    } else if (pullCursors.categories.since === EPOCH) {
+      // No llegaron categorías pero el cursor sigue en EPOCH: avanzar para no pedir de nuevo
+      pullCursors.categories.since = new Date().toISOString();
+      pullCursors.categories.afterId = '';
+    }
 
     // ── Store info ──────────────────────────────────────────────────────────
     if (data.storeInfo) {
@@ -1164,15 +1170,22 @@ export async function getChangesSince(
     [tenantId]
   );
 
-  // ── Categorías ────────────────────────────────────────────────────────────
-  const [categories] = await db.execute<RowDataPacket[]>(
-    `SELECT id, tenant_id, name, description, image_url, hidden_in_store
-     FROM categories WHERE tenant_id = ?
-     ORDER BY name ASC LIMIT 200`,
-    [tenantId]
-  );
+  // ── Categorías (solo en el primer sync — el cursor aún está en EPOCH) ───────
+  // Las categorías no tienen updated_at; se envían una sola vez y el local las conserva.
+  const catCursor = c('categories');
+  const categories = catCursor.since === EPOCH
+    ? await (async () => {
+        const [rows] = await db.execute<RowDataPacket[]>(
+          `SELECT id, tenant_id, name, description, image_url, hidden_in_store
+           FROM categories WHERE tenant_id = ?
+           ORDER BY name ASC LIMIT 200`,
+          [tenantId]
+        );
+        return rows;
+      })()
+    : [];
 
-  // ── Store info ────────────────────────────────────────────────────────────
+  // ── Store info (solo en el primer sync igual) ────────────────────────────
   const [storeRows] = await db.execute<RowDataPacket[]>(
     `SELECT tenant_id, name, address, phone, tax_id, email, logo_url, schedule,
             social_instagram, social_facebook, social_tiktok, social_whatsapp,
