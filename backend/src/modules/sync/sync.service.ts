@@ -884,7 +884,13 @@ async function pullFromCloud(): Promise<number> {
          cat.image_url||null, cat.hidden_in_store||0]
       );
     }
-    if ((data.categories||[]).length) advanceCursor('categories', data.categories!, 200);
+    if ((data.categories||[]).length) {
+      advanceCursor('categories', data.categories!, 200);
+    } else if (pullCursors.categories.since === EPOCH) {
+      // No llegaron categorías pero el cursor sigue en EPOCH: avanzar para no pedir de nuevo
+      pullCursors.categories.since = new Date().toISOString();
+      pullCursors.categories.afterId = '';
+    }
 
     // ── Store info ──────────────────────────────────────────────────────────
     if (data.storeInfo) {
@@ -1164,15 +1170,22 @@ export async function getChangesSince(
     [tenantId]
   );
 
-  // ── Categorías ────────────────────────────────────────────────────────────
-  const [categories] = await db.execute<RowDataPacket[]>(
-    `SELECT id, tenant_id, name, description, image_url, hidden_in_store
-     FROM categories WHERE tenant_id = ?
-     ORDER BY name ASC LIMIT 200`,
-    [tenantId]
-  );
+  // ── Categorías (solo en el primer sync — el cursor aún está en EPOCH) ───────
+  // Las categorías no tienen updated_at; se envían una sola vez y el local las conserva.
+  const catCursor = c('categories');
+  const categories = catCursor.since === EPOCH
+    ? await (async () => {
+        const [rows] = await db.execute<RowDataPacket[]>(
+          `SELECT id, tenant_id, name, description, image_url, hidden_in_store
+           FROM categories WHERE tenant_id = ?
+           ORDER BY name ASC LIMIT 200`,
+          [tenantId]
+        );
+        return rows;
+      })()
+    : [];
 
-  // ── Store info ────────────────────────────────────────────────────────────
+  // ── Store info (solo en el primer sync igual) ────────────────────────────
   const [storeRows] = await db.execute<RowDataPacket[]>(
     `SELECT tenant_id, name, address, phone, tax_id, email, logo_url, schedule,
             social_instagram, social_facebook, social_tiktok, social_whatsapp,
