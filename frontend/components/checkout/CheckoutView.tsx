@@ -643,7 +643,7 @@ export function CheckoutView({
                       {orderBumpProducts.map(bp => {
                         const isAdded = addedBumpIds.has(bp.id);
                         const displayPrice = (bp.isOnOffer && bp.offerPrice) ? bp.offerPrice : bp.salePrice;
-                        const hasDiscount = bp.isOnOffer && bp.offerPrice && bp.offerPrice < bp.salePrice;
+                        const hasDiscount = !!(bp.isOnOffer && bp.offerPrice && bp.offerPrice < bp.salePrice);
                         return (
                           <div
                             key={bp.id}

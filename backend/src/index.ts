@@ -192,6 +192,8 @@ const startServer = async () => {
         `ALTER TABLE products ADD COLUMN IF NOT EXISTS sede_id VARCHAR(36) NULL
          COMMENT 'Sede a la que pertenece el producto (NULL = todas las sedes)'`
       );
+      // contraentrega toggle
+      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea'`);
       // info module columns
       await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS show_info_module TINYINT(1) NOT NULL DEFAULT 0`);
       await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS info_module_description TEXT NULL`);
