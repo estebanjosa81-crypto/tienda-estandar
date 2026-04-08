@@ -362,6 +362,57 @@ export class PurchasesService {
     }
   }
 
+  async update(id: string, tenantId: string, data: {
+    invoiceNumber?: string;
+    supplierName?: string;
+    supplierId?: string | null;
+    purchaseDate?: string;
+    documentType?: string;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    dueDate?: string | null;
+    fileUrl?: string | null;
+    discount?: number;
+    notes?: string | null;
+  }) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (data.invoiceNumber !== undefined) { fields.push('invoice_number = ?'); values.push(data.invoiceNumber); }
+    if (data.supplierName !== undefined) { fields.push('supplier_name = ?'); values.push(data.supplierName); }
+    if ('supplierId' in data) { fields.push('supplier_id = ?'); values.push(data.supplierId ?? null); }
+    if (data.purchaseDate !== undefined) { fields.push('purchase_date = ?'); values.push(data.purchaseDate); }
+    if (data.documentType !== undefined) { fields.push('document_type = ?'); values.push(data.documentType); }
+    if (data.paymentMethod !== undefined) { fields.push('payment_method = ?'); values.push(data.paymentMethod); }
+    if (data.paymentStatus !== undefined) { fields.push('payment_status = ?'); values.push(data.paymentStatus); }
+    if ('dueDate' in data) { fields.push('due_date = ?'); values.push(data.dueDate ?? null); }
+    if ('fileUrl' in data) { fields.push('file_url = ?'); values.push(data.fileUrl ?? null); }
+    if (data.discount !== undefined) {
+      fields.push('discount = ?');
+      values.push(data.discount);
+      // Recalculate total from current subtotal
+      const [rows] = await db.execute<PurchaseInvoiceRow[]>(
+        'SELECT subtotal FROM purchase_invoices WHERE id = ? AND tenant_id = ?',
+        [id, tenantId]
+      );
+      if (rows.length > 0) {
+        fields.push('total = ?');
+        values.push(Number(rows[0].subtotal) - data.discount);
+      }
+    }
+    if ('notes' in data) { fields.push('notes = ?'); values.push(data.notes ?? null); }
+
+    if (fields.length === 0) return this.findById(id, tenantId);
+
+    values.push(id, tenantId);
+    await db.execute(
+      `UPDATE purchase_invoices SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`,
+      values
+    );
+
+    return this.findById(id, tenantId);
+  }
+
   async getSuppliers(tenantId: string) {
     const [rows] = await db.execute<SupplierRow[]>(
       `SELECT id, name, contact_name, phone, email, address, city, tax_id, payment_terms, notes

@@ -44,6 +44,15 @@ export class PurchasesController {
     }
   }
 
+  async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const invoice = await purchasesService.update(req.params.id, req.user!.tenantId!, req.body);
+      res.json({ success: true, data: invoice, message: 'Factura actualizada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getSuppliers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const suppliers = await purchasesService.getSuppliers(req.user!.tenantId!);

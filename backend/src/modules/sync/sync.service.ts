@@ -1410,7 +1410,9 @@ export async function runSync(): Promise<{ salesSynced: number; purchasesSynced:
     await pushMovements();
     await pushCashSessions();
     await pushCreditPayments();
-    await pushCategories();
+    // Nota: las categorías NO se pushean desde local → nube.
+    // Son administradas en la nube (fuente de verdad) y bajan al local vía pullFromCloud.
+    // Pushear categorías locales sobreescribiría eliminaciones hechas en la nube.
     await pushOrders();
     await pushRecipes();
     await pushSuppliers();

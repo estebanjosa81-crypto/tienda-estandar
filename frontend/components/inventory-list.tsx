@@ -1171,7 +1171,7 @@ export function InventoryList() {
         setIsCategoryDialogOpen(open)
         if (!open) { setEditingCategory(null); setDeletingCategoryId(null); setCategoryForm({ name: '', description: '' }) }
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Gestionar Categorías</DialogTitle>
             <DialogDescription>Agrega, edita, oculta o elimina categorías de productos.</DialogDescription>
@@ -1179,7 +1179,7 @@ export function InventoryList() {
 
           <div className="space-y-4 py-2">
             {/* Category list */}
-            <div className="border border-border rounded-lg overflow-hidden">
+            <div className="border border-border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
               {categories.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-6">No hay categorías aún.</p>
               )}
@@ -1271,6 +1271,7 @@ export function InventoryList() {
                               if (result.success) {
                                 toast.success('Categoría eliminada')
                                 setDeletingCategoryId(null)
+                                fetchCategories()
                               } else {
                                 toast.error(result.error || 'No se puede eliminar')
                                 setDeletingCategoryId(null)
