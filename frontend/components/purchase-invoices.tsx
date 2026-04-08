@@ -1186,213 +1186,215 @@ export function PurchaseInvoices() {
         <RemoteScanner onScan={handleScannedBarcode} onClose={() => setShowRemoteScanner(false)} />
       )}
 
-      {/* ===== Detail Dialog ===== */}
+      {/* ===== Detail Full-Screen Overlay ===== */}
       {showDetail && (
-        <Dialog open={!!showDetail} onOpenChange={() => { setShowDetail(null); setEditingDetail(false) }}>
-          <DialogContent className="max-w-4xl w-full flex flex-col" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
-            <DialogHeader className="shrink-0">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <DialogTitle>Factura de Compra #{showDetail.invoiceNumber}</DialogTitle>
-                {!editingDetail && (
-                  <Button size="sm" variant="outline" onClick={() => openEditDetail(showDetail)}>
-                    Editar factura
-                  </Button>
-                )}
+        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Factura de Compra</p>
+                <h2 className="text-lg font-semibold leading-tight">#{showDetail.invoiceNumber}</h2>
               </div>
-            </DialogHeader>
-
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-2 pr-1">
+            </div>
+            <div className="flex items-center gap-2">
               {editingDetail ? (
-                /* ── EDIT MODE ── */
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingDetail(false)} disabled={savingDetail}>Cancelar</Button>
+                  <Button size="sm" onClick={handleSaveDetail} disabled={savingDetail}>
+                    {savingDetail && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                    Guardar
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => openEditDetail(showDetail)}>Editar</Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={() => { setShowDetail(null); setEditingDetail(false) }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Body — two columns */}
+          <div className="flex-1 flex overflow-hidden">
+
+            {/* LEFT — info panel */}
+            <div className="w-72 shrink-0 border-r flex flex-col overflow-y-auto p-6 gap-6">
+              {editingDetail ? (
                 <div className="space-y-4">
                   {editDetailError && (
-                    <p className="text-sm text-destructive bg-destructive/10 rounded p-2">{editDetailError}</p>
+                    <p className="text-xs text-destructive bg-destructive/10 rounded p-2">{editDetailError}</p>
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label>Número de factura</Label>
-                      <Input value={editDetailForm.invoiceNumber || ''} onChange={e => setEditDetailForm(p => ({ ...p, invoiceNumber: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Proveedor</Label>
-                      <Input value={editDetailForm.supplierName || ''} onChange={e => setEditDetailForm(p => ({ ...p, supplierName: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Fecha de compra</Label>
-                      <Input type="date" value={editDetailForm.purchaseDate || ''} onChange={e => setEditDetailForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Tipo de documento</Label>
-                      <Select value={editDetailForm.documentType || 'factura'} onValueChange={v => setEditDetailForm(p => ({ ...p, documentType: v as NewInvoiceForm['documentType'] }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(DOCUMENT_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Método de pago</Label>
-                      <Select value={editDetailForm.paymentMethod || 'efectivo'} onValueChange={v => setEditDetailForm(p => ({ ...p, paymentMethod: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Estado de pago</Label>
-                      <Select value={editDetailForm.paymentStatus || 'pagado'} onValueChange={v => setEditDetailForm(p => ({ ...p, paymentStatus: v as NewInvoiceForm['paymentStatus'] }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pagado">Pagado</SelectItem>
-                          <SelectItem value="pendiente">Pendiente</SelectItem>
-                          <SelectItem value="parcial">Parcial</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Fecha de vencimiento</Label>
-                      <Input type="date" value={editDetailForm.dueDate || ''} onChange={e => setEditDetailForm(p => ({ ...p, dueDate: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Descuento ($)</Label>
-                      <Input type="number" min="0" value={editDetailForm.discount || '0'} onChange={e => setEditDetailForm(p => ({ ...p, discount: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <Label>Notas</Label>
-                      <Textarea rows={2} value={editDetailForm.notes || ''} onChange={e => setEditDetailForm(p => ({ ...p, notes: e.target.value }))} />
-                    </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">N° Factura</Label>
+                    <Input className="h-8 text-sm" value={editDetailForm.invoiceNumber || ''} onChange={e => setEditDetailForm(p => ({ ...p, invoiceNumber: e.target.value }))} />
                   </div>
-
-                  {/* Products table (read-only in edit mode) */}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Los productos no se pueden modificar. Para ajustes de inventario usa el módulo de ajustes de stock.</p>
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Producto</TableHead>
-                            <TableHead className="text-right">Cant.</TableHead>
-                            <TableHead className="text-right">Costo Unit.</TableHead>
-                            <TableHead className="text-right">Subtotal</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {showDetail.items.map((item: PurchaseInvoiceItem) => (
-                            <TableRow key={item.id}>
-                              <TableCell>
-                                <p className="font-medium text-sm">{item.productName}</p>
-                                <p className="text-xs text-muted-foreground">{item.productSku}</p>
-                              </TableCell>
-                              <TableCell className="text-right">{item.quantity}</TableCell>
-                              <TableCell className="text-right">{formatCOP(item.unitCost)}</TableCell>
-                              <TableCell className="text-right font-semibold">{formatCOP(item.subtotal)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      <div className="border-t bg-muted/20 px-4 py-2 space-y-1">
-                        <div className="flex justify-between text-sm text-muted-foreground">
-                          <span>Subtotal</span><span>{formatCOP(showDetail.subtotal)}</span>
-                        </div>
-                        {(parseFloat(editDetailForm.discount || '0') || 0) > 0 && (
-                          <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>Descuento</span><span>-{formatCOP(parseFloat(editDetailForm.discount || '0'))}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between font-bold border-t pt-1">
-                          <span>Total</span>
-                          <span>{formatCOP(showDetail.subtotal - (parseFloat(editDetailForm.discount || '0') || 0))}</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Proveedor</Label>
+                    <Input className="h-8 text-sm" value={editDetailForm.supplierName || ''} onChange={e => setEditDetailForm(p => ({ ...p, supplierName: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Fecha de compra</Label>
+                    <Input className="h-8 text-sm" type="date" value={editDetailForm.purchaseDate || ''} onChange={e => setEditDetailForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Tipo de documento</Label>
+                    <Select value={editDetailForm.documentType || 'factura'} onValueChange={v => setEditDetailForm(p => ({ ...p, documentType: v as NewInvoiceForm['documentType'] }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(DOCUMENT_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Método de pago</Label>
+                    <Select value={editDetailForm.paymentMethod || 'efectivo'} onValueChange={v => setEditDetailForm(p => ({ ...p, paymentMethod: v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Estado de pago</Label>
+                    <Select value={editDetailForm.paymentStatus || 'pagado'} onValueChange={v => setEditDetailForm(p => ({ ...p, paymentStatus: v as NewInvoiceForm['paymentStatus'] }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pagado">Pagado</SelectItem>
+                        <SelectItem value="pendiente">Pendiente</SelectItem>
+                        <SelectItem value="parcial">Parcial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Fecha vencimiento</Label>
+                    <Input className="h-8 text-sm" type="date" value={editDetailForm.dueDate || ''} onChange={e => setEditDetailForm(p => ({ ...p, dueDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Descuento ($)</Label>
+                    <Input className="h-8 text-sm" type="number" min="0" value={editDetailForm.discount || '0'} onChange={e => setEditDetailForm(p => ({ ...p, discount: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Notas</Label>
+                    <Textarea className="text-sm resize-none" rows={3} value={editDetailForm.notes || ''} onChange={e => setEditDetailForm(p => ({ ...p, notes: e.target.value }))} />
                   </div>
                 </div>
               ) : (
-                /* ── VIEW MODE ── */
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                    <div><p className="text-muted-foreground">Proveedor</p><p className="font-semibold">{showDetail.supplierName}</p></div>
-                    <div><p className="text-muted-foreground">Fecha</p><p className="font-semibold">{new Date(showDetail.purchaseDate).toLocaleDateString('es-CO')}</p></div>
-                    <div><p className="text-muted-foreground">Tipo de documento</p><p className="font-semibold">{DOCUMENT_TYPE_LABELS[showDetail.documentType] || showDetail.documentType}</p></div>
-                    <div><p className="text-muted-foreground">Método de Pago</p><p className="font-semibold">{PAYMENT_METHOD_LABELS[showDetail.paymentMethod] || showDetail.paymentMethod}</p></div>
-                    <div><p className="text-muted-foreground">Estado de Pago</p>{paymentStatusBadge(showDetail.paymentStatus)}</div>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Proveedor</p>
+                      <p className="font-semibold text-sm">{showDetail.supplierName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Fecha</p>
+                      <p className="font-semibold text-sm">{new Date(showDetail.purchaseDate).toLocaleDateString('es-CO')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Tipo de documento</p>
+                      <p className="font-semibold text-sm">{DOCUMENT_TYPE_LABELS[showDetail.documentType] || showDetail.documentType}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Método de Pago</p>
+                      <p className="font-semibold text-sm">{PAYMENT_METHOD_LABELS[showDetail.paymentMethod] || showDetail.paymentMethod}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Estado</p>
+                      {paymentStatusBadge(showDetail.paymentStatus)}
+                    </div>
                     {showDetail.dueDate && (
-                      <div><p className="text-muted-foreground">Vencimiento</p><p className="font-semibold">{new Date(showDetail.dueDate).toLocaleDateString('es-CO')}</p></div>
-                    )}
-                    {showDetail.discount > 0 && (
-                      <div><p className="text-muted-foreground">Descuento</p><p className="font-semibold">-{formatCOP(showDetail.discount)}</p></div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-0.5">Vencimiento</p>
+                        <p className="font-semibold text-sm">{new Date(showDetail.dueDate).toLocaleDateString('es-CO')}</p>
+                      </div>
                     )}
                     {showDetail.notes && (
-                      <div className="col-span-2 sm:col-span-3"><p className="text-muted-foreground">Notas</p><p>{showDetail.notes}</p></div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-0.5">Notas</p>
+                        <p className="text-sm text-muted-foreground">{showDetail.notes}</p>
+                      </div>
                     )}
                     {showDetail.fileUrl && (
-                      <div className="col-span-2 sm:col-span-3">
-                        <p className="text-muted-foreground mb-1">Archivo adjunto</p>
-                        <a href={showDetail.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                          <Paperclip className="h-3.5 w-3.5" /> Ver factura del proveedor
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Adjunto</p>
+                        <a href={showDetail.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          <Paperclip className="h-3 w-3" /> Ver archivo
                         </a>
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Producto</TableHead>
-                          <TableHead className="text-right">Cant.</TableHead>
-                          <TableHead className="text-right">Costo Unit.</TableHead>
-                          <TableHead className="text-right">Subtotal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {showDetail.items.map((item: PurchaseInvoiceItem) => (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <p className="font-medium text-sm">{item.productName}</p>
-                              <p className="text-xs text-muted-foreground">{item.productSku}</p>
-                            </TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCOP(item.unitCost)}</TableCell>
-                            <TableCell className="text-right font-semibold">{formatCOP(item.subtotal)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="border-t bg-muted/20 px-4 py-2 space-y-1">
+                  {/* Totals at bottom of left panel */}
+                  <div className="mt-auto pt-4 border-t space-y-2">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Subtotal</span><span>{formatCOP(showDetail.subtotal)}</span>
+                    </div>
+                    {showDetail.discount > 0 && (
                       <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Subtotal</span><span>{formatCOP(showDetail.subtotal)}</span>
+                        <span>Descuento</span><span>-{formatCOP(showDetail.discount)}</span>
                       </div>
-                      {showDetail.discount > 0 && (
-                        <div className="flex justify-between text-sm text-muted-foreground">
-                          <span>Descuento</span><span>-{formatCOP(showDetail.discount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold border-t pt-1">
-                        <span>Total</span><span>{formatCOP(showDetail.total)}</span>
-                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-base pt-1 border-t">
+                      <span>Total</span><span>{formatCOP(showDetail.total)}</span>
                     </div>
                   </div>
                 </>
               )}
+
+              {/* Totals in edit mode */}
+              {editingDetail && (
+                <div className="mt-auto pt-4 border-t space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Subtotal</span><span>{formatCOP(showDetail.subtotal)}</span>
+                  </div>
+                  {(parseFloat(editDetailForm.discount || '0') || 0) > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Descuento</span><span>-{formatCOP(parseFloat(editDetailForm.discount || '0'))}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-base pt-1 border-t">
+                    <span>Total</span>
+                    <span>{formatCOP(showDetail.subtotal - (parseFloat(editDetailForm.discount || '0') || 0))}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <DialogFooter className="shrink-0 pt-2 border-t">
-              {editingDetail ? (
-                <>
-                  <Button variant="outline" onClick={() => setEditingDetail(false)} disabled={savingDetail}>Cancelar</Button>
-                  <Button onClick={handleSaveDetail} disabled={savingDetail}>
-                    {savingDetail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Guardar cambios
-                  </Button>
-                </>
-              ) : (
-                <Button variant="outline" onClick={() => setShowDetail(null)}>Cerrar</Button>
+            {/* RIGHT — products table */}
+            <div className="flex-1 flex flex-col overflow-hidden p-6">
+              {editingDetail && (
+                <p className="text-xs text-muted-foreground mb-3">Los productos no se pueden modificar. Para correcciones de inventario usa ajustes de stock.</p>
               )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <div className="flex-1 overflow-y-auto rounded-md border">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead className="text-right w-16">Cant.</TableHead>
+                      <TableHead className="text-right w-32">Costo Unit.</TableHead>
+                      <TableHead className="text-right w-32">Subtotal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {showDetail.items.map((item: PurchaseInvoiceItem) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <p className="font-medium text-sm">{item.productName}</p>
+                          <p className="text-xs text-muted-foreground">{item.productSku}</p>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{item.quantity}</TableCell>
+                        <TableCell className="text-right text-sm">{formatCOP(item.unitCost)}</TableCell>
+                        <TableCell className="text-right font-semibold text-sm">{formatCOP(item.subtotal)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">{showDetail.items.length} producto{showDetail.items.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== Supplier Management Panel ===== */}
