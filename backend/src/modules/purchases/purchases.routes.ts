@@ -57,6 +57,25 @@ router.get(
   purchasesController.findById.bind(purchasesController)
 );
 
+// PATCH /api/purchases/:id
+router.patch(
+  '/:id',
+  authorize('comerciante', 'superadmin'),
+  [
+    param('id').notEmpty(),
+    body('invoiceNumber').optional().notEmpty(),
+    body('supplierName').optional().notEmpty(),
+    body('purchaseDate').optional().isISO8601(),
+    body('documentType').optional().isIn(['factura', 'remision', 'orden_compra', 'nota_credito']),
+    body('paymentMethod').optional().isIn(['efectivo', 'tarjeta', 'transferencia', 'credito', 'nequi', 'daviplata', 'credito_proveedor', 'mixto']),
+    body('paymentStatus').optional().isIn(['pagado', 'pendiente', 'parcial']),
+    body('dueDate').optional({ nullable: true }).isISO8601(),
+    body('discount').optional().isFloat({ min: 0 }),
+    validateRequest,
+  ],
+  purchasesController.update.bind(purchasesController)
+);
+
 // POST /api/purchases
 router.post(
   '/',

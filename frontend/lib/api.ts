@@ -1246,6 +1246,25 @@ class ApiService {
     return this.request<any>(`/purchases/suppliers/${supplierId}/stats`)
   }
 
+  async updatePurchaseInvoice(id: string, data: {
+    invoiceNumber?: string
+    supplierName?: string
+    supplierId?: string | null
+    purchaseDate?: string
+    documentType?: string
+    paymentMethod?: string
+    paymentStatus?: string
+    dueDate?: string | null
+    fileUrl?: string | null
+    discount?: number
+    notes?: string | null
+  }) {
+    return this.request<any>(`/purchases/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
   // =============================================
   // Services endpoints
   // =============================================

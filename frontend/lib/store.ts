@@ -406,6 +406,8 @@ export const useStore = create<AppState>()(
           set(state => ({
             categories: state.categories.filter(c => c.id !== id)
           }))
+          // Re-sync with server to confirm deletion persisted
+          get().fetchCategories()
           return { success: true }
         }
         return { success: false, error: result.error || 'Error al eliminar categoría' }

@@ -120,6 +120,12 @@ export function Settings() {
   const [newPassword, setNewPassword] = useState('')
   const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: '', userName: '' })
 
+  // Own password change
+  const [ownPasswordForm, setOwnPasswordForm] = useState({ current: '', newPwd: '', confirm: '' })
+  const [ownPasswordMsg, setOwnPasswordMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [changingOwnPassword, setChangingOwnPassword] = useState(false)
+  const [showOwnPwd, setShowOwnPwd] = useState({ current: false, new: false, confirm: false })
+
   // Cargos state
   const [cargosList, setCargosList] = useState<any[]>([])
   const [newCargoName, setNewCargoName] = useState('')
@@ -227,6 +233,29 @@ export function Settings() {
     setResetPasswordDialog({ open: false, userId: '', userName: '' })
     setNewPassword('')
     setTimeout(() => { setUserSuccess(''); setUserError('') }, 3000)
+  }
+
+  const handleChangeOwnPassword = async () => {
+    setOwnPasswordMsg(null)
+    if (ownPasswordForm.newPwd.length < 6) {
+      setOwnPasswordMsg({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres' })
+      return
+    }
+    if (ownPasswordForm.newPwd !== ownPasswordForm.confirm) {
+      setOwnPasswordMsg({ type: 'error', text: 'Las contraseñas no coinciden' })
+      return
+    }
+    if (!user?.id) return
+    setChangingOwnPassword(true)
+    const result = await api.resetUserPassword(user.id, ownPasswordForm.newPwd)
+    if (result.success) {
+      setOwnPasswordMsg({ type: 'ok', text: 'Contraseña actualizada correctamente' })
+      setOwnPasswordForm({ current: '', newPwd: '', confirm: '' })
+    } else {
+      setOwnPasswordMsg({ type: 'error', text: result.error || 'Error al actualizar contraseña' })
+    }
+    setChangingOwnPassword(false)
+    setTimeout(() => setOwnPasswordMsg(null), 4000)
   }
 
   const handleSaveStore = async () => {
@@ -424,6 +453,72 @@ export function Settings() {
                     Cerrar Sesión
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Change Own Password */}
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5 text-primary" />
+                  Cambiar Contraseña
+                </CardTitle>
+                <CardDescription>
+                  Actualiza tu contraseña de acceso
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {ownPasswordMsg && (
+                  <div className={`rounded-lg p-3 text-sm ${ownPasswordMsg.type === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
+                    {ownPasswordMsg.text}
+                  </div>
+                )}
+                <div className="grid gap-4 md:grid-cols-1">
+                  <div className="space-y-2">
+                    <Label htmlFor="ownNewPwd">Nueva Contraseña</Label>
+                    <div className="relative">
+                      <Input
+                        id="ownNewPwd"
+                        type={showOwnPwd.new ? 'text' : 'password'}
+                        value={ownPasswordForm.newPwd}
+                        onChange={(e) => setOwnPasswordForm({ ...ownPasswordForm, newPwd: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                        className="bg-secondary border-none pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOwnPwd(s => ({ ...s, new: !s.new }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showOwnPwd.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ownConfirmPwd">Confirmar Nueva Contraseña</Label>
+                    <div className="relative">
+                      <Input
+                        id="ownConfirmPwd"
+                        type={showOwnPwd.confirm ? 'text' : 'password'}
+                        value={ownPasswordForm.confirm}
+                        onChange={(e) => setOwnPasswordForm({ ...ownPasswordForm, confirm: e.target.value })}
+                        placeholder="Repite la nueva contraseña"
+                        className="bg-secondary border-none pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOwnPwd(s => ({ ...s, confirm: !s.confirm }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showOwnPwd.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <Button onClick={handleChangeOwnPassword} disabled={changingOwnPassword} className="gap-2">
+                  {changingOwnPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                  Actualizar Contraseña
+                </Button>
               </CardContent>
             </Card>
 
