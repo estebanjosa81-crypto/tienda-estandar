@@ -34,6 +34,18 @@ export default function Home() {
   const { activeSection, setActiveSection } = useStore()
   const { isAuthenticated, checkAuth, user, isCheckingAuth } = useAuthStore()
   const [showLogin, setShowLogin] = useState(false)
+  const [cachedStoreLogo, setCachedStoreLogo] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const storeParam = params.get('store')
+    if (storeParam && storeParam !== 'all') {
+      try {
+        const logo = localStorage.getItem(`store_logo_${storeParam}`)
+        if (logo) setCachedStoreLogo(logo)
+      } catch {}
+    }
+  }, [])
 
   useEffect(() => {
     checkAuth()
@@ -78,7 +90,11 @@ export default function Home() {
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        {cachedStoreLogo ? (
+          <img src={cachedStoreLogo} alt="Logo" className="w-20 h-20 object-contain animate-pulse" />
+        ) : (
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        )}
       </div>
     )
   }

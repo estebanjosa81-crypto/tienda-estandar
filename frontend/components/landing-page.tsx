@@ -929,6 +929,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const json = await res.json()
         if (json.success && json.data) {
           setStoreConfig(json.data)
+          const logoUrl = json.data?.storeInfo?.logoUrl
+          if (logoUrl) {
+            try { localStorage.setItem(`store_logo_${selectedStore}`, logoUrl) } catch {}
+          }
         }
       } catch (e) {
         console.error('Error fetching store config:', e)
@@ -1234,7 +1238,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         .then(res => { if (res.success && res.data) setProductReviews(res.data as any[]) })
         .finally(() => setReviewsLoading(false))
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
   }
 
   const closeProductModal = () => {
@@ -4132,30 +4136,65 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           >
                             <Heart className={`w-3 h-3 ${favorites.has(product.id) ? 'fill-current' : ''}`} />
                           </button>
-                          <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
-                            <h3 className="text-xs sm:text-sm font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
-                            {product.offerLabel && <p className="text-[9px] text-white/70 mb-1 uppercase tracking-wider">{product.offerLabel}</p>}
-                            <div className="flex items-center gap-2">
-                              {product.offerPrice ? (
-                                <>
-                                  <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice)}</span>
-                                  <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                </>
-                              ) : (
-                                <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
-                              )}
+                          {/* Desktop: info + botones superpuestos sobre imagen */}
+                          <div className="hidden sm:block">
+                            <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
+                              <h3 className="text-sm font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
+                              {product.offerLabel && <p className="text-[9px] text-white/70 mb-1 uppercase tracking-wider">{product.offerLabel}</p>}
+                              <div className="flex items-center gap-2">
+                                {product.offerPrice ? (
+                                  <>
+                                    <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice)}</span>
+                                    <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
+                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
+                              >
+                                <ShoppingCart className="w-3 h-3" />Añadir
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openProductModal(product) }}
+                                className="w-10 h-full flex items-center justify-center text-white/70 hover:text-white transition-all"
+                                title="Ver detalle"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
                             </div>
                           </div>
-                          <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                        </div>
+                        {/* Mobile: info y botones debajo de la imagen */}
+                        <div className="sm:hidden px-2.5 pt-2 pb-2.5 space-y-1">
+                          <h3 className="text-xs font-light text-white leading-snug line-clamp-2">{product.name}</h3>
+                          {product.offerLabel && (
+                            <p className="text-[9px] text-white/70 uppercase tracking-wider">{product.offerLabel}</p>
+                          )}
+                          <div className="flex items-center gap-2">
+                            {product.offerPrice ? (
+                              <>
+                                <span className="text-white font-semibold text-xs">{formatCOP(product.offerPrice)}</span>
+                                <span className="text-white/40 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
+                              </>
+                            ) : (
+                              <span className="text-white font-light text-xs">{formatCOP(product.salePrice)}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 pt-1">
                             <button
                               onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                              className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
+                              className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                             >
                               <ShoppingCart className="w-3 h-3" />Añadir
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); openProductModal(product) }}
-                              className="w-10 h-full flex items-center justify-center text-white/70 hover:text-white transition-all"
+                              className="w-9 h-8 flex items-center justify-center text-white/60 hover:text-white transition-all border border-white/10"
                               title="Ver detalle"
                             >
                               <Eye className="w-3 h-3" />
