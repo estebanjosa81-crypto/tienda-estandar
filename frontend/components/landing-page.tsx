@@ -218,10 +218,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [reviewError, setReviewError] = useState('')
 
   // ====== DECANT STATE ======
+  const DECANT_SIZES = ['5ml', '10ml', '30ml', '50ml'] as const
+  type DecantSize = typeof DECANT_SIZES[number]
+
   const [showDecantModal, setShowDecantModal] = useState(false)
   const [decantProduct, setDecantProduct] = useState<StorefrontProduct | null>(null)
-  const [decantSize, setDecantSize] = useState<'5ml' | '10ml'>('5ml')
+  const [decantSize, setDecantSize] = useState<DecantSize>('10ml')
   const [selectedPerfumeId, setSelectedPerfumeId] = useState<string>('')
+
+  // Prices per ml size — derived from same-category products if available
+  const decantSizeProducts = decantProduct
+    ? products.filter(p =>
+        p.category?.toLowerCase().includes('decant') &&
+        p.id !== decantProduct.id
+      )
+    : []
+
+  // Map each size to a matching product (by name match) or fall back to base product price
+  const getSizePrice = (size: DecantSize): number => {
+    const match = decantSizeProducts.find(p => p.name.toLowerCase().includes(size))
+    return match?.salePrice ?? decantProduct?.salePrice ?? 0
+  }
 
   const handleConfirmDecant = () => {
     if (!decantProduct) return
@@ -231,13 +248,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     const perfumeName = products.find(p => String(p.id) === selectedPerfumeId)?.name || 'Desconocido'
 
-    agregarAlCarrito(decantProduct, {
+    // Use matching size product if available, otherwise base product
+    const sizeMatch = decantSizeProducts.find(p => p.name.toLowerCase().includes(decantSize))
+    const productToAdd = sizeMatch ?? decantProduct
+
+    agregarAlCarrito(productToAdd, {
       isDecant: true,
       size: decantSize,
       perfume: perfumeName
     })
     setShowDecantModal(false)
-    setDecantSize('5ml')
+    setDecantSize('10ml')
     setSelectedPerfumeId('')
   }
 
@@ -320,12 +341,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setClientMunicipality(saved)
     const skipped = sessionStorage.getItem('locationSkipped') === '1'
     setLocationSkipped(skipped)
-    // Show location modal only once per session if location not set
-    if (!saved && !skipped) {
-      const timer = setTimeout(() => setShowLocationModal(true), 800)
-      return () => clearTimeout(timer)
-    }
   }, [])
+
+  // Show location modal only if the store has at least one product with delivery
+  useEffect(() => {
+    if (loadingProducts) return
+    if (products.length === 0) return
+    const saved = localStorage.getItem('clientMunicipality') || null
+    const skipped = sessionStorage.getItem('locationSkipped') === '1'
+    if (saved || skipped) return
+    const hasDelivery = products.some(p => p.availableForDelivery)
+    if (!hasDelivery) return
+    const timer = setTimeout(() => setShowLocationModal(true), 800)
+    return () => clearTimeout(timer)
+  }, [products, loadingProducts])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1287,26 +1316,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   const agregarAlCarrito = (product: StorefrontProduct, options?: { size?: string, perfume?: string, isDecant?: boolean, dropPrice?: number, dropDiscount?: number }) => {
     // Intercept Decant products
-    if (!options?.isDecant && (product.category === 'DECANTS' || product.category === 'decants')) {
+    if (!options?.isDecant && (product.category === 'DECANTS' || product.category === 'decants' || product.category?.toLowerCase().includes('decant'))) {
       setDecantProduct(product)
 
-      // Auto-detect size from product details
-      let detectedSize: '5ml' | '10ml' | null = null
+      // Auto-detect size from product name
       const lowerName = product.name.toLowerCase()
-      const lowerSize = product.size?.toLowerCase() || ''
+      const lowerSize = (product as any).size?.toLowerCase() || ''
+      const combined = lowerName + ' ' + lowerSize
 
-      if (lowerSize.includes('5ml') || lowerSize.includes('5 ml') || lowerName.includes('5ml') || lowerName.includes('5 ml')) {
-        detectedSize = '5ml'
-      } else if (lowerSize.includes('10ml') || lowerSize.includes('10 ml') || lowerName.includes('10ml') || lowerName.includes('10 ml')) {
-        detectedSize = '10ml'
-      }
+      let detectedSize: DecantSize = '10ml'
+      if (combined.includes('50ml') || combined.includes('50 ml')) detectedSize = '50ml'
+      else if (combined.includes('30ml') || combined.includes('30 ml')) detectedSize = '30ml'
+      else if (combined.includes('10ml') || combined.includes('10 ml')) detectedSize = '10ml'
+      else if (combined.includes('5ml') || combined.includes('5 ml')) detectedSize = '5ml'
 
-      if (detectedSize) {
-        setDecantSize(detectedSize)
-      } else {
-        setDecantSize('5ml') // Default
-      }
-
+      setDecantSize(detectedSize)
       setShowDecantModal(true)
       return
     }
@@ -6362,11 +6386,36 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="text-center space-y-2">
               <p className="text-white/70 text-xs uppercase tracking-[0.2em]">Personaliza tu</p>
               <h3 className="text-2xl font-light text-white">{decantProduct.name}</h3>
-              <p className="text-white/40 text-xs font-light">Stock disponible (envases): {decantProduct.stock}</p>
+              <p className="text-white/40 text-xs font-light">Stock disponible: {decantProduct.stock} envases</p>
             </div>
 
             <div className="space-y-6">
 
+              {/* Size Selector */}
+              <div className="space-y-3">
+                <label className="text-xs text-white/50 uppercase tracking-widest">Elige la cantidad</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {DECANT_SIZES.map((size) => {
+                    const price = getSizePrice(size)
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => setDecantSize(size)}
+                        className={`flex flex-col items-center gap-1 py-3 px-2 border transition-all text-center ${
+                          decantSize === size
+                            ? 'border-white bg-white/10 text-white'
+                            : 'border-white/15 text-white/40 hover:border-white/40 hover:text-white/70'
+                        }`}
+                      >
+                        <span className="text-sm font-light">{size}</span>
+                        <span className="text-[10px] opacity-70">
+                          {price > 0 ? `$${price.toLocaleString('es-CO')}` : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
               {/* Perfume Selector */}
               <div className="space-y-3">
@@ -6379,7 +6428,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   >
                     <option value="" className="bg-zinc-900 text-white/50">Selecciona una fragancia...</option>
                     {products
-                      .filter(p => !p.category.toLowerCase().includes('decant') && p.id !== decantProduct.id)
+                      .filter(p => !p.category?.toLowerCase().includes('decant') && p.id !== decantProduct.id)
                       .sort((a, b) => a.name.localeCompare(b.name))
                       .map(p => {
                         const isAvailable = p.stock > 0
@@ -6399,7 +6448,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 onClick={handleConfirmDecant}
                 className="w-full bg-white hover:bg-white/90 text-black py-6 rounded-none uppercase tracking-[0.2em] text-xs font-bold mt-4"
               >
-                Agregar al Carrito
+                Agregar al Carrito — {decantSize}
               </Button>
             </div>
           </div>
