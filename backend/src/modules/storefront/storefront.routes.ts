@@ -602,7 +602,7 @@ router.get('/offers', async (req: Request, res: Response) => {
       params
     ) as any;
 
-    res.json({ success: true, data: (rows as any[]).map(parseImages) });
+    res.json({ success: true, data: (rows as any[]).map(r => ({ ...parseImages(r), isOnOffer: true })) });
   } catch (error) {
     console.error('Get offers error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener ofertas' });
