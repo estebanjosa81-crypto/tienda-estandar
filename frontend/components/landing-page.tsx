@@ -931,7 +931,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           setStoreConfig(json.data)
           const logoUrl = json.data?.storeInfo?.logoUrl
           if (logoUrl) {
-            try { localStorage.setItem(`store_logo_${selectedStore}`, logoUrl) } catch {}
+            try {
+              localStorage.setItem(`store_logo_${selectedStore}`, logoUrl)
+              localStorage.setItem('last_store_logo', logoUrl)
+            } catch {}
           }
         }
       } catch (e) {
