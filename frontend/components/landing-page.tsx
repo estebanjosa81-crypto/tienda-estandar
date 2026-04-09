@@ -5726,7 +5726,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {/* Products Carousel */}
           {showStoresView && selectedStore === 'all' ? null : loadingProducts ? (
             <div className="text-center py-20">
-              <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              {storeConfig?.storeInfo?.logoUrl ? (
+                <img
+                  src={storeConfig.storeInfo.logoUrl}
+                  alt="Logo"
+                  className="w-16 h-16 object-contain mx-auto mb-4 animate-pulse"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-white/10 mx-auto mb-4 animate-pulse" />
+              )}
               <p className="text-white/40 text-sm font-light">Cargando perfumes...</p>
             </div>
           ) : filteredProducts.length === 0 ? (
