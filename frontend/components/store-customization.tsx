@@ -38,6 +38,8 @@ import {
   QrCode,
   Link,
   Copy,
+  GripVertical,
+  Pencil,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
@@ -176,6 +178,12 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
 
   // Contact page — new link form
   const [newContactLink, setNewContactLink] = useState({ label: '', url: '' })
+  // Contact page — editing link index and label
+  const [editingLinkIdx, setEditingLinkIdx] = useState<number | null>(null)
+  const [editingLinkLabel, setEditingLinkLabel] = useState('')
+  // Contact page — drag reorder state
+  const [dragLinkIdx, setDragLinkIdx] = useState<number | null>(null)
+  const [dragOverLinkIdx, setDragOverLinkIdx] = useState<number | null>(null)
 
   // Banner form
   const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
@@ -1711,11 +1719,67 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               {storeInfo.contactPageLinks.length > 0 && (
                 <div className="space-y-2">
                   {storeInfo.contactPageLinks.map((link, i) => (
-                    <div key={i} className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => setDragLinkIdx(i)}
+                      onDragOver={e => { e.preventDefault(); setDragOverLinkIdx(i) }}
+                      onDrop={() => {
+                        if (dragLinkIdx === null || dragLinkIdx === i) return
+                        setStoreInfo(p => {
+                          const links = [...p.contactPageLinks]
+                          const [moved] = links.splice(dragLinkIdx, 1)
+                          links.splice(i, 0, moved)
+                          return { ...p, contactPageLinks: links }
+                        })
+                        setDragLinkIdx(null)
+                        setDragOverLinkIdx(null)
+                      }}
+                      onDragEnd={() => { setDragLinkIdx(null); setDragOverLinkIdx(null) }}
+                      className={`flex items-center gap-2 p-3 border rounded-lg bg-muted/30 transition-opacity ${dragOverLinkIdx === i && dragLinkIdx !== i ? 'border-primary border-dashed opacity-70' : ''}`}
+                    >
+                      {/* Drag handle */}
+                      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
+
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{link.label}</p>
+                        {editingLinkIdx === i ? (
+                          <Input
+                            autoFocus
+                            className="h-7 text-sm"
+                            value={editingLinkLabel}
+                            onChange={e => setEditingLinkLabel(e.target.value)}
+                            onBlur={() => {
+                              if (editingLinkLabel.trim()) {
+                                setStoreInfo(p => {
+                                  const links = [...p.contactPageLinks]
+                                  links[i] = { ...links[i], label: editingLinkLabel.trim() }
+                                  return { ...p, contactPageLinks: links }
+                                })
+                              }
+                              setEditingLinkIdx(null)
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                              if (e.key === 'Escape') { setEditingLinkIdx(null) }
+                            }}
+                          />
+                        ) : (
+                          <p className="text-sm font-medium truncate">{link.label}</p>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">{link.url}</p>
                       </div>
+
+                      {/* Edit label button */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => { setEditingLinkIdx(i); setEditingLinkLabel(link.label) }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
                       <Button
                         type="button"
                         variant="ghost"
