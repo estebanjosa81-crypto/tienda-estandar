@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { MainLayout } from '@/components/main-layout'
@@ -36,11 +36,11 @@ export default function Home() {
   const [showLogin, setShowLogin] = useState(false)
   const [cachedStoreLogo, setCachedStoreLogo] = useState<string | null>(null)
 
-  useEffect(() => {
+  // useLayoutEffect runs before the browser paints — eliminates the green circle flash
+  useLayoutEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
       const storeParam = params.get('store')
-      // Try store-specific logo first, then last visited store logo
       const logo = (storeParam && storeParam !== 'all')
         ? (localStorage.getItem(`store_logo_${storeParam}`) || localStorage.getItem('last_store_logo'))
         : localStorage.getItem('last_store_logo')
