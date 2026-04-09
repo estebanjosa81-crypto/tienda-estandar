@@ -37,14 +37,15 @@ export default function Home() {
   const [cachedStoreLogo, setCachedStoreLogo] = useState<string | null>(null)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const storeParam = params.get('store')
-    if (storeParam && storeParam !== 'all') {
-      try {
-        const logo = localStorage.getItem(`store_logo_${storeParam}`)
-        if (logo) setCachedStoreLogo(logo)
-      } catch {}
-    }
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const storeParam = params.get('store')
+      // Try store-specific logo first, then last visited store logo
+      const logo = (storeParam && storeParam !== 'all')
+        ? (localStorage.getItem(`store_logo_${storeParam}`) || localStorage.getItem('last_store_logo'))
+        : localStorage.getItem('last_store_logo')
+      if (logo) setCachedStoreLogo(logo)
+    } catch {}
   }, [])
 
   useEffect(() => {
