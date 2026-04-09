@@ -6,8 +6,7 @@ import { api } from '@/lib/api'
 export function DynamicFavicon() {
   useEffect(() => {
     api.getStoreCustomization().then((res) => {
-      const logoUrl = res?.data?.storeInfo?.logoUrl
-      if (!logoUrl) return
+      const logoUrl = res?.data?.storeInfo?.logoUrl || '/faviconbeso.png'
 
       const link = (document.querySelector("link[rel~='icon']") as HTMLLinkElement)
         || document.createElement('link')

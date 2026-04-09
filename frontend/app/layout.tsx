@@ -12,8 +12,9 @@ export const metadata: Metadata = {
   description: 'Sistema completo de gestión de inventario',
   generator: 'v0.app',
   icons: {
-    icon: '/image/lopbukicon.png',
-    apple: '/image/lopbukicon.png',
+    icon: '/faviconbeso.png',
+    apple: '/faviconbeso.png',
+    shortcut: '/faviconbeso.png',
   },
 }
 

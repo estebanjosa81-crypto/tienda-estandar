@@ -1460,19 +1460,19 @@ function ProductFormDialog({
   sedes = [],
   defaultSedeId,
 }: ProductFormDialogProps) {
-  const { categories } = useStore()
+  const { categories, products } = useStore()
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
-  const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories, defaultSedeId))
+  const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories, defaultSedeId, products))
 
   // Reset form and scanner state when dialog opens/closes or initialData changes
   useEffect(() => {
     if (open) {
-      setFormData(getInitialFormData(initialData, categories, defaultSedeId))
+      setFormData(getInitialFormData(initialData, categories, defaultSedeId, products))
       setShowScanner(false)
       setShowRemoteScanner(false)
     }
-  }, [open, initialData, categories, defaultSedeId])
+  }, [open, initialData, categories, defaultSedeId, products])
 
   const productType = (formData.productType || 'general') as ProductType
   const typeFields = getFieldsForProductType(productType)
@@ -1572,8 +1572,12 @@ function ProductFormDialog({
                   id="sku"
                   value={formData.sku || ''}
                   onChange={(e) => updateField('sku', e.target.value)}
+                  placeholder="Auto-asignado"
                   required
                 />
+                {!initialData && formData.sku && (
+                  <p className="text-xs text-muted-foreground">Asignado automáticamente. Puedes editarlo.</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="barcode">Codigo de Barras</Label>
@@ -1911,7 +1915,15 @@ function DynamicField({ field, value, onChange }: {
   )
 }
 
-function getInitialFormData(initialData: Product | undefined, categories: Array<{ id: string }>, defaultSedeId?: string) {
+function getNextSku(products: Product[]): string {
+  const numericValues = products
+    .map(p => parseInt(p.sku, 10))
+    .filter(n => !isNaN(n) && n > 0)
+  if (numericValues.length === 0) return '1'
+  return String(Math.max(...numericValues) + 1)
+}
+
+function getInitialFormData(initialData: Product | undefined, categories: Array<{ id: string }>, defaultSedeId?: string, products?: Product[]) {
   if (initialData) {
     // Return all non-undefined properties from initialData
     const data: Record<string, any> = {}
@@ -1930,7 +1942,7 @@ function getInitialFormData(initialData: Product | undefined, categories: Array<
     productType: 'general' as ProductType,
     purchasePrice: 0,
     salePrice: 0,
-    sku: '',
+    sku: products ? getNextSku(products) : '',
     barcode: '',
     stock: 0,
     reorderPoint: 5,
