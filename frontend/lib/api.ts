@@ -1206,7 +1206,7 @@ class ApiService {
     supplierName: string
     purchaseDate: string
     documentType?: string
-    items: Array<{ productId: string; quantity: number; unitCost: number }>
+    items: Array<{ productId: string; quantity: number; unitCost: number; salePrice?: number }>
     paymentMethod?: string
     paymentStatus?: string
     dueDate?: string
