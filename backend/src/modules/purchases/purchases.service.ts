@@ -65,6 +65,7 @@ export interface CreatePurchaseItem {
   productId: string;
   quantity: number;
   unitCost: number;
+  salePrice?: number;
 }
 
 export interface CreatePurchaseData {
@@ -229,6 +230,7 @@ export class PurchasesService {
         productSku: string;
         quantity: number;
         unitCost: number;
+        salePrice?: number;
         subtotal: number;
         currentStock: number;
         currentPurchasePrice: number;
@@ -257,6 +259,7 @@ export class PurchasesService {
           productSku: product.sku,
           quantity: item.quantity,
           unitCost: item.unitCost,
+          salePrice: item.salePrice,
           subtotal: itemSubtotal,
           currentStock: Number(product.stock),
           currentPurchasePrice: Number(product.purchase_price || 0),
@@ -327,11 +330,18 @@ export class PurchasesService {
           newAvgCost = item.unitCost;
         }
 
-        // Update product stock and weighted average cost
-        await connection.execute(
-          'UPDATE products SET stock = ?, purchase_price = ? WHERE id = ?',
-          [newStock, newAvgCost, item.productId]
-        );
+        // Update product stock, weighted average cost, and sale price if provided
+        if (item.salePrice != null && item.salePrice > 0) {
+          await connection.execute(
+            'UPDATE products SET stock = ?, purchase_price = ?, sale_price = ? WHERE id = ?',
+            [newStock, newAvgCost, item.salePrice, item.productId]
+          );
+        } else {
+          await connection.execute(
+            'UPDATE products SET stock = ?, purchase_price = ? WHERE id = ?',
+            [newStock, newAvgCost, item.productId]
+          );
+        }
 
         // Register stock movement (entrada)
         await connection.execute(

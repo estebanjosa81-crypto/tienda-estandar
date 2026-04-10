@@ -70,6 +70,7 @@ interface NewInvoiceItem {
   productSku: string
   quantity: number
   unitCost: number
+  salePrice: number
   lastPurchasePrice?: number
 }
 
@@ -380,6 +381,7 @@ export function PurchaseInvoices() {
             productSku: product.sku,
             quantity: 1,
             unitCost: product.purchasePrice || 0,
+            salePrice: product.salePrice || 0,
             lastPurchasePrice: product.purchasePrice || 0,
           },
         ],
@@ -397,7 +399,7 @@ export function PurchaseInvoices() {
     setForm(prev => ({ ...prev, items: prev.items.filter(i => i.productId !== productId) }))
   }
 
-  const updateItem = (productId: string, field: 'quantity' | 'unitCost', value: number) => {
+  const updateItem = (productId: string, field: 'quantity' | 'unitCost' | 'salePrice', value: number) => {
     setForm(prev => ({
       ...prev,
       items: prev.items.map(i => i.productId === productId ? { ...i, [field]: value } : i),
@@ -508,7 +510,7 @@ export function PurchaseInvoices() {
         supplierId: form.supplierId || undefined,
         purchaseDate: form.purchaseDate,
         documentType: form.documentType,
-        items: form.items.map(i => ({ productId: i.productId, quantity: i.quantity, unitCost: i.unitCost })),
+        items: form.items.map(i => ({ productId: i.productId, quantity: i.quantity, unitCost: i.unitCost, salePrice: i.salePrice || undefined })),
         paymentMethod: form.paymentMethod,
         paymentStatus: form.paymentStatus,
         dueDate: form.dueDate || undefined,
@@ -995,6 +997,7 @@ export function PurchaseInvoices() {
                           <TableHead>Producto</TableHead>
                           <TableHead className="w-28">Cantidad</TableHead>
                           <TableHead className="w-36">Costo unit.</TableHead>
+                          <TableHead className="w-36">Precio venta</TableHead>
                           <TableHead className="text-right w-32">Subtotal</TableHead>
                           <TableHead className="w-10" />
                         </TableRow>
@@ -1024,6 +1027,14 @@ export function PurchaseInvoices() {
                                 type="number" min="0" step="0.01"
                                 value={item.unitCost}
                                 onChange={(e) => updateItem(item.productId, 'unitCost', parseFloat(e.target.value) || 0)}
+                                className="h-8 w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" min="0" step="0.01"
+                                value={item.salePrice}
+                                onChange={(e) => updateItem(item.productId, 'salePrice', parseFloat(e.target.value) || 0)}
                                 className="h-8 w-32"
                               />
                             </TableCell>
