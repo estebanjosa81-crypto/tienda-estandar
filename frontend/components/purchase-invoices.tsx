@@ -990,55 +990,55 @@ export function PurchaseInvoices() {
 
                 {/* Items table */}
                 {form.items.length > 0 && (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
+                  <div className="rounded-md border">
+                    <Table className="table-fixed w-full">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Producto</TableHead>
-                          <TableHead className="w-28">Cantidad</TableHead>
-                          <TableHead className="w-36">Costo unit.</TableHead>
-                          <TableHead className="w-36">Precio venta</TableHead>
-                          <TableHead className="text-right w-32">Subtotal</TableHead>
-                          <TableHead className="w-10" />
+                          <TableHead className="w-[30%]">Producto</TableHead>
+                          <TableHead className="w-[13%]">Cantidad</TableHead>
+                          <TableHead className="w-[18%]">Costo unit.</TableHead>
+                          <TableHead className="w-[18%]">Precio venta</TableHead>
+                          <TableHead className="w-[15%] text-right">Subtotal</TableHead>
+                          <TableHead className="w-[6%]" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {form.items.map((item) => (
                           <TableRow key={item.productId}>
-                            <TableCell>
+                            <TableCell className="py-2">
                               <div>
-                                <p className="font-medium text-sm">{item.productName}</p>
+                                <p className="font-medium text-sm truncate">{item.productName}</p>
                                 <p className="text-xs text-muted-foreground">{item.productSku}</p>
                                 {item.lastPurchasePrice ? (
                                   <p className="text-xs text-blue-500">Últ. precio: {formatCOP(item.lastPurchasePrice)}</p>
                                 ) : null}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-2">
                               <Input
                                 type="number" min="0.001" step="0.001"
                                 value={item.quantity}
                                 onChange={(e) => updateItem(item.productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                className="h-8 w-24"
+                                className="h-8 w-full"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-2">
                               <Input
                                 type="number" min="0" step="0.01"
                                 value={item.unitCost}
                                 onChange={(e) => updateItem(item.productId, 'unitCost', parseFloat(e.target.value) || 0)}
-                                className="h-8 w-32"
+                                className="h-8 w-full"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-2">
                               <Input
                                 type="number" min="0" step="0.01"
                                 value={item.salePrice}
                                 onChange={(e) => updateItem(item.productId, 'salePrice', parseFloat(e.target.value) || 0)}
-                                className="h-8 w-32"
+                                className="h-8 w-full"
                               />
                             </TableCell>
-                            <TableCell className="text-right font-semibold">
+                            <TableCell className="text-right font-semibold py-2">
                               {formatCOP(item.quantity * item.unitCost)}
                             </TableCell>
                             <TableCell>
