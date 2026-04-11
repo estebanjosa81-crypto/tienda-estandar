@@ -993,7 +993,7 @@ export function InventoryList() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Página {currentPage} de {totalPages} ({filteredProducts.length} productos)
           </p>
