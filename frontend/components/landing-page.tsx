@@ -109,6 +109,8 @@ interface StorefrontProduct {
   sedeId?: string | null
 }
 
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+
 export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showCatalog, setShowCatalog] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -6534,18 +6536,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* Form */}
               <div className="px-6 py-5">
-                {/* Google login */}
-                <div ref={clientGoogleBtnRef} className="mb-4 w-full overflow-hidden rounded-xl" style={{ background: '#131314' }}>
-                  <GoogleLogin
-                    onSuccess={handleClientGoogleLogin}
-                    onError={() => setClientLoginError('Error al conectar con Google')}
-                    theme="filled_black"
-                    size="large"
-                    width={clientGoogleBtnWidth}
-                    text="signin_with"
-                    shape="pill"
-                  />
-                </div>
+                {/* Google login — solo si el provider está configurado */}
+                {GOOGLE_CLIENT_ID && (
+                  <div ref={clientGoogleBtnRef} className="mb-4 w-full overflow-hidden rounded-xl" style={{ background: '#131314' }}>
+                    <GoogleLogin
+                      onSuccess={handleClientGoogleLogin}
+                      onError={() => setClientLoginError('Error al conectar con Google')}
+                      theme="filled_black"
+                      size="large"
+                      width={clientGoogleBtnWidth}
+                      text="signin_with"
+                      shape="pill"
+                    />
+                  </div>
+                )}
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-4">

@@ -48,6 +48,8 @@ interface AuthFormProps {
   onGoBack?: () => void
 }
 
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+
 export function AuthForm({ onGoBack }: AuthFormProps) {
   const { login, googleLogin } = useAuthStore()
   const [isLogin, setIsLogin] = useState(true)
@@ -582,8 +584,8 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
             </div>
           )}
 
-          {/* Google Login Button */}
-          {!lockUntil && (
+          {/* Google Login Button — solo si el provider está configurado */}
+          {!lockUntil && GOOGLE_CLIENT_ID && (
             <div className="flex justify-center w-full">
               {googleLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
