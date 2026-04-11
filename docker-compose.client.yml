@@ -52,7 +52,7 @@ services:
 
   # ── Backend Node.js local ─────────────────────────────────
   backend:
-    image: 1006946898/lopbuk-backend:v1
+    image: 1006946898/lopbuk-backend:v2
     container_name: lopbuk_backend_local
     restart: unless-stopped
     depends_on:
@@ -88,7 +88,7 @@ services:
   # Imagen pre-construida con NEXT_PUBLIC_API_URL=http://localhost:3001/api
   # Para regenerarla: docker build --build-arg NEXT_PUBLIC_API_URL=http://localhost:3001/api ... -t 1006946898/lopbuk-frontend:local
   frontend:
-    image: 1006946898/lopbuk-frontend:v1
+    image: 1006946898/lopbuk-frontend:v2
     container_name: lopbuk_frontend_local
     restart: unless-stopped
     depends_on:

@@ -1249,23 +1249,34 @@ export async function getChangesSince(
 
   // ── Clientes ──────────────────────────────────────────────────────────────
   const cc = c('customers');
-  const [customers] = await db.execute<RowDataPacket[]>(
+  const customers = await queryWithCursor(
     `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
      FROM customers WHERE tenant_id = ? AND updated_at > ?
      ORDER BY updated_at ASC, id ASC LIMIT 500`,
-    [tenantId, cc.since]
+    `SELECT id, tenant_id, cedula, name, phone, email, address, credit_limit, notes, updated_at
+     FROM customers WHERE tenant_id = ? AND (updated_at > ? OR (updated_at = ? AND id > ?))
+     ORDER BY updated_at ASC, id ASC LIMIT 500`,
+    [tenantId, cc.since],
+    [tenantId, cc.since, cc.since, cc.afterId]
   );
 
   // ── Ventas ────────────────────────────────────────────────────────────────
   const cs = c('sales');
-  const [sales] = await db.execute<RowDataPacket[]>(
+  const sales = await queryWithCursor(
     `SELECT id, tenant_id, invoice_number, customer_id, customer_name, customer_phone,
             customer_email, subtotal, tax, discount, total, payment_method, amount_paid,
             change_amount, seller_id, seller_name, cash_session_id, status, credit_status,
             due_date, notes, created_at, updated_at
      FROM sales WHERE tenant_id = ? AND updated_at > ?
      ORDER BY updated_at ASC, id ASC LIMIT 200`,
-    [tenantId, cs.since]
+    `SELECT id, tenant_id, invoice_number, customer_id, customer_name, customer_phone,
+            customer_email, subtotal, tax, discount, total, payment_method, amount_paid,
+            change_amount, seller_id, seller_name, cash_session_id, status, credit_status,
+            due_date, notes, created_at, updated_at
+     FROM sales WHERE tenant_id = ? AND (updated_at > ? OR (updated_at = ? AND id > ?))
+     ORDER BY updated_at ASC, id ASC LIMIT 200`,
+    [tenantId, cs.since],
+    [tenantId, cs.since, cs.since, cs.afterId]
   );
   let saleItems: any[] = [];
   if ((sales as any[]).length > 0) {
@@ -1282,13 +1293,19 @@ export async function getChangesSince(
 
   // ── Compras ───────────────────────────────────────────────────────────────
   const cpu = c('purchases');
-  const [purchases] = await db.execute<RowDataPacket[]>(
+  const purchases = await queryWithCursor(
     `SELECT id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date,
             document_type, subtotal, discount, tax, total, payment_method, payment_status,
             due_date, file_url, notes, created_by, created_at, updated_at
      FROM purchase_invoices WHERE tenant_id = ? AND updated_at > ?
      ORDER BY updated_at ASC, id ASC LIMIT 100`,
-    [tenantId, cpu.since]
+    `SELECT id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date,
+            document_type, subtotal, discount, tax, total, payment_method, payment_status,
+            due_date, file_url, notes, created_by, created_at, updated_at
+     FROM purchase_invoices WHERE tenant_id = ? AND (updated_at > ? OR (updated_at = ? AND id > ?))
+     ORDER BY updated_at ASC, id ASC LIMIT 100`,
+    [tenantId, cpu.since],
+    [tenantId, cpu.since, cpu.since, cpu.afterId]
   );
   let purchaseItems: any[] = [];
   if ((purchases as any[]).length > 0) {
@@ -1462,4 +1479,16 @@ export function getSyncStatus(): SyncStatus & { isLocalInstance: boolean } {
     ...state,
     isLocalInstance: config.sync.isLocalInstance,
   };
+}
+
+/**
+ * Reinicia todos los cursores de pull a EPOCH forzando que el próximo pullFromCloud
+ * descargue TODO el historial desde la nube. Útil para recuperar datos faltantes.
+ */
+export function resetSyncCursors(): void {
+  for (const key of Object.keys(pullCursors)) {
+    pullCursors[key] = { since: EPOCH, afterId: '' };
+  }
+  state.lastPullAt = null;
+  console.log('[Sync] Cursores reiniciados a EPOCH — el próximo ciclo descargará todo el historial.');
 }

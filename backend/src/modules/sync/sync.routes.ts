@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  getStatus, triggerSync, getChanges,
+  getStatus, triggerSync, forceResync, getChanges,
   receiveSales, receivePurchases,
   receiveCustomers, receiveProducts, receiveMovements,
   receiveCashSessions, receiveCreditPayments, receiveCategories,
@@ -15,6 +15,9 @@ router.get('/status', authenticate, getStatus);
 
 // Disparar sync manual
 router.post('/trigger', authenticate, triggerSync);
+
+// Reiniciar TODOS los cursores y hacer un pull completo desde EPOCH (recuperar datos faltantes)
+router.post('/force-resync', authenticate, forceResync);
 
 // Endpoint de la NUBE: sirve cambios incrementales a las instancias locales (PULL)
 router.get('/changes', getChanges);

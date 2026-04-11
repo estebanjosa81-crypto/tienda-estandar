@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   getSyncStatus,
   runSync,
+  resetSyncCursors,
   receiveSalesFromLocal,
   receivePurchasesFromLocal,
   receiveCustomersFromLocal,
@@ -36,6 +37,23 @@ export async function triggerSync(req: Request, res: Response): Promise<void> {
     const result = await runSync();
     const status = getSyncStatus();
     res.json({ success: true, data: { ...result, ...status } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+/**
+ * POST /api/sync/force-resync
+ * Reinicia todos los cursores de pull a EPOCH y dispara un sync completo.
+ * Útil para recuperar datos que no se descargaron (ventas, clientes, fiados, etc.)
+ * Solo funciona en instancias locales (IS_LOCAL_INSTANCE=true).
+ */
+export async function forceResync(req: Request, res: Response): Promise<void> {
+  try {
+    resetSyncCursors();
+    const result = await runSync();
+    const status = getSyncStatus();
+    res.json({ success: true, data: { ...result, ...status, message: 'Resync completo iniciado desde el principio del historial' } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
