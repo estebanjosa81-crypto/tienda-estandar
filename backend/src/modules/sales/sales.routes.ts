@@ -28,6 +28,9 @@ router.get(
   salesController.findAll.bind(salesController)
 );
 
+// GET /api/sales/stats
+router.get('/stats', authorize('comerciante', 'superadmin'), salesController.getStats.bind(salesController));
+
 // GET /api/sales/recent
 router.get('/recent', salesController.getRecentSales.bind(salesController));
 

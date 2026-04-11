@@ -278,6 +278,22 @@ export class SalesService {
     };
   }
 
+  async getStats(tenantId: string): Promise<{ total: number; completedTotal: number; cancelledTotal: number }> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+        COUNT(*) as total,
+        COALESCE(SUM(CASE WHEN status = 'completada' THEN total ELSE 0 END), 0) as completedTotal,
+        COALESCE(SUM(CASE WHEN status = 'anulada' THEN total ELSE 0 END), 0) as cancelledTotal
+       FROM sales WHERE tenant_id = ?`,
+      [tenantId]
+    );
+    return {
+      total: Number(rows[0].total),
+      completedTotal: Number(rows[0].completedTotal),
+      cancelledTotal: Number(rows[0].cancelledTotal),
+    };
+  }
+
   async findById(id: string): Promise<Sale> {
     const [rows] = await db.execute<SaleRow[]>(
       'SELECT * FROM sales WHERE id = ?',

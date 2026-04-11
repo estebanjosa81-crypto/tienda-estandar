@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '@/lib/store'
 import { api } from '@/lib/api'
 import type { Sale } from '@/lib/types'
@@ -40,27 +40,73 @@ import {
   Search,
   Eye,
   Printer,
-  Download,
   CheckCircle,
-  Clock,
   XCircle,
   Calendar,
   Filter,
   Settings,
   Save,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 
+const INVOICING_LIMIT = 20
+
 export function Invoicing() {
-  const { sales, fetchSales, storeInfo, updateStoreInfo, cancelSale, invoicesDateFilter, clearInvoicesFilter } = useStore()
+  const { storeInfo, updateStoreInfo, cancelSale, invoicesDateFilter, clearInvoicesFilter } = useStore()
+  const [localSales, setLocalSales] = useState<Sale[]>([])
+  const [isLoadingSales, setIsLoadingSales] = useState(false)
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 })
+  const [stats, setStats] = useState({ total: 0, completedTotal: 0, cancelledTotal: 0 })
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load global stats once on mount
   useEffect(() => {
-    fetchSales()
-  }, [fetchSales])
+    api.getSalesStats().then((res) => {
+      if (res.success && res.data) setStats(res.data)
+    })
+  }, [])
+
+  const loadSales = useCallback(async (page = 1, search = searchTerm, status = statusFilter, dates = dateRange) => {
+    setIsLoadingSales(true)
+    const params: Parameters<typeof api.getSales>[0] = { page, limit: INVOICING_LIMIT }
+    if (search) params.search = search
+    if (status !== 'all') params.status = status
+    if (dates.start) params.startDate = dates.start
+    if (dates.end) params.endDate = dates.end + 'T23:59:59'
+    const result = await api.getSales(params)
+    if (result.success) {
+      setLocalSales(Array.isArray(result.data) ? result.data : [])
+      if (result.pagination) setPagination(result.pagination)
+    }
+    setIsLoadingSales(false)
+  }, [searchTerm, statusFilter, dateRange])
+
+  // Initial load
+  useEffect(() => {
+    loadSales(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reload when status or date filters change (reset to page 1)
+  useEffect(() => {
+    loadSales(1, searchTerm, statusFilter, dateRange)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, dateRange.start, dateRange.end])
+
+  // Debounce search term
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    searchDebounce.current = setTimeout(() => {
+      loadSales(1, value, statusFilter, dateRange)
+    }, 400)
+  }
 
   useEffect(() => {
     if (invoicesDateFilter) {
@@ -81,18 +127,6 @@ export function Invoicing() {
     })
   }, [])
 
-  const filteredSales = sales.filter((sale) => {
-    const matchesSearch =
-      sale.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.items.some(item => item.productName.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchesStatus =
-      statusFilter === 'all' || sale.status === statusFilter
-    const saleDate = new Date(sale.createdAt)
-    const matchesDate =
-      (!dateRange.start || saleDate >= new Date(dateRange.start)) &&
-      (!dateRange.end || saleDate <= new Date(dateRange.end + 'T23:59:59'))
-    return matchesSearch && matchesStatus && matchesDate
-  })
 
   const getStatusBadge = (status: Sale['status']) => {
     switch (status) {
@@ -225,12 +259,6 @@ export function Invoicing() {
     printWindow.print()
   }
 
-  const totalCompleted = sales
-    .filter((s) => s.status === 'completada')
-    .reduce((sum, s) => sum + s.total, 0)
-  const totalCancelled = sales
-    .filter((s) => s.status === 'anulada')
-    .reduce((sum, s) => sum + s.total, 0)
 
   return (
     <div className="space-y-6">
@@ -257,7 +285,7 @@ export function Invoicing() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Facturas</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {sales.length}
+                  {stats.total}
                 </p>
               </div>
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -273,7 +301,7 @@ export function Invoicing() {
               <div>
                 <p className="text-sm text-muted-foreground">Completadas</p>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCOP(totalCompleted)}
+                  {formatCOP(stats.completedTotal)}
                 </p>
               </div>
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -289,7 +317,7 @@ export function Invoicing() {
               <div>
                 <p className="text-sm text-muted-foreground">Anuladas</p>
                 <p className="text-2xl font-bold text-destructive">
-                  {formatCOP(totalCancelled)}
+                  {formatCOP(stats.cancelledTotal)}
                 </p>
               </div>
               <div className="p-3 bg-destructive/10 rounded-lg">
@@ -314,7 +342,7 @@ export function Invoicing() {
               <Input
                 placeholder="Buscar factura..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10 bg-secondary border-border"
               />
             </div>
@@ -384,7 +412,13 @@ export function Invoicing() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSales.length === 0 ? (
+                {isLoadingSales ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Cargando facturas...
+                    </TableCell>
+                  </TableRow>
+                ) : localSales.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={7}
@@ -394,7 +428,7 @@ export function Invoicing() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredSales.map((sale) => (
+                  localSales.map((sale) => (
                     <TableRow
                       key={sale.id}
                       className="border-border hover:bg-secondary/30"
@@ -441,6 +475,33 @@ export function Invoicing() {
               </TableBody>
             </Table>
           </div>
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Página {pagination.page} de {pagination.totalPages} — {pagination.total} facturas en total
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page <= 1 || isLoadingSales}
+                  onClick={() => loadSales(pagination.page - 1)}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page >= pagination.totalPages || isLoadingSales}
+                  onClick={() => loadSales(pagination.page + 1)}
+                >
+                  Siguiente
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -602,6 +663,8 @@ export function Invoicing() {
                   onClick={async () => {
                     await cancelSale(selectedSale.id, 'Anulada por usuario')
                     setIsDetailOpen(false)
+                    loadSales(pagination.page)
+                    api.getSalesStats().then((res) => { if (res.success && res.data) setStats(res.data) })
                   }}
                   className="w-full"
                 >
