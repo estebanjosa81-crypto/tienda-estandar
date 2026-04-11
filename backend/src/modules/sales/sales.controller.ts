@@ -48,6 +48,15 @@ export class SalesController {
     }
   }
 
+  async getStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await salesService.getStats(req.user!.tenantId!);
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async findById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const sale = await salesService.findById(req.params.id);

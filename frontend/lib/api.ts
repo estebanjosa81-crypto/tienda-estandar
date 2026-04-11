@@ -379,6 +379,8 @@ class ApiService {
     status?: string
     paymentMethod?: string
     search?: string
+    startDate?: string
+    endDate?: string
   }) {
     const searchParams = new URLSearchParams()
     if (params?.page) searchParams.set('page', String(params.page))
@@ -386,9 +388,15 @@ class ApiService {
     if (params?.status) searchParams.set('status', params.status)
     if (params?.paymentMethod) searchParams.set('paymentMethod', params.paymentMethod)
     if (params?.search) searchParams.set('search', params.search)
+    if (params?.startDate) searchParams.set('startDate', params.startDate)
+    if (params?.endDate) searchParams.set('endDate', params.endDate)
 
     const query = searchParams.toString()
     return this.request<{ sales: any[]; pagination: any }>(`/sales${query ? `?${query}` : ''}`)
+  }
+
+  async getSalesStats() {
+    return this.request<{ total: number; completedTotal: number; cancelledTotal: number }>('/sales/stats')
   }
 
   async getSale(id: string) {
