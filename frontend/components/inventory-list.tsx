@@ -72,12 +72,15 @@ import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 import { BulkImageUploadDialog } from '@/components/bulk-image-upload-dialog'
 
 export function InventoryList() {
-  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
+  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, bulkDeleteProducts, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [activeSede, setActiveSede] = useState<string>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -685,6 +688,43 @@ export function InventoryList() {
     }
   }
 
+  const confirmBulkDelete = async () => {
+    setIsBulkDeleting(true)
+    const ids = Array.from(selectedIds)
+    const result = await bulkDeleteProducts(ids)
+    setIsBulkDeleting(false)
+    if (result.success) {
+      const failed = result.failed?.length ?? 0
+      const deleted = result.deleted ?? 0
+      if (failed > 0) {
+        toast.warning(`${deleted} eliminados, ${failed} no se pudieron eliminar (tienen ventas asociadas)`)
+      } else {
+        toast.success(`${deleted} producto${deleted !== 1 ? 's' : ''} eliminado${deleted !== 1 ? 's' : ''}`)
+      }
+      setSelectedIds(new Set())
+      setIsBulkDeleteDialogOpen(false)
+    } else {
+      toast.error(result.error || 'Error al eliminar productos')
+    }
+  }
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginatedProducts.length && paginatedProducts.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(paginatedProducts.map(p => p.id)))
+    }
+  }
+
   const getProductTypeInfo = (type: ProductType) => {
     return PRODUCT_TYPES[type] || PRODUCT_TYPES.general
   }
@@ -831,12 +871,44 @@ export function InventoryList() {
         </CardContent>
       </Card>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-destructive/10 border border-destructive/30 animate-in fade-in slide-in-from-top-1">
+          <span className="text-sm font-medium text-destructive">
+            {selectedIds.size} producto{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="ml-auto gap-2"
+            onClick={() => setIsBulkDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Eliminar seleccionados
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
+
       {/* Products Table */}
       <Card className="border-border bg-card">
         <CardContent className="p-0 overflow-x-auto">
           <Table className="min-w-[800px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="w-10 pl-4">
+                  <Checkbox
+                    checked={paginatedProducts.length > 0 && selectedIds.size === paginatedProducts.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Seleccionar todos"
+                  />
+                </TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Producto</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">SKU</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Tipo</TableHead>
@@ -850,7 +922,7 @@ export function InventoryList() {
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={sedes.length >= 2 ? 8 : 7} className="h-24 text-center">
+                  <TableCell colSpan={sedes.length >= 2 ? 9 : 8} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-8 w-8 lg:h-10 lg:w-10 text-muted-foreground" />
                       <p className="text-sm lg:text-base text-muted-foreground">No se encontraron productos</p>
@@ -867,8 +939,16 @@ export function InventoryList() {
                       id={`product-${product.id}`}
                       className={`border-border transition-colors duration-1000 ${
                         highlightedProduct === product.id ? 'bg-primary/15 ring-1 ring-primary/30' : ''
-                      }`}
+                      } ${selectedIds.has(product.id) ? 'bg-destructive/5' : ''}`}
                     >
+                      <TableCell className="pl-4 w-10">
+                        <Checkbox
+                          checked={selectedIds.has(product.id)}
+                          onCheckedChange={() => toggleSelectProduct(product.id)}
+                          aria-label={`Seleccionar ${product.name}`}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div
@@ -1143,6 +1223,26 @@ export function InventoryList() {
               />
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar productos seleccionados</DialogTitle>
+            <DialogDescription>
+              ¿Seguro que deseas eliminar {selectedIds.size} producto{selectedIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkDeleteDialogOpen(false)} disabled={isBulkDeleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmBulkDelete} disabled={isBulkDeleting}>
+              {isBulkDeleting ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

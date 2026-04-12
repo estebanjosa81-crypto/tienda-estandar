@@ -626,6 +626,22 @@ export class ProductsService {
     }
   }
 
+  async bulkDelete(ids: string[], tenantId: string): Promise<{ deleted: number; failed: Array<{ id: string; error: string }> }> {
+    const failed: Array<{ id: string; error: string }> = [];
+    let deleted = 0;
+
+    for (const id of ids) {
+      try {
+        await this.delete(id, tenantId);
+        deleted++;
+      } catch (error: any) {
+        failed.push({ id, error: error.message || 'Error al eliminar' });
+      }
+    }
+
+    return { deleted, failed };
+  }
+
   async updateStock(id: string, quantity: number): Promise<Product> {
     const product = await this.findById(id);
 
