@@ -209,6 +209,13 @@ router.put(
   productsController.update.bind(productsController)
 );
 
+// DELETE /api/products/:id/force
+router.delete(
+  '/:id/force',
+  [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
+  productsController.forceDelete.bind(productsController)
+);
+
 // DELETE /api/products/bulk
 router.delete(
   '/bulk',

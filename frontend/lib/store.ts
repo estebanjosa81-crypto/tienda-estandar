@@ -13,6 +13,7 @@ interface AppState {
   addProduct: (product: Record<string, any>) => Promise<{ success: boolean; error?: string }>
   updateProduct: (id: string, product: Partial<Product>) => Promise<{ success: boolean; error?: string }>
   deleteProduct: (id: string) => Promise<{ success: boolean; error?: string }>
+  forceDeleteProduct: (id: string) => Promise<{ success: boolean; error?: string }>
   bulkDeleteProducts: (ids: string[]) => Promise<{ success: boolean; deleted?: number; failed?: Array<{ id: string; error: string }>; error?: string }>
   bulkImportProducts: (products: Record<string, any>[]) => Promise<{
     success: boolean
@@ -205,6 +206,17 @@ export const useStore = create<AppState>()(
 
       deleteProduct: async (id) => {
         const result = await api.deleteProduct(id)
+        if (result.success) {
+          set(state => ({
+            products: state.products.filter(p => p.id !== id)
+          }))
+          return { success: true }
+        }
+        return { success: false, error: result.error || 'Error al eliminar producto' }
+      },
+
+      forceDeleteProduct: async (id) => {
+        const result = await api.forceDeleteProduct(id)
         if (result.success) {
           set(state => ({
             products: state.products.filter(p => p.id !== id)

@@ -626,6 +626,62 @@ export class ProductsService {
     }
   }
 
+  async forceDelete(id: string, tenantId: string): Promise<void> {
+    await this.findById(id, tenantId);
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // Verificar si tiene sale_items en ventas completadas (no anuladas)
+      const [activeItems] = await connection.execute<RowDataPacket[]>(
+        `SELECT si.id FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
+         WHERE si.product_id = ? AND s.status != 'anulada'
+         LIMIT 1`,
+        [id]
+      );
+
+      if ((activeItems as RowDataPacket[]).length > 0) {
+        throw new AppError('No se puede eliminar: el producto tiene ventas completadas asociadas. Anula todas las ventas primero.', 400);
+      }
+
+      // Eliminar sale_items de ventas anuladas que referencian este producto
+      await connection.execute(
+        `DELETE si FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
+         WHERE si.product_id = ? AND s.status = 'anulada'`,
+        [id]
+      );
+
+      // Eliminar movimientos de stock del producto
+      await connection.execute(
+        'DELETE FROM stock_movements WHERE product_id = ?',
+        [id]
+      );
+
+      // Eliminar purchase_invoice_items si existen
+      try {
+        await connection.execute(
+          'DELETE FROM purchase_invoice_items WHERE product_id = ?',
+          [id]
+        );
+      } catch {
+        // tabla puede no existir en todos los entornos
+      }
+
+      // Eliminar el producto
+      await connection.execute('DELETE FROM products WHERE id = ?', [id]);
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   async bulkDelete(ids: string[], tenantId: string): Promise<{ deleted: number; failed: Array<{ id: string; error: string }> }> {
     const failed: Array<{ id: string; error: string }> = [];
     let deleted = 0;

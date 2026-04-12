@@ -72,7 +72,7 @@ import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 import { BulkImageUploadDialog } from '@/components/bulk-image-upload-dialog'
 
 export function InventoryList() {
-  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, bulkDeleteProducts, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
+  const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, forceDeleteProduct, bulkDeleteProducts, categories, fetchCategories, addCategory, updateCategory, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [stockFilter, setStockFilter] = useState<string>('all')
@@ -81,6 +81,8 @@ export function InventoryList() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [deleteHasSales, setDeleteHasSales] = useState(false)
+  const [isForceDeleting, setIsForceDeleting] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -673,6 +675,7 @@ export function InventoryList() {
 
   const handleDelete = (product: Product) => {
     setSelectedProduct(product)
+    setDeleteHasSales(false)
     setIsDeleteDialogOpen(true)
   }
 
@@ -682,9 +685,27 @@ export function InventoryList() {
       if (result.success) {
         setIsDeleteDialogOpen(false)
         setSelectedProduct(null)
+        setDeleteHasSales(false)
+      } else if (result.error?.includes('ventas asociadas')) {
+        setDeleteHasSales(true)
       } else {
         toast.error(result.error || 'Error al eliminar producto')
       }
+    }
+  }
+
+  const confirmForceDelete = async () => {
+    if (!selectedProduct) return
+    setIsForceDeleting(true)
+    const result = await forceDeleteProduct(selectedProduct.id)
+    setIsForceDeleting(false)
+    if (result.success) {
+      toast.success('Producto eliminado correctamente')
+      setIsDeleteDialogOpen(false)
+      setSelectedProduct(null)
+      setDeleteHasSales(false)
+    } else {
+      toast.error(result.error || 'Error al eliminar producto')
     }
   }
 
@@ -1247,21 +1268,36 @@ export function InventoryList() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => { setIsDeleteDialogOpen(open); if (!open) setDeleteHasSales(false) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar Producto</DialogTitle>
-            <DialogDescription>
-              Esta seguro que desea eliminar &quot;{selectedProduct?.name}&quot;? Esta accion no se puede deshacer.
-            </DialogDescription>
+            {!deleteHasSales ? (
+              <DialogDescription>
+                ¿Seguro que deseas eliminar &quot;{selectedProduct?.name}&quot;? Esta acción no se puede deshacer.
+              </DialogDescription>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-200">
+                  <p className="font-semibold mb-1">Este producto tiene ventas canceladas asociadas</p>
+                  <p>Puedes forzar la eliminación: se borrarán las líneas de las ventas anuladas que lo referencian. Las ventas completadas bloquearán la eliminación.</p>
+                </div>
+              </div>
+            )}
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setIsDeleteDialogOpen(false); setDeleteHasSales(false) }} disabled={isForceDeleting}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Eliminar
-            </Button>
+            {!deleteHasSales ? (
+              <Button variant="destructive" onClick={confirmDelete}>
+                Eliminar
+              </Button>
+            ) : (
+              <Button variant="destructive" onClick={confirmForceDelete} disabled={isForceDeleting}>
+                {isForceDeleting ? 'Eliminando...' : 'Forzar eliminación'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
