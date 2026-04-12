@@ -137,6 +137,16 @@ export class ProductsController {
     }
   }
 
+  async forceDelete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      await productsService.forceDelete(req.params.id, tenantId);
+      res.json({ success: true, message: 'Producto eliminado forzosamente' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async bulkDelete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;

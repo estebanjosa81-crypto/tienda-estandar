@@ -348,6 +348,12 @@ class ApiService {
     })
   }
 
+  async forceDeleteProduct(id: string) {
+    return this.request<any>(`/products/${id}/force`, {
+      method: 'DELETE',
+    })
+  }
+
   async bulkDeleteProducts(ids: string[]) {
     return this.request<{ deleted: number; failed: Array<{ id: string; error: string }> }>('/products/bulk', {
       method: 'DELETE',
