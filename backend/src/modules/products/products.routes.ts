@@ -209,6 +209,17 @@ router.put(
   productsController.update.bind(productsController)
 );
 
+// DELETE /api/products/bulk
+router.delete(
+  '/bulk',
+  [
+    body('ids').isArray({ min: 1 }).withMessage('Se requiere un array de IDs'),
+    body('ids.*').notEmpty().withMessage('ID inválido'),
+    validateRequest,
+  ],
+  productsController.bulkDelete.bind(productsController)
+);
+
 // DELETE /api/products/:id
 router.delete(
   '/:id',

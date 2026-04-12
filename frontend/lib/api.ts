@@ -348,6 +348,13 @@ class ApiService {
     })
   }
 
+  async bulkDeleteProducts(ids: string[]) {
+    return this.request<{ deleted: number; failed: Array<{ id: string; error: string }> }>('/products/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    })
+  }
+
   async findProductByBarcode(barcode: string) {
     return this.request<any>(`/products/barcode/${encodeURIComponent(barcode)}`)
   }
