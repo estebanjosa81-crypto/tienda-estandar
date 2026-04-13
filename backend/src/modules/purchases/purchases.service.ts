@@ -157,7 +157,10 @@ export class PurchasesService {
     const invoicesWithItems = [];
     for (const row of rows) {
       const [itemRows] = await db.execute<PurchaseInvoiceItemRow[]>(
-        'SELECT * FROM purchase_invoice_items WHERE invoice_id = ?',
+        `SELECT pii.*, COALESCE(pii.sale_price, p.sale_price) AS sale_price
+         FROM purchase_invoice_items pii
+         LEFT JOIN products p ON p.id = pii.product_id
+         WHERE pii.invoice_id = ?`,
         [row.id]
       );
       invoicesWithItems.push(this.mapInvoice(row, itemRows));
@@ -185,7 +188,10 @@ export class PurchasesService {
     }
 
     const [itemRows] = await db.execute<PurchaseInvoiceItemRow[]>(
-      'SELECT * FROM purchase_invoice_items WHERE invoice_id = ?',
+      `SELECT pii.*, COALESCE(pii.sale_price, p.sale_price) AS sale_price
+       FROM purchase_invoice_items pii
+       LEFT JOIN products p ON p.id = pii.product_id
+       WHERE pii.invoice_id = ?`,
       [id]
     );
 
