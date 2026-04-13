@@ -16,6 +16,8 @@ interface PurchaseInvoiceRow extends RowDataPacket {
   tax: number;
   total: number;
   payment_method: string;
+  mixed_efectivo_amount: number | null;
+  mixed_transferencia_amount: number | null;
   payment_status: string;
   due_date: Date | null;
   file_url: string | null;
@@ -33,6 +35,7 @@ interface PurchaseInvoiceItemRow extends RowDataPacket {
   product_sku: string;
   quantity: number;
   unit_cost: number;
+  sale_price: number | null;
   subtotal: number;
 }
 
@@ -76,6 +79,8 @@ export interface CreatePurchaseData {
   documentType?: 'factura' | 'remision' | 'orden_compra' | 'nota_credito';
   items: CreatePurchaseItem[];
   paymentMethod?: 'efectivo' | 'transferencia' | 'tarjeta' | 'credito' | 'nequi' | 'daviplata' | 'credito_proveedor' | 'mixto';
+  mixedEfectivoAmount?: number;
+  mixedTransferenciaAmount?: number;
   paymentStatus?: 'pagado' | 'pendiente' | 'parcial';
   dueDate?: string;
   fileUrl?: string;
@@ -97,6 +102,8 @@ export class PurchasesService {
       tax: Number(row.tax),
       total: Number(row.total),
       paymentMethod: row.payment_method,
+      mixedEfectivoAmount: row.mixed_efectivo_amount != null ? Number(row.mixed_efectivo_amount) : null,
+      mixedTransferenciaAmount: row.mixed_transferencia_amount != null ? Number(row.mixed_transferencia_amount) : null,
       paymentStatus: row.payment_status,
       dueDate: row.due_date || null,
       fileUrl: row.file_url || null,
@@ -112,6 +119,7 @@ export class PurchasesService {
         productSku: i.product_sku,
         quantity: Number(i.quantity),
         unitCost: Number(i.unit_cost),
+        salePrice: i.sale_price != null ? Number(i.sale_price) : null,
         subtotal: Number(i.subtotal),
       })),
     };
@@ -279,8 +287,9 @@ export class PurchasesService {
       await connection.execute<ResultSetHeader>(
         `INSERT INTO purchase_invoices
           (id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date, document_type,
-           subtotal, discount, tax, total, payment_method, payment_status, due_date, file_url, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+           subtotal, discount, tax, total, payment_method, mixed_efectivo_amount, mixed_transferencia_amount,
+           payment_status, due_date, file_url, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceId,
           tenantId,
@@ -293,6 +302,8 @@ export class PurchasesService {
           discount,
           total,
           paymentMethod,
+          paymentMethod === 'mixto' ? (data.mixedEfectivoAmount ?? null) : null,
+          paymentMethod === 'mixto' ? (data.mixedTransferenciaAmount ?? null) : null,
           paymentStatus,
           data.dueDate || null,
           data.fileUrl || null,
@@ -304,8 +315,8 @@ export class PurchasesService {
       // Insert items, update stock with weighted average cost
       for (const item of itemsToInsert) {
         await connection.execute(
-          `INSERT INTO purchase_invoice_items (id, tenant_id, invoice_id, product_id, product_name, product_sku, quantity, unit_cost, subtotal)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO purchase_invoice_items (id, tenant_id, invoice_id, product_id, product_name, product_sku, quantity, unit_cost, sale_price, subtotal)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.id,
             tenantId,
@@ -315,6 +326,7 @@ export class PurchasesService {
             item.productSku,
             item.quantity,
             item.unitCost,
+            item.salePrice != null && item.salePrice > 0 ? item.salePrice : null,
             item.subtotal,
           ]
         );
@@ -379,6 +391,8 @@ export class PurchasesService {
     purchaseDate?: string;
     documentType?: string;
     paymentMethod?: string;
+    mixedEfectivoAmount?: number | null;
+    mixedTransferenciaAmount?: number | null;
     paymentStatus?: string;
     dueDate?: string | null;
     fileUrl?: string | null;
@@ -393,7 +407,16 @@ export class PurchasesService {
     if ('supplierId' in data) { fields.push('supplier_id = ?'); values.push(data.supplierId ?? null); }
     if (data.purchaseDate !== undefined) { fields.push('purchase_date = ?'); values.push(data.purchaseDate); }
     if (data.documentType !== undefined) { fields.push('document_type = ?'); values.push(data.documentType); }
-    if (data.paymentMethod !== undefined) { fields.push('payment_method = ?'); values.push(data.paymentMethod); }
+    if (data.paymentMethod !== undefined) {
+      fields.push('payment_method = ?'); values.push(data.paymentMethod);
+      // Si cambia a un método no mixto, limpiar los montos
+      if (data.paymentMethod !== 'mixto') {
+        fields.push('mixed_efectivo_amount = ?'); values.push(null);
+        fields.push('mixed_transferencia_amount = ?'); values.push(null);
+      }
+    }
+    if ('mixedEfectivoAmount' in data) { fields.push('mixed_efectivo_amount = ?'); values.push(data.mixedEfectivoAmount ?? null); }
+    if ('mixedTransferenciaAmount' in data) { fields.push('mixed_transferencia_amount = ?'); values.push(data.mixedTransferenciaAmount ?? null); }
     if (data.paymentStatus !== undefined) { fields.push('payment_status = ?'); values.push(data.paymentStatus); }
     if ('dueDate' in data) { fields.push('due_date = ?'); values.push(data.dueDate ?? null); }
     if ('fileUrl' in data) { fields.push('file_url = ?'); values.push(data.fileUrl ?? null); }

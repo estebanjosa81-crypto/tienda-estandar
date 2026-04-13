@@ -2052,9 +2052,11 @@ function DynamicField({ field, value, onChange }: {
 }
 
 function getNextSku(products: Product[]): string {
+  // Solo considerar SKUs que sean numeracion consecutiva (<=7 digitos).
+  // Excluir codigos de barras EAN/UPC que son 8+ digitos y distorsionarian el consecutivo.
   const numericValues = products
     .map(p => parseInt(p.sku, 10))
-    .filter(n => !isNaN(n) && n > 0)
+    .filter(n => !isNaN(n) && n > 0 && String(n).length <= 7)
   if (numericValues.length === 0) return '1'
   return String(Math.max(...numericValues) + 1)
 }

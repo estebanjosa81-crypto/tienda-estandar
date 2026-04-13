@@ -81,6 +81,8 @@ interface NewInvoiceForm {
   purchaseDate: string
   documentType: 'factura' | 'remision' | 'orden_compra' | 'nota_credito'
   paymentMethod: string
+  mixedEfectivoAmount: string
+  mixedTransferenciaAmount: string
   paymentStatus: 'pagado' | 'pendiente' | 'parcial'
   dueDate: string
   fileUrl: string
@@ -137,6 +139,8 @@ const emptyForm = (): NewInvoiceForm => ({
   purchaseDate: new Date().toISOString().split('T')[0],
   documentType: 'factura',
   paymentMethod: 'efectivo',
+  mixedEfectivoAmount: '',
+  mixedTransferenciaAmount: '',
   paymentStatus: 'pagado',
   dueDate: '',
   fileUrl: '',
@@ -448,6 +452,8 @@ export function PurchaseInvoices() {
       purchaseDate: invoice.purchaseDate ? new Date(invoice.purchaseDate).toISOString().split('T')[0] : '',
       documentType: invoice.documentType as NewInvoiceForm['documentType'],
       paymentMethod: invoice.paymentMethod,
+      mixedEfectivoAmount: invoice.mixedEfectivoAmount != null ? String(invoice.mixedEfectivoAmount) : '',
+      mixedTransferenciaAmount: invoice.mixedTransferenciaAmount != null ? String(invoice.mixedTransferenciaAmount) : '',
       paymentStatus: invoice.paymentStatus,
       dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : '',
       fileUrl: invoice.fileUrl || '',
@@ -472,6 +478,10 @@ export function PurchaseInvoices() {
         purchaseDate: editDetailForm.purchaseDate,
         documentType: editDetailForm.documentType,
         paymentMethod: editDetailForm.paymentMethod,
+        mixedEfectivoAmount: editDetailForm.paymentMethod === 'mixto' && editDetailForm.mixedEfectivoAmount
+          ? parseFloat(editDetailForm.mixedEfectivoAmount) : null,
+        mixedTransferenciaAmount: editDetailForm.paymentMethod === 'mixto' && editDetailForm.mixedTransferenciaAmount
+          ? parseFloat(editDetailForm.mixedTransferenciaAmount) : null,
         paymentStatus: editDetailForm.paymentStatus,
         dueDate: editDetailForm.dueDate || null,
         fileUrl: editDetailForm.fileUrl || null,
@@ -512,6 +522,8 @@ export function PurchaseInvoices() {
         documentType: form.documentType,
         items: form.items.map(i => ({ productId: i.productId, quantity: i.quantity, unitCost: i.unitCost, salePrice: i.salePrice || undefined })),
         paymentMethod: form.paymentMethod,
+        mixedEfectivoAmount: form.paymentMethod === 'mixto' && form.mixedEfectivoAmount ? parseFloat(form.mixedEfectivoAmount) : undefined,
+        mixedTransferenciaAmount: form.paymentMethod === 'mixto' && form.mixedTransferenciaAmount ? parseFloat(form.mixedTransferenciaAmount) : undefined,
         paymentStatus: form.paymentStatus,
         dueDate: form.dueDate || undefined,
         fileUrl: form.fileUrl || undefined,
@@ -888,6 +900,28 @@ export function PurchaseInvoices() {
                   </div>
                 )}
               </div>
+
+              {/* Desglose pago mixto */}
+              {form.paymentMethod === 'mixto' && (
+                <div className="grid grid-cols-2 gap-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-amber-800 dark:text-amber-300">Monto en Efectivo ($)</Label>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0"
+                      value={form.mixedEfectivoAmount}
+                      onChange={(e) => setForm(p => ({ ...p, mixedEfectivoAmount: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-amber-800 dark:text-amber-300">Monto por Transferencia ($)</Label>
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="0"
+                      value={form.mixedTransferenciaAmount}
+                      onChange={(e) => setForm(p => ({ ...p, mixedTransferenciaAmount: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Right column: productos + adjunto + notas ── */}
@@ -1142,6 +1176,23 @@ export function PurchaseInvoices() {
                 <div><p className="text-muted-foreground text-xs">Pago</p><p className="font-semibold">{PAYMENT_METHOD_LABELS[form.paymentMethod]}</p></div>
                 <div><p className="text-muted-foreground text-xs">Estado</p><p className="font-semibold capitalize">{form.paymentStatus}</p></div>
               </div>
+              {form.paymentMethod === 'mixto' && (form.mixedEfectivoAmount || form.mixedTransferenciaAmount) && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-1">
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Desglose pago mixto</p>
+                  {form.mixedEfectivoAmount && parseFloat(form.mixedEfectivoAmount) > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Efectivo</span>
+                      <span className="font-semibold">{formatCOP(parseFloat(form.mixedEfectivoAmount))}</span>
+                    </div>
+                  )}
+                  {form.mixedTransferenciaAmount && parseFloat(form.mixedTransferenciaAmount) > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Transferencia</span>
+                      <span className="font-semibold">{formatCOP(parseFloat(form.mixedTransferenciaAmount))}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="rounded-md border overflow-hidden">
                 <Table>
                   <TableHeader>
@@ -1267,6 +1318,24 @@ export function PurchaseInvoices() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {editDetailForm.paymentMethod === 'mixto' && (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Efectivo ($)</Label>
+                        <Input className="h-8 text-sm" type="number" min="0" step="0.01" placeholder="0"
+                          value={editDetailForm.mixedEfectivoAmount || ''}
+                          onChange={e => setEditDetailForm(p => ({ ...p, mixedEfectivoAmount: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Transferencia ($)</Label>
+                        <Input className="h-8 text-sm" type="number" min="0" step="0.01" placeholder="0"
+                          value={editDetailForm.mixedTransferenciaAmount || ''}
+                          onChange={e => setEditDetailForm(p => ({ ...p, mixedTransferenciaAmount: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Estado de pago</Label>
                     <Select value={editDetailForm.paymentStatus || 'pagado'} onValueChange={v => setEditDetailForm(p => ({ ...p, paymentStatus: v as NewInvoiceForm['paymentStatus'] }))}>
@@ -1310,6 +1379,23 @@ export function PurchaseInvoices() {
                       <p className="text-xs text-muted-foreground mb-0.5">Método de Pago</p>
                       <p className="font-semibold text-sm">{PAYMENT_METHOD_LABELS[showDetail.paymentMethod] || showDetail.paymentMethod}</p>
                     </div>
+                    {showDetail.paymentMethod === 'mixto' && (showDetail.mixedEfectivoAmount != null || showDetail.mixedTransferenciaAmount != null) && (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-2 space-y-1">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Desglose pago mixto</p>
+                        {showDetail.mixedEfectivoAmount != null && showDetail.mixedEfectivoAmount > 0 && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Efectivo</span>
+                            <span className="font-semibold">{formatCOP(showDetail.mixedEfectivoAmount)}</span>
+                          </div>
+                        )}
+                        {showDetail.mixedTransferenciaAmount != null && showDetail.mixedTransferenciaAmount > 0 && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Transferencia</span>
+                            <span className="font-semibold">{formatCOP(showDetail.mixedTransferenciaAmount)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">Estado</p>
                       {paymentStatusBadge(showDetail.paymentStatus)}
@@ -1383,8 +1469,9 @@ export function PurchaseInvoices() {
                     <TableRow>
                       <TableHead>Producto</TableHead>
                       <TableHead className="text-right w-16">Cant.</TableHead>
-                      <TableHead className="text-right w-32">Costo Unit.</TableHead>
-                      <TableHead className="text-right w-32">Subtotal</TableHead>
+                      <TableHead className="text-right w-28">Costo Unit.</TableHead>
+                      <TableHead className="text-right w-28">Precio Venta</TableHead>
+                      <TableHead className="text-right w-28">Subtotal</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1396,6 +1483,9 @@ export function PurchaseInvoices() {
                         </TableCell>
                         <TableCell className="text-right text-sm">{item.quantity}</TableCell>
                         <TableCell className="text-right text-sm">{formatCOP(item.unitCost)}</TableCell>
+                        <TableCell className="text-right text-sm text-emerald-600 dark:text-emerald-400">
+                          {item.salePrice != null && item.salePrice > 0 ? formatCOP(item.salePrice) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
                         <TableCell className="text-right font-semibold text-sm">{formatCOP(item.subtotal)}</TableCell>
                       </TableRow>
                     ))}

@@ -386,6 +386,7 @@ export interface PurchaseInvoiceItem {
   productSku: string
   quantity: number
   unitCost: number
+  salePrice?: number | null
   subtotal: number
 }
 
@@ -401,6 +402,8 @@ export interface PurchaseInvoice {
   tax: number
   total: number
   paymentMethod: PurchasePaymentMethod
+  mixedEfectivoAmount?: number | null
+  mixedTransferenciaAmount?: number | null
   paymentStatus: PurchasePaymentStatus
   dueDate?: string | null
   fileUrl?: string | null
