@@ -1229,6 +1229,8 @@ class ApiService {
     documentType?: string
     items: Array<{ productId: string; quantity: number; unitCost: number; salePrice?: number }>
     paymentMethod?: string
+    mixedEfectivoAmount?: number
+    mixedTransferenciaAmount?: number
     paymentStatus?: string
     dueDate?: string
     fileUrl?: string
@@ -1274,6 +1276,8 @@ class ApiService {
     purchaseDate?: string
     documentType?: string
     paymentMethod?: string
+    mixedEfectivoAmount?: number | null
+    mixedTransferenciaAmount?: number | null
     paymentStatus?: string
     dueDate?: string | null
     fileUrl?: string | null
