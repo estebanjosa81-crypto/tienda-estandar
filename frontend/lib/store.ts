@@ -38,6 +38,9 @@ interface AppState {
     items: Array<{ productId: string; quantity: number; discount?: number; customAmount?: number }>
     paymentMethod: string
     amountPaid: number
+    mixedEfectivoAmount?: number
+    mixedSecondMethod?: string
+    mixedSecondAmount?: number
     globalDiscount?: number
     customerId?: string
     customerName?: string

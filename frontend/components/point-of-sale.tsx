@@ -501,6 +501,11 @@ export function PointOfSale() {
         paymentMethod === 'fiado' ? 0
         : paymentMethod === 'mixto' ? mixedCash + mixedSecondAmount
         : (parseFloat(amountPaid) || finalTotal),
+      ...(paymentMethod === 'mixto' && mixedCash > 0 ? {
+        mixedEfectivoAmount: mixedCash,
+        mixedSecondMethod: mixedSecondMethod,
+        mixedSecondAmount: mixedSecondAmount,
+      } : {}),
       globalDiscount: globalDiscount > 0 ? globalDiscount : undefined,
       customerId: selectedCustomer?.id,
       customerName: customer.name || selectedCustomer?.name || undefined,

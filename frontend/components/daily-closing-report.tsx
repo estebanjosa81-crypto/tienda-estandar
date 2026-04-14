@@ -73,14 +73,30 @@ function SedeCard({ sedeData, sedeName }: { sedeData: SedeReportData; sedeName: 
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Por método de pago</p>
             <div className="space-y-1.5">
               {Object.entries(sedeData.byPaymentMethod).map(([method, data]) => (
-                <div key={method} className="flex items-center justify-between">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_COLORS[method] || 'bg-muted text-muted-foreground'}`}>
-                    {PAYMENT_LABELS[method] || method}
-                  </span>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-muted-foreground">{data.count} vta{data.count !== 1 ? 's' : ''}</span>
-                    <span className="font-semibold">{fmt(data.total)}</span>
+                <div key={method}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_COLORS[method] || 'bg-muted text-muted-foreground'}`}>
+                      {PAYMENT_LABELS[method] || method}
+                    </span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-muted-foreground">{data.count} vta{data.count !== 1 ? 's' : ''}</span>
+                      <span className="font-semibold">{fmt(data.total)}</span>
+                    </div>
                   </div>
+                  {method === 'mixto' && data.mixedEfectivo != null && data.mixedEfectivo > 0 && (
+                    <div className="ml-2 mt-1 space-y-0.5 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>↳ Efectivo</span>
+                        <span className="font-medium text-foreground">{fmt(data.mixedEfectivo)}</span>
+                      </div>
+                      {data.mixedSecond != null && data.mixedSecond > 0 && (
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>↳ {PAYMENT_LABELS[data.mixedSecondMethod || ''] || data.mixedSecondMethod || 'Otro'}</span>
+                          <span className="font-medium text-foreground">{fmt(data.mixedSecond)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -178,12 +194,30 @@ export function DailyClosingReport() {
           <td style="text-align:right">$${Math.round(p.subtotal).toLocaleString('es-CO')}</td>
         </tr>`).join('')
 
-      const paymentRows = Object.entries(sede.byPaymentMethod).map(([m, d]) => `
+      const paymentRows = Object.entries(sede.byPaymentMethod).map(([m, d]) => {
+        const mainRow = `
         <tr>
           <td>${PAYMENT_LABELS[m] || m}</td>
           <td style="text-align:center">${d.count}</td>
           <td style="text-align:right">$${Math.round(d.total).toLocaleString('es-CO')}</td>
-        </tr>`).join('')
+        </tr>`
+        if (m === 'mixto' && d.mixedEfectivo != null && d.mixedEfectivo > 0) {
+          const efectivoRow = `
+        <tr style="color:#666;font-size:0.85em">
+          <td style="padding-left:16px">↳ Efectivo</td>
+          <td></td>
+          <td style="text-align:right">$${Math.round(d.mixedEfectivo).toLocaleString('es-CO')}</td>
+        </tr>`
+          const secondRow = d.mixedSecond != null && d.mixedSecond > 0 ? `
+        <tr style="color:#666;font-size:0.85em">
+          <td style="padding-left:16px">↳ ${PAYMENT_LABELS[d.mixedSecondMethod || ''] || d.mixedSecondMethod || 'Otro'}</td>
+          <td></td>
+          <td style="text-align:right">$${Math.round(d.mixedSecond).toLocaleString('es-CO')}</td>
+        </tr>` : ''
+          return mainRow + efectivoRow + secondRow
+        }
+        return mainRow
+      }).join('')
 
       return `
         <div class="sede-block">

@@ -41,3 +41,40 @@ SET @sql3 = IF(@col3 = 0,
   'SELECT "mixed_transferencia_amount ya existe en purchase_invoices"'
 );
 PREPARE stmt FROM @sql3; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ============================================================
+-- Desglose pago mixto en ventas (sales)
+-- ============================================================
+
+-- 4. Agregar mixed_efectivo_amount a sales
+SET @col4 = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_efectivo_amount'
+);
+SET @sql4 = IF(@col4 = 0,
+  'ALTER TABLE sales ADD COLUMN mixed_efectivo_amount DECIMAL(12,2) NULL AFTER change_amount',
+  'SELECT "mixed_efectivo_amount ya existe en sales"'
+);
+PREPARE stmt FROM @sql4; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 5. Agregar mixed_second_method a sales (metodo secundario del pago mixto)
+SET @col5 = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_second_method'
+);
+SET @sql5 = IF(@col5 = 0,
+  'ALTER TABLE sales ADD COLUMN mixed_second_method VARCHAR(30) NULL AFTER mixed_efectivo_amount',
+  'SELECT "mixed_second_method ya existe en sales"'
+);
+PREPARE stmt FROM @sql5; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 6. Agregar mixed_second_amount a sales (monto del metodo secundario)
+SET @col6 = (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_second_amount'
+);
+SET @sql6 = IF(@col6 = 0,
+  'ALTER TABLE sales ADD COLUMN mixed_second_amount DECIMAL(12,2) NULL AFTER mixed_second_method',
+  'SELECT "mixed_second_amount ya existe en sales"'
+);
+PREPARE stmt FROM @sql6; EXECUTE stmt; DEALLOCATE PREPARE stmt;

@@ -19,6 +19,9 @@ interface SaleRow extends RowDataPacket {
   payment_method: PaymentMethod;
   amount_paid: number;
   change_amount: number;
+  mixed_efectivo_amount: number | null;
+  mixed_second_method: string | null;
+  mixed_second_amount: number | null;
   seller_id: string | null;
   seller_name: string;
   sede_id: string | null;
@@ -84,7 +87,7 @@ export interface SedeReportData {
   tax: number;
   discount: number;
   total: number;
-  byPaymentMethod: Record<string, { count: number; total: number }>;
+  byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }>;
   products: ProductReportItem[];
 }
 
@@ -110,6 +113,9 @@ export interface CreateSaleData {
   items: CreateSaleItem[];
   paymentMethod: PaymentMethod;
   amountPaid: number;
+  mixedEfectivoAmount?: number;
+  mixedSecondMethod?: string;
+  mixedSecondAmount?: number;
   globalDiscount?: number;
   customerId?: string;
   customerName?: string;
@@ -140,6 +146,9 @@ export class SalesService {
       paymentMethod: row.payment_method,
       amountPaid: Number(row.amount_paid),
       change: Number(row.change_amount),
+      mixedEfectivoAmount: row.mixed_efectivo_amount != null ? Number(row.mixed_efectivo_amount) : undefined,
+      mixedSecondMethod: row.mixed_second_method || undefined,
+      mixedSecondAmount: row.mixed_second_amount != null ? Number(row.mixed_second_amount) : undefined,
       sellerId: row.seller_id || undefined,
       sellerName: row.seller_name,
       sedeId: row.sede_id || undefined,
@@ -611,8 +620,10 @@ export class SalesService {
       // Insertar venta
       await connection.execute<ResultSetHeader>(
         `INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, customer_phone, customer_email,
-          subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, sede_id, cash_session_id, credit_status, due_date, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          subtotal, tax, discount, total, payment_method, amount_paid, change_amount,
+          mixed_efectivo_amount, mixed_second_method, mixed_second_amount,
+          seller_id, seller_name, sede_id, cash_session_id, credit_status, due_date, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           saleId,
           tenantId,
@@ -628,6 +639,9 @@ export class SalesService {
           data.paymentMethod,
           amountPaid,
           change,
+          data.paymentMethod === 'mixto' ? (data.mixedEfectivoAmount ?? null) : null,
+          data.paymentMethod === 'mixto' ? (data.mixedSecondMethod ?? null) : null,
+          data.paymentMethod === 'mixto' ? (data.mixedSecondAmount ?? null) : null,
           data.sellerId,
           data.sellerName,
           data.sedeId || null,
@@ -874,7 +888,7 @@ export class SalesService {
     // Build report per sede
     const sedeReports: SedeReportData[] = [];
     for (const [sedeKey, sales] of sedeGroups.entries()) {
-      const byPaymentMethod: Record<string, { count: number; total: number }> = {};
+      const byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }> = {};
       const productMap = new Map<string, ProductReportItem>();
       let subtotal = 0, tax = 0, discount = 0, total = 0;
 
@@ -888,6 +902,15 @@ export class SalesService {
         if (!byPaymentMethod[pm]) byPaymentMethod[pm] = { count: 0, total: 0 };
         byPaymentMethod[pm].count++;
         byPaymentMethod[pm].total += Number(sale.total);
+
+        // Acumular desglose de pago mixto
+        if (pm === 'mixto' && sale.mixed_efectivo_amount != null) {
+          byPaymentMethod[pm].mixedEfectivo = (byPaymentMethod[pm].mixedEfectivo || 0) + Number(sale.mixed_efectivo_amount);
+          byPaymentMethod[pm].mixedSecond = (byPaymentMethod[pm].mixedSecond || 0) + Number(sale.mixed_second_amount || 0);
+          if (!byPaymentMethod[pm].mixedSecondMethod && sale.mixed_second_method) {
+            byPaymentMethod[pm].mixedSecondMethod = sale.mixed_second_method;
+          }
+        }
 
         const items = itemsBySale.get(sale.id) || [];
         for (const item of items) {
