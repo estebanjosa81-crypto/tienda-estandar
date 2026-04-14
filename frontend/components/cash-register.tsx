@@ -381,7 +381,7 @@ export function CashRegister() {
   }
 
   // =============== STATE B: Active session ===============
-  const totalAllSales = (liveTotals?.cashSales || 0) + (liveTotals?.cardSales || 0) + (liveTotals?.transferSales || 0) + (liveTotals?.fiadoSales || 0)
+  const totalAllSales = (liveTotals?.cashSales || 0) + (liveTotals?.cardSales || 0) + (liveTotals?.transferSales || 0) + (liveTotals?.fiadoSales || 0) + (liveTotals?.mixedSales || 0)
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -436,6 +436,27 @@ export function CashRegister() {
           value={liveTotals?.fiadoSales || 0}
           icon={<HandCoins className="h-5 w-5 text-orange-500" />}
         />
+        {(liveTotals?.mixedSales || 0) > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Pago Mixto</p>
+              <Coins className="h-5 w-5 text-amber-500" />
+            </div>
+            <p className="text-lg font-bold text-amber-900 dark:text-amber-100">{formatCOP(liveTotals?.mixedSales || 0)}</p>
+            {(liveTotals?.mixedEfectivoTotal || 0) > 0 && (
+              <div className="space-y-0.5 border-t border-amber-200 dark:border-amber-700 pt-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-amber-700 dark:text-amber-400">↳ Efectivo</span>
+                  <span className="font-semibold text-amber-900 dark:text-amber-100">{formatCOP(liveTotals?.mixedEfectivoTotal || 0)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-amber-700 dark:text-amber-400">↳ Transferencia</span>
+                  <span className="font-semibold text-amber-900 dark:text-amber-100">{formatCOP(liveTotals?.mixedSecondTotal || 0)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <TotalCard
           title="Total Ventas"
           value={totalAllSales}

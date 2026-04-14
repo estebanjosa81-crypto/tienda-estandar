@@ -68,6 +68,9 @@ export interface CashSessionTotals {
   cardSales: number;
   transferSales: number;
   fiadoSales: number;
+  mixedSales: number;
+  mixedEfectivoTotal: number;
+  mixedSecondTotal: number;
   salesCount: number;
   changeGiven: number;
   cashEntries: number;
@@ -267,6 +270,8 @@ export class CashSessionsService {
       `SELECT payment_method,
               COALESCE(SUM(total), 0) as total_amount,
               COALESCE(SUM(change_amount), 0) as total_change,
+              COALESCE(SUM(mixed_efectivo_amount), 0) as total_mixed_efectivo,
+              COALESCE(SUM(mixed_second_amount), 0) as total_mixed_second,
               COUNT(*) as count
        FROM sales
        WHERE cash_session_id = ? AND status = 'completada'
@@ -278,6 +283,9 @@ export class CashSessionsService {
     let cardSales = 0;
     let transferSales = 0;
     let fiadoSales = 0;
+    let mixedSales = 0;
+    let mixedEfectivoTotal = 0;
+    let mixedSecondTotal = 0;
     let salesCount = 0;
     let changeGiven = 0;
 
@@ -296,8 +304,12 @@ export class CashSessionsService {
           cardSales += amount;
           break;
         case 'transferencia':
-        case 'mixto':
           transferSales += amount;
+          break;
+        case 'mixto':
+          mixedSales += amount;
+          mixedEfectivoTotal += Number((row as any).total_mixed_efectivo || 0);
+          mixedSecondTotal += Number((row as any).total_mixed_second || 0);
           break;
         case 'fiado':
           fiadoSales = amount;
@@ -327,6 +339,9 @@ export class CashSessionsService {
       cardSales,
       transferSales,
       fiadoSales,
+      mixedSales,
+      mixedEfectivoTotal,
+      mixedSecondTotal,
       salesCount,
       changeGiven,
       cashEntries,
@@ -367,6 +382,8 @@ export class CashSessionsService {
         `SELECT payment_method,
                 COALESCE(SUM(total), 0) as total_amount,
                 COALESCE(SUM(change_amount), 0) as total_change,
+                COALESCE(SUM(mixed_efectivo_amount), 0) as total_mixed_efectivo,
+                COALESCE(SUM(mixed_second_amount), 0) as total_mixed_second,
                 COUNT(*) as count
          FROM sales
          WHERE cash_session_id = ? AND status = 'completada'
@@ -378,6 +395,7 @@ export class CashSessionsService {
       let totalCardSales = 0;
       let totalTransferSales = 0;
       let totalFiadoSales = 0;
+      let totalMixedSales = 0;
       let totalSalesCount = 0;
       let totalChangeGiven = 0;
 
@@ -396,8 +414,10 @@ export class CashSessionsService {
             totalCardSales += amount;
             break;
           case 'transferencia':
-          case 'mixto':
             totalTransferSales += amount;
+            break;
+          case 'mixto':
+            totalMixedSales += amount;
             break;
           case 'fiado':
             totalFiadoSales = amount;
