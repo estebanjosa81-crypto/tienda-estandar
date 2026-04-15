@@ -1450,6 +1450,7 @@ class ApiService {
 
   async updateSuperadminIntegrations(data: {
     cloudinaryCloudName?: string; cloudinaryUploadPreset?: string; openaiApiKey?: string;
+    sistecreditoVendorId?: string; sistecreditoStoreId?: string; sistecreditoSubscriptionKey?: string;
   }) {
     return this.request<any>('/chatbot/superadmin/integrations', {
       method: 'PUT',
