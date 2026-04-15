@@ -128,14 +128,18 @@ export function SuperadminHome() {
   const [isSearching, setIsSearching] = useState(false)
   const [isSavingFeatured, setIsSavingFeatured] = useState(false)
 
-  // ── Integrations (Cloudinary + OpenAI) ──
+  // ── Integrations (Cloudinary + OpenAI + Sistecrédito) ──
   const [integrations, setIntegrations] = useState({
     cloudinaryCloudName: '',
     cloudinaryUploadPreset: '',
     openaiApiKey: '',
+    sistecreditoVendorId: '',
+    sistecreditoStoreId: '',
+    sistecreditoSubscriptionKey: '',
   })
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
   const [showUploadPreset, setShowUploadPreset] = useState(false)
+  const [showSisteKeys, setShowSisteKeys] = useState(false)
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
@@ -164,6 +168,9 @@ export function SuperadminHome() {
         cloudinaryCloudName: result.data.cloudinaryCloudName || '',
         cloudinaryUploadPreset: result.data.cloudinaryUploadPreset || '',
         openaiApiKey: result.data.openaiApiKey || '',
+        sistecreditoVendorId: result.data.sistecreditoVendorId || '',
+        sistecreditoStoreId: result.data.sistecreditoStoreId || '',
+        sistecreditoSubscriptionKey: result.data.sistecreditoSubscriptionKey || '',
       })
     }
   }, [])
@@ -1238,6 +1245,85 @@ export function SuperadminHome() {
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${integrations.openaiApiKey ? 'bg-green-500' : 'bg-amber-400'}`} />
                 <span className="text-muted-foreground text-xs">
                   {integrations.openaiApiKey ? 'API Key configurada — el chatbot puede activarse en comercios' : 'Sin configurar — el chatbot no funcionará'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Sistecrédito ── */}
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                {/* Sistecrédito logo mark */}
+                <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="40" height="40" rx="6" fill="#1A3FA0"/>
+                  <text x="20" y="26" textAnchor="middle" fontFamily="Arial" fontWeight="bold" fontSize="14" fill="white">SC</text>
+                </svg>
+                Sistecrédito — Pasarela de Crédito
+              </CardTitle>
+              <CardDescription>
+                Credenciales de producción entregadas por Sistecrédito. Permiten que los clientes paguen a cuotas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 text-xs space-y-1">
+                <p className="font-medium text-blue-600 dark:text-blue-400">¿De dónde vienen estos datos?</p>
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  <li><strong>Vendorid</strong> → campo <strong>ApplicationToken</strong> (identifica la razón social)</li>
+                  <li><strong>Storeid</strong> → campo <strong>ApplicationKey</strong> (identifica la tienda)</li>
+                  <li><strong>Suscription Key Prod</strong> → campo <strong>Ocp-Apim-Subscription-Key</strong></li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>ApplicationToken (Vendorid)</Label>
+                  <div className="relative">
+                    <Input
+                      type={showSisteKeys ? 'text' : 'password'}
+                      placeholder="689fc677a559..."
+                      value={integrations.sistecreditoVendorId}
+                      onChange={e => setIntegrations(p => ({ ...p, sistecreditoVendorId: e.target.value }))}
+                      className="font-mono text-sm pr-10"
+                    />
+                    <button type="button" onClick={() => setShowSisteKeys(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showSisteKeys ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>ApplicationKey (Storeid)</Label>
+                  <Input
+                    type={showSisteKeys ? 'text' : 'password'}
+                    placeholder="69dfc673bb062810..."
+                    value={integrations.sistecreditoStoreId}
+                    onChange={e => setIntegrations(p => ({ ...p, sistecreditoStoreId: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Ocp-Apim-Subscription-Key (Suscription Key Prod)</Label>
+                  <Input
+                    type={showSisteKeys ? 'text' : 'password'}
+                    placeholder="6e235c73129a41bcb47..."
+                    value={integrations.sistecreditoSubscriptionKey}
+                    onChange={e => setIntegrations(p => ({ ...p, sistecreditoSubscriptionKey: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 text-sm">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  integrations.sistecreditoVendorId && integrations.sistecreditoStoreId && integrations.sistecreditoSubscriptionKey
+                    ? 'bg-green-500' : 'bg-amber-400'}`} />
+                <span className="text-muted-foreground text-xs">
+                  {integrations.sistecreditoVendorId && integrations.sistecreditoStoreId && integrations.sistecreditoSubscriptionKey
+                    ? 'Activo — Sistecrédito habilitado en el checkout'
+                    : 'Sin configurar — no aparecerá en el checkout'}
                 </span>
               </div>
             </CardContent>

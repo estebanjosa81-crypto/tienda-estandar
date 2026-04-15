@@ -489,51 +489,67 @@ router.post(
 // PUBLIC: Crear solicitud de crédito con Sistecredito
 // =============================================
 
-// Helper: load Sistecredito credentials from env or platform_settings
+// Helper: load Sistecredito pasarela credentials from env or platform_settings
+// Based on G-ALI-08 / G-ALI-10 / G-ALI-12 documentation
 async function loadSisteCredentials() {
-  let apiKey = process.env.SISTECREDITO_API_KEY || '';
-  let apiSecret = process.env.SISTECREDITO_SECRET || process.env.SISTECREDITO_API_SECRET || '';
-  let allyCode = process.env.SISTECREDITO_ALLY || process.env.SISTECREDITO_ALLY_CODE || '';
+  let vendorId = process.env.SISTECREDITO_VENDOR_ID || '';      // ApplicationToken
+  let storeId = process.env.SISTECREDITO_STORE_ID || '';        // ApplicationKey
+  let subscriptionKey = process.env.SISTECREDITO_SUBSCRIPTION_KEY || ''; // Ocp-Apim-Subscription-Key
   let isProduction = process.env.SISTECREDITO_ENV === 'production' || process.env.SISTECREDITO_PRODUCTION === 'true';
 
-  if (!apiKey) {
+  if (!vendorId || !storeId || !subscriptionKey) {
     const [psRows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('sistecredito_api_key','sistecredito_api_secret','sistecredito_ally_code','sistecredito_production')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('sistecredito_vendor_id','sistecredito_store_id','sistecredito_subscription_key','sistecredito_production')"
     ) as any;
     for (const r of psRows) {
-      if (r.setting_key === 'sistecredito_api_key') apiKey = r.setting_value || apiKey;
-      if (r.setting_key === 'sistecredito_api_secret') apiSecret = r.setting_value || apiSecret;
-      if (r.setting_key === 'sistecredito_ally_code') allyCode = r.setting_value || allyCode;
+      if (r.setting_key === 'sistecredito_vendor_id') vendorId = r.setting_value || vendorId;
+      if (r.setting_key === 'sistecredito_store_id') storeId = r.setting_value || storeId;
+      if (r.setting_key === 'sistecredito_subscription_key') subscriptionKey = r.setting_value || subscriptionKey;
       if (r.setting_key === 'sistecredito_production') isProduction = r.setting_value === 'true';
     }
   }
 
-  const baseUrl = isProduction
-    ? 'https://api.sistecredito.com'
-    : 'https://api-sandbox.sistecredito.com';
+  // Pasarela URL — same for both environments, ambiente controlled by SCOrigen header
+  const baseUrl = 'https://api.credinet.co';
+  const scOrigen = isProduction ? 'Production' : 'Staging';
 
-  return { apiKey, apiSecret, allyCode, isProduction, baseUrl };
+  return { vendorId, storeId, subscriptionKey, isProduction, baseUrl, scOrigen };
 }
 
-// Helper: build auth headers for Sistecredito
-// Uses HMAC-SHA256 if secret is provided, otherwise Bearer token
-function buildSisteHeaders(apiKey: string, apiSecret: string, payloadStr: string): Record<string, string> {
-  const headers: Record<string, string> = {
+// Helper: build pasarela headers (G-ALI-10)
+function buildSisteHeaders(vendorId: string, storeId: string, subscriptionKey: string, scOrigen: string): Record<string, string> {
+  return {
     'Content-Type': 'application/json',
-    'x-api-key': apiKey,
+    'SCLocation': '0,0',
+    'SCOrigen': scOrigen,
+    'country': 'co',
+    'Ocp-Apim-Subscription-Key': subscriptionKey,
+    'ApplicationKey': storeId,
+    'ApplicationToken': vendorId,
   };
+}
 
-  if (apiSecret) {
-    const signature = crypto
-      .createHmac('sha256', apiSecret)
-      .update(payloadStr)
-      .digest('hex');
-    headers['x-signature'] = signature;
-  } else {
-    headers['Authorization'] = `Bearer ${apiKey}`;
+// Helper: poll GetTransactionResponse until paymentRedirectUrl is available (max ~15s)
+async function pollSisteRedirectUrl(
+  transactionId: string,
+  headers: Record<string, string>,
+  baseUrl: string
+): Promise<string | null> {
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const res = await fetch(`${baseUrl}/pay/GetTransactionResponse?transactionId=${transactionId}`, { headers });
+      if (!res.ok) continue;
+      const json: any = await res.json();
+      const pmr = json?.data?.paymentMethodResponse;
+      const url = pmr?.paymentRedirectUrl;
+      const status = pmr?.statusResponse || json?.data?.transactionStatus;
+      if (url && url.trim() !== '') return url;
+      // If terminal failure, stop polling
+      if (['Rejected', 'Cancelled', 'Expired', 'Abandoned', 'Failed'].includes(status)) return null;
+    } catch { /* keep polling */ }
   }
-
-  return headers;
+  return null;
 }
 
 router.post(
@@ -552,9 +568,9 @@ router.post(
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
     try {
-      const { apiKey, apiSecret, allyCode, baseUrl } = await loadSisteCredentials();
+      const { vendorId, storeId, subscriptionKey, baseUrl, scOrigen } = await loadSisteCredentials();
 
-      if (!apiKey) {
+      if (!vendorId || !storeId || !subscriptionKey) {
         res.status(503).json({ success: false, error: 'Sistecredito no está configurado. Configúralo en el panel de administración.' });
         return;
       }
@@ -583,7 +599,7 @@ router.post(
       }
 
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
-      const total = Math.max(0, subtotal - discount);
+      const total = Math.round(Math.max(0, subtotal - discount));
 
       // Create order in DB
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
@@ -613,91 +629,93 @@ router.post(
         );
       }
 
-      // Build payload following Sistecredito structure
+      // Build payload for pasarela (G-ALI-12 / G-ALI-10)
+      // paymentMethodId=2 for Sistecredito in both Staging and Production
+      const [nameParts] = [customerName.trim().split(' ')];
+      const firstName = nameParts[0] || customerName;
+      const lastName = nameParts.slice(1).join(' ') || '';
+
       const sistePayload: Record<string, any> = {
-        customer: {
-          name: customerName,
+        invoice: orderNumber,
+        description: `Compra ${orderNumber}`,
+        paymentMethod: {
+          paymentMethodId: 2,
+          BankCode: 1,
+          UserType: 0,
+        },
+        currency: 'COP',
+        value: total,
+        tax: 0,
+        taxBase: total,
+        sandbox: { isActive: false },
+        urlResponse: `${frontendUrl}/?sistecredito=success&order=${orderId}`,
+        urlConfirmation: `${backendUrl}/api/orders/sistecredito-webhook`,
+        methodConfirmation: 'POST',
+        client: {
+          docType: 'CC',
           document: customerCedula,
-          phone: customerPhone,
+          name: firstName,
+          lastName: lastName,
           email: customerEmail || '',
-          address: address || '',
+          indCountry: '57',
+          phone: customerPhone,
+          country: 'CO',
           city: municipality || '',
-          department: department || '',
+          address: address || '',
+          ipAddress: '0.0.0.0',
         },
-        order: {
-          reference: orderNumber,
-          value: total,
-          currency: 'COP',
-        },
-        redirectUrl: `${frontendUrl}/?sistecredito=success&order=${orderId}`,
-        cancelUrl: `${frontendUrl}/?sistecredito=cancel&order=${orderId}`,
-        notifyUrl: `${backendUrl}/api/orders/sistecredito-webhook`,
       };
 
-      if (allyCode) sistePayload.allyCode = allyCode;
+      const headers = buildSisteHeaders(vendorId, storeId, subscriptionKey, scOrigen);
 
-      const payloadStr = JSON.stringify(sistePayload);
-      const headers = buildSisteHeaders(apiKey, apiSecret, payloadStr);
-
-      const appRes = await fetch(`${baseUrl}/credit/application`, {
+      // Step 1: Create transaction (G-ALI-08)
+      const createRes = await fetch(`${baseUrl}/pay/create`, {
         method: 'POST',
         headers,
-        body: payloadStr,
+        body: JSON.stringify(sistePayload),
       });
 
-      const appData: any = await appRes.json();
+      const createData: any = await createRes.json();
 
-      if (!appRes.ok) {
-        console.error('Sistecredito application error:', appData);
+      if (!createRes.ok || createData.errorCode !== 0) {
+        console.error('Sistecredito create error:', createData);
         res.status(502).json({
           success: false,
-          error: appData?.message || appData?.mensaje || appData?.error || 'Error al crear solicitud en Sistecredito.',
+          error: createData?.message || createData?.data?.description || 'Error al crear transacción en Sistecredito.',
         });
         return;
       }
 
-      // Handle response: approval / rejection / redirect link
-      const status = appData.status || appData.estado || '';
-      if (status === 'rejected' || status === 'rechazado') {
-        // Update order status to reflect rejection
-        await pool.query(
-          "UPDATE storefront_orders SET notes = CONCAT(notes, ' [RECHAZADO POR SISTECREDITO]') WHERE id = ?",
-          [orderId]
-        );
-        res.status(200).json({
-          success: false,
-          error: appData.message || appData.mensaje || 'Crédito no aprobado por Sistecredito.',
-          rejected: true,
-        });
+      const transactionId: string = createData?.data?._id;
+      if (!transactionId) {
+        res.status(502).json({ success: false, error: 'Sistecredito no devolvió ID de transacción.' });
         return;
       }
 
-      // Approved or pending — get redirect URL
-      const applicationUrl =
-        appData.url ||
-        appData.redirectUrl ||
-        appData.urlRedireccion ||
-        appData.applicationUrl ||
-        appData.link;
+      // Store transaction ID in order notes for webhook reconciliation
+      await pool.query(
+        "UPDATE storefront_orders SET notes = CONCAT(notes, ?) WHERE id = ?",
+        [` [SC_TXN:${transactionId}]`, orderId]
+      );
 
-      if (!applicationUrl) {
-        // Sistecredito may approve inline (no redirect needed)
-        if (status === 'approved' || status === 'aprobado') {
-          await pool.query("UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?", [orderId]);
-          res.status(201).json({
-            success: true,
-            data: { orderId, orderNumber, total, approved: true },
-          });
-          return;
-        }
-        console.error('Sistecredito response missing URL:', appData);
-        res.status(502).json({ success: false, error: 'Sistecredito no devolvió una URL de validación.' });
+      // Check if redirect URL already available in create response
+      let redirectUrl: string | null =
+        createData?.data?.paymentMethodResponse?.paymentRedirectUrl || null;
+
+      // Step 2: Poll GetTransactionResponse until URL is ready (G-ALI-08)
+      if (!redirectUrl || redirectUrl.trim() === '') {
+        redirectUrl = await pollSisteRedirectUrl(transactionId, headers, baseUrl);
+      }
+
+      if (!redirectUrl) {
+        console.error('Sistecredito: no redirect URL after polling. transactionId:', transactionId);
+        res.status(502).json({ success: false, error: 'Sistecredito no devolvió URL de pago. Intenta de nuevo.' });
         return;
       }
 
       res.status(201).json({
         success: true,
-        data: { orderId, orderNumber, total, applicationUrl },
+        data: { orderId, orderNumber, total, applicationUrl: redirectUrl },
       });
     } catch (error) {
       console.error('Sistecredito application error:', error);
@@ -804,78 +822,93 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
 // =============================================
 // PUBLIC: Webhook de Sistecredito
 // =============================================
+// Sistecredito pasarela webhook (G-ALI-08 notificaciones)
+// Receives POST with same structure as GetTransactionResponse
+// Field: transactionStatus / invoice / _id
 router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
   try {
-    const { apiKey, apiSecret } = await loadSisteCredentials();
+    // The pasarela sends body with transactionStatus, invoice, _id (G-ALI-08)
+    const body = req.body;
+    const transactionStatus: string = body?.transactionStatus || '';
+    const invoice: string = body?.invoice || '';       // orderNumber
+    const transactionId: string = body?._id || '';
 
-    // Verify HMAC signature if secret is configured
-    if (apiSecret) {
-      const receivedSig = req.headers['x-signature'] as string || '';
-      const payloadStr = JSON.stringify(req.body);
-      const expectedSig = crypto
-        .createHmac('sha256', apiSecret)
-        .update(payloadStr)
-        .digest('hex');
-      const receivedBuf = Buffer.from(receivedSig.padEnd(expectedSig.length, '\0'));
-      const expectedBuf = Buffer.from(expectedSig);
-      const sigValid = receivedBuf.length === expectedBuf.length &&
-        crypto.timingSafeEqual(receivedBuf, expectedBuf);
-      if (!sigValid) {
-        console.warn('Sistecredito webhook: invalid signature');
-        res.status(401).json({ error: 'Invalid signature' });
-        return;
-      }
-    } else if (apiKey) {
-      // Some integrations send the API key as a header for webhook validation
-      const receivedKey = req.headers['x-api-key'] as string || '';
-      if (receivedKey && receivedKey !== apiKey) {
-        console.warn('Sistecredito webhook: invalid api key');
-        res.status(401).json({ error: 'Invalid API key' });
-        return;
-      }
-    }
-
-    const { reference, status, orderId: webhookOrderId } = req.body;
-    const resolvedRef = webhookOrderId || reference;
-
-    if (!resolvedRef) {
-      res.status(400).json({ error: 'Missing order reference' });
+    if (!invoice && !transactionId) {
+      res.status(200).json({ received: true });
       return;
     }
 
-    // Find order by orderId or orderNumber
-    const [orderRows] = await pool.query(
-      "SELECT id, status FROM storefront_orders WHERE id = ? OR order_number = ? LIMIT 1",
-      [resolvedRef, resolvedRef]
-    ) as any;
+    // Verify notification by querying the pasarela GET endpoint (anti-fraud, G-ALI-08)
+    // Only verify if credentials are available — don't block if creds missing
+    try {
+      const { vendorId, storeId, subscriptionKey, baseUrl, scOrigen } = await loadSisteCredentials();
+      if (vendorId && storeId && subscriptionKey && transactionId) {
+        const headers = buildSisteHeaders(vendorId, storeId, subscriptionKey, scOrigen);
+        const verifyRes = await fetch(`${baseUrl}/pay/GetTransactionResponse?transactionId=${transactionId}`, { headers });
+        if (verifyRes.ok) {
+          const verifyData: any = await verifyRes.json();
+          const verifiedStatus: string = verifyData?.data?.transactionStatus || '';
+          const verifiedInvoice: string = verifyData?.data?.invoice || '';
+          // Cross-check key fields
+          if (verifiedStatus && verifiedStatus !== transactionStatus) {
+            console.warn(`Sistecredito webhook: status mismatch notif=${transactionStatus} verified=${verifiedStatus}`);
+            res.status(200).json({ received: true });
+            return;
+          }
+          if (verifiedInvoice && invoice && verifiedInvoice !== invoice) {
+            console.warn(`Sistecredito webhook: invoice mismatch notif=${invoice} verified=${verifiedInvoice}`);
+            res.status(200).json({ received: true });
+            return;
+          }
+        }
+      }
+    } catch (verifyErr) {
+      console.warn('Sistecredito webhook: could not verify with GET, proceeding:', verifyErr);
+    }
+
+    // Find order by invoice (orderNumber) or by SC_TXN tag in notes
+    let orderRows: any[] = [];
+    if (invoice) {
+      const [rows] = await pool.query(
+        "SELECT id, status FROM storefront_orders WHERE order_number = ? AND payment_method = 'sistecredito' LIMIT 1",
+        [invoice]
+      ) as any;
+      orderRows = rows;
+    }
+    if ((!orderRows || orderRows.length === 0) && transactionId) {
+      const [rows] = await pool.query(
+        "SELECT id, status FROM storefront_orders WHERE notes LIKE ? AND payment_method = 'sistecredito' LIMIT 1",
+        [`%SC_TXN:${transactionId}%`]
+      ) as any;
+      orderRows = rows;
+    }
 
     if (!orderRows || orderRows.length === 0) {
-      console.warn('Sistecredito webhook: order not found:', resolvedRef);
-      res.status(200).json({ received: true }); // always 200 to avoid retries
+      console.warn('Sistecredito webhook: order not found for invoice:', invoice, 'txn:', transactionId);
+      res.status(200).json({ received: true });
       return;
     }
 
     const order = orderRows[0];
-    const normalizedStatus = (status || '').toLowerCase();
 
-    if ((normalizedStatus === 'approved' || normalizedStatus === 'aprobado') && order.status === 'pendiente') {
+    if (transactionStatus === 'Approved' && order.status === 'pendiente') {
       await pool.query(
         "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?",
         [order.id]
       );
-      console.log(`Sistecredito webhook: order ${order.id} confirmed`);
-    } else if (normalizedStatus === 'rejected' || normalizedStatus === 'rechazado') {
+      console.log(`Sistecredito webhook: order ${order.id} confirmed (Approved)`);
+    } else if (['Rejected', 'Cancelled', 'Expired', 'Abandoned', 'Failed'].includes(transactionStatus)) {
       await pool.query(
-        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?",
+        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
         [order.id]
       );
-      console.log(`Sistecredito webhook: order ${order.id} cancelled (rejected)`);
+      console.log(`Sistecredito webhook: order ${order.id} cancelled (${transactionStatus})`);
     }
 
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Sistecredito webhook error:', error);
-    res.status(200).json({ received: true }); // always 200 to avoid retries
+    res.status(200).json({ received: true }); // always 200 to avoid pasarela retries
   }
 });
 

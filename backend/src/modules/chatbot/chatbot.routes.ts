@@ -504,7 +504,7 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
     }
 
     const [rows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','openai_api_key')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','openai_api_key','sistecredito_vendor_id','sistecredito_store_id','sistecredito_subscription_key')"
     ) as any;
 
     const settings: Record<string, string> = {};
@@ -518,6 +518,9 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
         cloudinaryCloudName: settings['cloudinary_cloud_name'] || '',
         cloudinaryUploadPreset: settings['cloudinary_upload_preset'] || '',
         openaiApiKey: settings['openai_api_key'] || '',
+        sistecreditoVendorId: settings['sistecredito_vendor_id'] || '',
+        sistecreditoStoreId: settings['sistecredito_store_id'] || '',
+        sistecreditoSubscriptionKey: settings['sistecredito_subscription_key'] || '',
       },
     });
   } catch (error) {
@@ -537,12 +540,16 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
       return;
     }
 
-    const { cloudinaryCloudName, cloudinaryUploadPreset, openaiApiKey } = req.body;
+    const { cloudinaryCloudName, cloudinaryUploadPreset, openaiApiKey,
+            sistecreditoVendorId, sistecreditoStoreId, sistecreditoSubscriptionKey } = req.body;
 
     const updates = [
       ['cloudinary_cloud_name', cloudinaryCloudName || ''],
       ['cloudinary_upload_preset', cloudinaryUploadPreset || ''],
       ['openai_api_key', openaiApiKey || ''],
+      ['sistecredito_vendor_id', sistecreditoVendorId || ''],
+      ['sistecredito_store_id', sistecreditoStoreId || ''],
+      ['sistecredito_subscription_key', sistecreditoSubscriptionKey || ''],
     ];
 
     for (const [key, value] of updates) {

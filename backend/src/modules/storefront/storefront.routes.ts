@@ -873,8 +873,8 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
 
     // Load platform_settings for this tenant
     const [psRows] = await pool.query(
-      'SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN (?, ?, ?, ?, ?)',
-      ['mp_access_token', 'addi_client_id', 'addi_client_secret', 'sistecredito_api_key', 'contraentrega_enabled']
+      'SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN (?, ?, ?, ?, ?, ?, ?)',
+      ['mp_access_token', 'addi_client_id', 'addi_client_secret', 'sistecredito_vendor_id', 'sistecredito_store_id', 'sistecredito_subscription_key', 'contraentrega_enabled']
     ) as any;
 
     const settings: Record<string, string> = {};
@@ -892,8 +892,10 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
       (process.env.ADDI_CLIENT_ID && process.env.ADDI_CLIENT_SECRET)
     );
     const sistecredito = !!(
-      (settings['sistecredito_api_key'] && settings['sistecredito_api_key'].trim()) ||
-      process.env.SISTECREDITO_API_KEY
+      (settings['sistecredito_vendor_id'] && settings['sistecredito_vendor_id'].trim() &&
+       settings['sistecredito_store_id'] && settings['sistecredito_store_id'].trim() &&
+       settings['sistecredito_subscription_key'] && settings['sistecredito_subscription_key'].trim()) ||
+      (process.env.SISTECREDITO_VENDOR_ID && process.env.SISTECREDITO_STORE_ID && process.env.SISTECREDITO_SUBSCRIPTION_KEY)
     );
 
     // Read per-tenant settings from store_info (each column queried separately so a missing column
