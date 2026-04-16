@@ -853,10 +853,10 @@ export function CheckoutView({
                           />
                           {/* MercadoPago logo SVG */}
                           <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="6" fill="#009ee3"/>
-                            <path d="M8 24c0-8.837 7.163-16 16-16s16 7.163 16 16-7.163 16-16 16S8 32.837 8 24z" fill="#009ee3"/>
-                            <path d="M24 11c-7.18 0-13 5.82-13 13 0 3.906 1.726 7.408 4.463 9.823L24 24.5l8.537 9.323C35.274 31.408 37 27.906 37 24c0-7.18-5.82-13-13-13z" fill="#fff" fillOpacity=".25"/>
-                            <text x="24" y="28" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13" fill="#fff" letterSpacing="-0.5">mp</text>
+                            <rect width="48" height="48" rx="8" fill="#009EE3"/>
+                            {/* MP yellow smile arc */}
+                            <path d="M10 26 Q24 10 38 26" fill="none" stroke="#FFE600" strokeWidth="4" strokeLinecap="round"/>
+                            <text x="24" y="38" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="11" fill="#fff" letterSpacing="-0.5">mercado pago</text>
                           </svg>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -897,8 +897,10 @@ export function CheckoutView({
                           />
                           {/* ADDI logo SVG */}
                           <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="6" fill="#FF5E00"/>
-                            <text x="24" y="29" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="16" fill="#fff" letterSpacing="1">addi</text>
+                            <rect width="48" height="48" rx="8" fill="#FF5E00"/>
+                            {/* ADDI triangle mark */}
+                            <polygon points="24,10 14,30 34,30" fill="#fff" fillOpacity=".25"/>
+                            <text x="24" y="35" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="15" fill="#fff" letterSpacing="1.5">addi</text>
                           </svg>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -922,12 +924,13 @@ export function CheckoutView({
                             className="shrink-0"
                             style={{ accentColor: '#1A3FA0' }}
                           />
-                          {/* Sistecredito logo SVG */}
+                          {/* Sistecrédito logo SVG */}
                           <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="6" fill="#1A3FA0"/>
-                            <rect x="7" y="14" width="34" height="10" rx="2" fill="#fff" fillOpacity=".15"/>
-                            <text x="24" y="23" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="700" fontSize="7" fill="#fff" letterSpacing="0.3">siste</text>
-                            <text x="24" y="34" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="9" fill="#FFD700" letterSpacing="0.2">crédito</text>
+                            <rect width="48" height="48" rx="8" fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
+                            <circle cx="24" cy="19" r="10" fill="#2BB673"/>
+                            <circle cx="24" cy="19" r="6.5" fill="none" stroke="#fff" strokeWidth="2.5"/>
+                            <circle cx="24" cy="19" r="2.5" fill="#fff"/>
+                            <text x="24" y="38" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="7" fill="#2BB673" letterSpacing="0.3">sistecrédito</text>
                           </svg>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -965,9 +968,9 @@ export function CheckoutView({
                     <>
                       {/* Brand mini-logo inside button */}
                       {paymentMethod === 'mercadopago' && (
-                        <svg viewBox="0 0 20 20" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="10" cy="10" r="10" fill="#fff" fillOpacity=".25"/>
-                          <text x="10" y="14" textAnchor="middle" fontFamily="Arial" fontWeight="800" fontSize="8" fill="#fff">mp</text>
+                        <svg viewBox="0 0 24 20" className="w-6 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 12 Q12 2 22 12" fill="none" stroke="#FFE600" strokeWidth="3" strokeLinecap="round"/>
+                          <text x="12" y="19" textAnchor="middle" fontFamily="Arial" fontWeight="900" fontSize="7" fill="#fff">mp</text>
                         </svg>
                       )}
                       {paymentMethod === 'addi' && (
@@ -977,10 +980,10 @@ export function CheckoutView({
                         </svg>
                       )}
                       {paymentMethod === 'sistecredito' && (
-                        <svg viewBox="0 0 32 20" className="w-8 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                          <rect width="32" height="20" rx="4" fill="#fff" fillOpacity=".2"/>
-                          <text x="16" y="9" textAnchor="middle" fontFamily="Arial" fontWeight="700" fontSize="5" fill="#fff">siste</text>
-                          <text x="16" y="16" textAnchor="middle" fontFamily="Arial" fontWeight="900" fontSize="6" fill="#FFD700">crédito</text>
+                        <svg viewBox="0 0 20 20" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="10" cy="10" r="10" fill="#fff" fillOpacity=".25"/>
+                          <circle cx="10" cy="10" r="6" fill="none" stroke="#fff" strokeWidth="2"/>
+                          <circle cx="10" cy="10" r="2" fill="#fff"/>
                         </svg>
                       )}
                       <span>

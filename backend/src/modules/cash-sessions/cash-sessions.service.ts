@@ -17,6 +17,9 @@ interface CashSessionRow extends RowDataPacket {
   total_card_sales: number;
   total_transfer_sales: number;
   total_fiado_sales: number;
+  total_credit_payments_efectivo: number;
+  total_credit_payments_tarjeta: number;
+  total_credit_payments_transfer: number;
   total_sales_count: number;
   total_change_given: number;
   total_cash_entries: number;
@@ -59,6 +62,11 @@ interface MovementTotalRow extends RowDataPacket {
   total: number;
 }
 
+interface CreditPaymentTotalRow extends RowDataPacket {
+  payment_method: string;
+  total_amount: number;
+}
+
 export interface CashSessionFilters {
   status?: CashSessionStatus;
 }
@@ -75,6 +83,10 @@ export interface CashSessionTotals {
   changeGiven: number;
   cashEntries: number;
   cashWithdrawals: number;
+  creditPaymentsEfectivo: number;
+  creditPaymentsTarjeta: number;
+  creditPaymentsTransferencia: number;
+  creditPaymentsTotal: number;
 }
 
 export class CashSessionsService {
@@ -92,6 +104,9 @@ export class CashSessionsService {
       totalCardSales: Number(row.total_card_sales),
       totalTransferSales: Number(row.total_transfer_sales),
       totalFiadoSales: Number(row.total_fiado_sales),
+      totalCreditPaymentsEfectivo: Number(row.total_credit_payments_efectivo) || 0,
+      totalCreditPaymentsTarjeta: Number(row.total_credit_payments_tarjeta) || 0,
+      totalCreditPaymentsTransferencia: Number(row.total_credit_payments_transfer) || 0,
       totalSalesCount: Number(row.total_sales_count),
       totalChangeGiven: Number(row.total_change_given),
       totalCashEntries: Number(row.total_cash_entries),
@@ -334,6 +349,31 @@ export class CashSessionsService {
       if (row.type === 'salida') cashWithdrawals = Number(row.total);
     }
 
+    // Sum credit payments (abonos de fiados) registered during this session
+    const [creditRows] = await db.execute<CreditPaymentTotalRow[]>(
+      `SELECT cp.payment_method, COALESCE(SUM(cp.amount), 0) as total_amount
+       FROM credit_payments cp
+       JOIN cash_sessions cs ON cs.tenant_id = cp.tenant_id
+       WHERE cs.id = ?
+         AND cp.created_at >= cs.opened_at
+         AND cp.created_at <= COALESCE(cs.closed_at, NOW())
+       GROUP BY cp.payment_method`,
+      [sessionId]
+    );
+
+    let creditPaymentsEfectivo = 0;
+    let creditPaymentsTarjeta = 0;
+    let creditPaymentsTransferencia = 0;
+
+    for (const row of creditRows) {
+      const amount = Number(row.total_amount);
+      if (row.payment_method === 'efectivo') creditPaymentsEfectivo = amount;
+      else if (row.payment_method === 'tarjeta') creditPaymentsTarjeta = amount;
+      else if (row.payment_method === 'transferencia') creditPaymentsTransferencia = amount;
+    }
+
+    const creditPaymentsTotal = creditPaymentsEfectivo + creditPaymentsTarjeta + creditPaymentsTransferencia;
+
     return {
       cashSales,
       cardSales,
@@ -346,6 +386,10 @@ export class CashSessionsService {
       changeGiven,
       cashEntries,
       cashWithdrawals,
+      creditPaymentsEfectivo,
+      creditPaymentsTarjeta,
+      creditPaymentsTransferencia,
+      creditPaymentsTotal,
     };
   }
 
@@ -442,11 +486,35 @@ export class CashSessionsService {
         if (row.type === 'salida') totalCashWithdrawals = Number(row.total);
       }
 
+      // Sum credit payments (abonos de fiados) received during this session
+      const [creditRows] = await connection.execute<CreditPaymentTotalRow[]>(
+        `SELECT cp.payment_method, COALESCE(SUM(cp.amount), 0) as total_amount
+         FROM credit_payments cp
+         JOIN cash_sessions cs ON cs.tenant_id = cp.tenant_id
+         WHERE cs.id = ?
+           AND cp.created_at >= cs.opened_at
+           AND cp.created_at <= NOW()
+         GROUP BY cp.payment_method`,
+        [sessionId]
+      );
+
+      let totalCreditPaymentsEfectivo = 0;
+      let totalCreditPaymentsTarjeta = 0;
+      let totalCreditPaymentsTransfer = 0;
+
+      for (const row of creditRows) {
+        const amount = Number(row.total_amount);
+        if (row.payment_method === 'efectivo') totalCreditPaymentsEfectivo = amount;
+        else if (row.payment_method === 'tarjeta') totalCreditPaymentsTarjeta = amount;
+        else if (row.payment_method === 'transferencia') totalCreditPaymentsTransfer = amount;
+      }
+
       // Calculate expected cash (only physical cash matters)
       // Note: totalCashSales uses sales.total (net sale amount), NOT amount_paid by customer.
       // Change given to customers comes from their payment, not from the register's funds,
       // so it must NOT be subtracted here to avoid double-counting.
-      const expectedCash = openingAmount + totalCashSales + totalCashEntries - totalCashWithdrawals;
+      // Cash abonos (credit payments in efectivo) DO enter the register physically.
+      const expectedCash = openingAmount + totalCashSales + totalCashEntries - totalCashWithdrawals + totalCreditPaymentsEfectivo;
       const difference = actualCash - expectedCash;
 
       let closingStatus: ClosingStatus;
@@ -463,6 +531,7 @@ export class CashSessionsService {
         `UPDATE cash_sessions SET
           closed_by = ?, closed_by_name = ?, closed_at = NOW(),
           total_cash_sales = ?, total_card_sales = ?, total_transfer_sales = ?, total_fiado_sales = ?,
+          total_credit_payments_efectivo = ?, total_credit_payments_tarjeta = ?, total_credit_payments_transfer = ?,
           total_sales_count = ?, total_change_given = ?,
           total_cash_entries = ?, total_cash_withdrawals = ?,
           expected_cash = ?, actual_cash = ?, difference = ?,
@@ -471,6 +540,7 @@ export class CashSessionsService {
         [
           closedBy, closedByName,
           totalCashSales, totalCardSales, totalTransferSales, totalFiadoSales,
+          totalCreditPaymentsEfectivo, totalCreditPaymentsTarjeta, totalCreditPaymentsTransfer,
           totalSalesCount, totalChangeGiven,
           totalCashEntries, totalCashWithdrawals,
           expectedCash, actualCash, difference,

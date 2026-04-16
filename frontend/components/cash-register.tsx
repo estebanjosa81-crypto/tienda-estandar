@@ -436,6 +436,35 @@ export function CashRegister() {
           value={liveTotals?.fiadoSales || 0}
           icon={<HandCoins className="h-5 w-5 text-orange-500" />}
         />
+        {(liveTotals?.creditPaymentsTotal || 0) > 0 && (
+          <div className="rounded-xl border border-teal-200 bg-teal-50 dark:bg-teal-950/20 dark:border-teal-800 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-teal-800 dark:text-teal-300">Abonos Recibidos</p>
+              <HandCoins className="h-5 w-5 text-teal-500" />
+            </div>
+            <p className="text-lg font-bold text-teal-900 dark:text-teal-100">{formatCOP(liveTotals?.creditPaymentsTotal || 0)}</p>
+            <div className="space-y-0.5 border-t border-teal-200 dark:border-teal-700 pt-1.5">
+              {(liveTotals?.creditPaymentsEfectivo || 0) > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-teal-700 dark:text-teal-400">↳ Efectivo</span>
+                  <span className="font-semibold text-teal-900 dark:text-teal-100">{formatCOP(liveTotals?.creditPaymentsEfectivo || 0)}</span>
+                </div>
+              )}
+              {(liveTotals?.creditPaymentsTarjeta || 0) > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-teal-700 dark:text-teal-400">↳ Tarjeta</span>
+                  <span className="font-semibold text-teal-900 dark:text-teal-100">{formatCOP(liveTotals?.creditPaymentsTarjeta || 0)}</span>
+                </div>
+              )}
+              {(liveTotals?.creditPaymentsTransferencia || 0) > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-teal-700 dark:text-teal-400">↳ Transferencia</span>
+                  <span className="font-semibold text-teal-900 dark:text-teal-100">{formatCOP(liveTotals?.creditPaymentsTransferencia || 0)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {(liveTotals?.mixedSales || 0) > 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-2">
             <div className="flex items-center justify-between">
@@ -865,6 +894,12 @@ export function CashRegister() {
                     <span className="text-muted-foreground">+ Ventas en efectivo</span>
                     <span className="text-green-500">{formatCOP(cierreResult?.totalCashSales || 0)}</span>
                   </div>
+                  {(cierreResult?.totalCreditPaymentsEfectivo || 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">+ Abonos en efectivo</span>
+                      <span className="text-green-500">{formatCOP(cierreResult?.totalCreditPaymentsEfectivo || 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">+ Entradas de caja</span>
                     <span className="text-green-500">{formatCOP(cierreResult?.totalCashEntries || 0)}</span>
@@ -904,6 +939,39 @@ export function CashRegister() {
                     )}</span>
                   </div>
                 </div>
+
+                {/* Credit payments (abonos) summary */}
+                {((cierreResult?.totalCreditPaymentsEfectivo || 0) + (cierreResult?.totalCreditPaymentsTarjeta || 0) + (cierreResult?.totalCreditPaymentsTransferencia || 0)) > 0 && (
+                  <div className="rounded-lg border border-teal-200 bg-teal-50/50 dark:bg-teal-950/10 dark:border-teal-800 p-3 space-y-2 text-sm">
+                    <p className="text-xs font-medium text-teal-700 dark:text-teal-400 uppercase tracking-wider">Abonos de fiados recibidos</p>
+                    {(cierreResult?.totalCreditPaymentsEfectivo || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Efectivo</span>
+                        <span>{formatCOP(cierreResult?.totalCreditPaymentsEfectivo || 0)}</span>
+                      </div>
+                    )}
+                    {(cierreResult?.totalCreditPaymentsTarjeta || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tarjeta</span>
+                        <span>{formatCOP(cierreResult?.totalCreditPaymentsTarjeta || 0)}</span>
+                      </div>
+                    )}
+                    {(cierreResult?.totalCreditPaymentsTransferencia || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Transferencia</span>
+                        <span>{formatCOP(cierreResult?.totalCreditPaymentsTransferencia || 0)}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-teal-200 dark:border-teal-700 pt-2 flex justify-between font-medium text-teal-800 dark:text-teal-300">
+                      <span>Total abonos</span>
+                      <span>{formatCOP(
+                        (cierreResult?.totalCreditPaymentsEfectivo || 0) +
+                        (cierreResult?.totalCreditPaymentsTarjeta || 0) +
+                        (cierreResult?.totalCreditPaymentsTransferencia || 0)
+                      )}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button onClick={handleCierreAccept} className="w-full">Aceptar</Button>

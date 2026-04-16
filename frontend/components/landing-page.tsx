@@ -2945,12 +2945,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
                           <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm ${isLightBg ? 'border-green-200 bg-green-50' : 'border-green-800/40 bg-green-900/10'}`}>
-                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                              <CreditCard className="w-3.5 h-3.5 text-white" />
-                            </div>
+                            {/* Sistecrédito official logo */}
+                            <svg viewBox="0 0 36 36" className="w-7 h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="18" cy="18" r="18" fill="#2BB673"/>
+                              <circle cx="18" cy="18" r="11" fill="none" stroke="#fff" strokeWidth="3.5"/>
+                              <circle cx="18" cy="18" r="4.5" fill="#fff"/>
+                            </svg>
                             <span className={isLightBg ? 'text-green-800' : 'text-green-400'}>
                               Compra con <strong>sistecrédito</strong> en 6 cuotas de{' '}
-                              <strong>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mes</strong>
+                              <strong>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>
+                              {'. '}
+                              <span className="underline cursor-pointer">Solicita tu cupo.</span>
                             </span>
                           </div>
                         )}

@@ -334,6 +334,9 @@ export interface CashSession {
   totalCardSales: number
   totalTransferSales: number
   totalFiadoSales: number
+  totalCreditPaymentsEfectivo: number
+  totalCreditPaymentsTarjeta: number
+  totalCreditPaymentsTransferencia: number
   totalSalesCount: number
   totalChangeGiven: number
   totalCashEntries: number
@@ -365,10 +368,17 @@ export interface CashSessionTotals {
   cardSales: number
   transferSales: number
   fiadoSales: number
+  mixedSales: number
+  mixedEfectivoTotal: number
+  mixedSecondTotal: number
   salesCount: number
   changeGiven: number
   cashEntries: number
   cashWithdrawals: number
+  creditPaymentsEfectivo: number
+  creditPaymentsTarjeta: number
+  creditPaymentsTransferencia: number
+  creditPaymentsTotal: number
 }
 
 export const TAX_RATE = 0.19 // 19% IVA Colombia
