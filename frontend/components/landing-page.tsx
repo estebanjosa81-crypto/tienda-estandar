@@ -283,6 +283,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [checkoutInitialPayment, setCheckoutInitialPayment] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | undefined>(undefined)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showDrop, setShowDrop] = useState(false)
   const [showServices, setShowServices] = useState(false)
@@ -1934,7 +1935,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onRemoverProducto={removerProducto}
           onConfirmar={handleConfirmarPedido}
           onCerrarModal={handleCerrarModal}
-          onVolver={() => setShowCheckout(false)}
+          onVolver={() => { setShowCheckout(false); setCheckoutInitialPayment(undefined) }}
           orderBumpProducts={orderBumpProducts}
           orderBumpTitle={orderBumpTitle}
           onAddBumpProduct={handleAddBumpProduct}
@@ -1943,6 +1944,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
           allowContraentrega={paymentConfig.contraentrega}
           onlineDiscountEnabled={paymentConfig.onlineDiscountEnabled}
+          initialPaymentMethod={checkoutInitialPayment}
         />
       </div>
     )
@@ -2944,18 +2946,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {(paymentConfig.sistecredito || paymentConfig.addi) && (
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
-                          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm ${isLightBg ? 'border-green-200 bg-green-50' : 'border-green-800/40 bg-green-900/10'}`}>
-                            {/* Sistecrédito official logo */}
-                            <svg viewBox="0 0 36 36" className="w-7 h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="18" cy="18" r="18" fill="#2BB673"/>
-                              <circle cx="18" cy="18" r="11" fill="none" stroke="#fff" strokeWidth="3.5"/>
-                              <circle cx="18" cy="18" r="4.5" fill="#fff"/>
+                          <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-[#2BB673] bg-white text-sm">
+                            {/* Sistecrédito ring icon */}
+                            <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="10.5" fill="none" stroke="#2BB673" strokeWidth="2.5"/>
+                              <circle cx="12" cy="12" r="4" fill="none" stroke="#2BB673" strokeWidth="2.5"/>
                             </svg>
-                            <span className={isLightBg ? 'text-green-800' : 'text-green-400'}>
-                              Compra con <strong>sistecrédito</strong> en 6 cuotas de{' '}
-                              <strong>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>
-                              {'. '}
-                              <span className="underline cursor-pointer">Solicita tu cupo.</span>
+                            <span className="text-gray-700 leading-snug">
+                              Compra con <strong className="text-gray-900">sistecrédito</strong> en 6 cuotas de{' '}
+                              <strong className="text-gray-900">{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
+                              <span
+                                className="text-[#2BB673] underline cursor-pointer font-medium"
+                                onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('sistecredito'); setShowCheckout(true) }}
+                              >Solicita tu cupo.</span>
                             </span>
                           </div>
                         )}
