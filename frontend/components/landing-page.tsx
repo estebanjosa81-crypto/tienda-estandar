@@ -2947,11 +2947,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
                           <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-[#2BB673] bg-white text-sm">
-                            {/* Sistecrédito ring icon */}
-                            <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="12" cy="12" r="10.5" fill="none" stroke="#2BB673" strokeWidth="2.5"/>
-                              <circle cx="12" cy="12" r="4" fill="none" stroke="#2BB673" strokeWidth="2.5"/>
-                            </svg>
+                            <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-5 shrink-0 object-contain" />
                             <span className="text-gray-700 leading-snug">
                               Compra con <strong className="text-gray-900">sistecrédito</strong> en 6 cuotas de{' '}
                               <strong className="text-gray-900">{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
