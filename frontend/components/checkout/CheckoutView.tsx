@@ -76,6 +76,8 @@ interface CheckoutViewProps {
   allowContraentrega?: boolean;
   // Online payment discount (10% off when paying with MP)
   onlineDiscountEnabled?: boolean;
+  // Pre-select a payment method on mount
+  initialPaymentMethod?: 'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito';
 }
 
 export function CheckoutView({
@@ -109,6 +111,7 @@ export function CheckoutView({
   onPagarConSistecredito,
   allowContraentrega = true,
   onlineDiscountEnabled = false,
+  initialPaymentMethod,
 }: CheckoutViewProps) {
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
@@ -122,7 +125,7 @@ export function CheckoutView({
   const [loadingSiste, setLoadingSiste] = useState(false);
   const [errorSiste, setErrorSiste] = useState('');
   const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : 'contraentrega';
-  const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito'>(defaultPayment);
+  const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito'>(initialPaymentMethod ?? defaultPayment);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -808,139 +811,100 @@ export function CheckoutView({
                 {/* ── Selector de método de pago ── */}
                 {!isDeliveryOrder && (
                   <div className="mt-8">
-                    <h3 className="text-xs font-medium text-gray-700 mb-3 tracking-wide">
-                      MÉTODO DE PAGO
-                    </h3>
-                    <div className="space-y-2">
+                    <h3 className="text-xs font-medium text-gray-500 mb-1 tracking-widest uppercase">Método de pago</h3>
+                    <div className="border border-gray-200 divide-y divide-gray-100">
 
                       {/* Contra entrega */}
                       {allowContraentrega && (
-                      <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'contraentrega' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:border-gray-400'}`}>
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="contraentrega"
-                          checked={paymentMethod === 'contraentrega'}
-                          onChange={() => setPaymentMethod('contraentrega')}
-                          className="accent-gray-900 shrink-0"
-                        />
-                        {/* Cash icon */}
-                        <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect width="48" height="48" rx="6" fill="#F3F4F6"/>
-                          <rect x="8" y="15" width="32" height="18" rx="3" fill="#6B7280"/>
-                          <circle cx="24" cy="24" r="5" fill="#E5E7EB"/>
-                          <rect x="8" y="15" width="5" height="5" rx="1" fill="#9CA3AF"/>
-                          <rect x="35" y="28" width="5" height="5" rx="1" fill="#9CA3AF"/>
-                        </svg>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-gray-900">Contra entrega</span>
-                          <p className="text-xs text-gray-500 font-light mt-0.5">Paga en efectivo cuando recibas tu pedido</p>
-                        </div>
-                      </label>
-                      )}
-
-                      {/* MercadoPago */}
-                      {onPagarEnLinea && (
-                        <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'mercadopago' ? 'border-[#009ee3] bg-sky-50' : 'border-gray-200 hover:border-gray-400'}`}>
-                          <input
-                            type="radio"
-                            name="paymentMethod"
-                            value="mercadopago"
-                            checked={paymentMethod === 'mercadopago'}
-                            onChange={() => setPaymentMethod('mercadopago')}
-                            className="shrink-0"
-                            style={{ accentColor: '#009ee3' }}
-                          />
-                          {/* MercadoPago logo SVG */}
-                          <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="8" fill="#009EE3"/>
-                            {/* MP yellow smile arc */}
-                            <path d="M10 26 Q24 10 38 26" fill="none" stroke="#FFE600" strokeWidth="4" strokeLinecap="round"/>
-                            <text x="24" y="38" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="11" fill="#fff" letterSpacing="-0.5">mercado pago</text>
-                          </svg>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-gray-900">Mercado Pago</span>
-                              {onlineDiscountEnabled && (
-                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 font-bold rounded shrink-0">10% DCTO</span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 font-light mt-0.5">Tarjeta de crédito, débito o PSE</p>
-                          </div>
-                          {/* Card network mini-icons */}
-                          <div className="flex gap-1 shrink-0">
-                            <svg viewBox="0 0 32 20" className="w-8 h-5" xmlns="http://www.w3.org/2000/svg">
-                              <rect width="32" height="20" rx="3" fill="#1A1F71"/>
-                              <text x="16" y="14" textAnchor="middle" fontFamily="Arial" fontWeight="900" fontSize="8" fill="#fff" letterSpacing="0.5">VISA</text>
-                            </svg>
-                            <svg viewBox="0 0 32 20" className="w-8 h-5" xmlns="http://www.w3.org/2000/svg">
-                              <rect width="32" height="20" rx="3" fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
-                              <circle cx="12" cy="10" r="6" fill="#EB001B"/>
-                              <circle cx="20" cy="10" r="6" fill="#F79E1B"/>
-                              <path d="M16 5.27A6 6 0 0118.73 10 6 6 0 0116 14.73 6 6 0 0113.27 10 6 6 0 0116 5.27z" fill="#FF5F00"/>
-                            </svg>
-                          </div>
+                        <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input type="radio" name="paymentMethod" value="contraentrega"
+                            checked={paymentMethod === 'contraentrega'}
+                            onChange={() => setPaymentMethod('contraentrega')}
+                            className="accent-gray-900 shrink-0" />
+                          <span className="text-sm text-gray-800">Paga en efectivo a la entrega</span>
                         </label>
                       )}
 
                       {/* ADDI */}
                       {onPagarConAddi && (
-                        <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'addi' ? 'border-[#FF5E00] bg-orange-50' : 'border-gray-200 hover:border-gray-400'}`}>
-                          <input
-                            type="radio"
-                            name="paymentMethod"
-                            value="addi"
+                        <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input type="radio" name="paymentMethod" value="addi"
                             checked={paymentMethod === 'addi'}
                             onChange={() => setPaymentMethod('addi')}
-                            className="shrink-0"
-                            style={{ accentColor: '#FF5E00' }}
-                          />
-                          {/* ADDI logo SVG */}
-                          <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="8" fill="#FF5E00"/>
-                            {/* ADDI triangle mark */}
-                            <polygon points="24,10 14,30 34,30" fill="#fff" fillOpacity=".25"/>
-                            <text x="24" y="35" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="15" fill="#fff" letterSpacing="1.5">addi</text>
-                          </svg>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-gray-900">ADDI</span>
-                              <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 font-bold rounded shrink-0">CUOTAS SIN INTERÉS</span>
-                            </div>
-                            <p className="text-xs text-gray-500 font-light mt-0.5">Crédito inmediato · Aprobación al instante</p>
-                          </div>
+                            className="shrink-0" style={{ accentColor: '#FF5E00' }} />
+                          <span className="text-sm text-gray-800">Paga con</span>
+                          <img src="/pagos/ADDI_logo.png" alt="Addi" className="h-5 shrink-0 object-contain" />
                         </label>
                       )}
 
-                      {/* Sistecredito */}
+                      {/* Sistecrédito */}
                       {onPagarConSistecredito && (
-                        <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'sistecredito' ? 'border-[#1A3FA0] bg-blue-50' : 'border-gray-200 hover:border-gray-400'}`}>
-                          <input
-                            type="radio"
-                            name="paymentMethod"
-                            value="sistecredito"
+                        <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <input type="radio" name="paymentMethod" value="sistecredito"
                             checked={paymentMethod === 'sistecredito'}
                             onChange={() => setPaymentMethod('sistecredito')}
-                            className="shrink-0"
-                            style={{ accentColor: '#1A3FA0' }}
-                          />
-                          {/* Sistecrédito logo SVG */}
-                          <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="48" height="48" rx="8" fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
-                            <circle cx="24" cy="19" r="10" fill="#2BB673"/>
-                            <circle cx="24" cy="19" r="6.5" fill="none" stroke="#fff" strokeWidth="2.5"/>
-                            <circle cx="24" cy="19" r="2.5" fill="#fff"/>
-                            <text x="24" y="38" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="7" fill="#2BB673" letterSpacing="0.3">sistecrédito</text>
-                          </svg>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-semibold text-gray-900">Sistecrédito</span>
-                              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 font-bold rounded shrink-0">SIN TARJETA</span>
-                            </div>
-                            <p className="text-xs text-gray-500 font-light mt-0.5">Compra a cuotas · Solo con tu cédula</p>
-                          </div>
+                            className="shrink-0" style={{ accentColor: '#2BB673' }} />
+                          <span className="text-sm text-gray-800">Paga con</span>
+                          <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-5 shrink-0 object-contain" />
                         </label>
                       )}
+
+                      {/* MercadoPago */}
+                      {onPagarEnLinea && (
+                        <div>
+                          <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="radio" name="paymentMethod" value="mercadopago"
+                              checked={paymentMethod === 'mercadopago'}
+                              onChange={() => setPaymentMethod('mercadopago')}
+                              className="shrink-0" style={{ accentColor: '#009ee3' }} />
+                            <span className="text-sm text-gray-800">Tarjetas de crédito/débito</span>
+                            {onlineDiscountEnabled && (
+                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 font-bold rounded shrink-0 ml-1">10% DCTO</span>
+                            )}
+                            <img src="/pagos/icon-mp mercado pago.png" alt="Mercado Pago" className="h-6 shrink-0 object-contain" />
+                          </label>
+                          {/* Expanded MP panel when selected */}
+                          {paymentMethod === 'mercadopago' && (
+                            <div className="mx-4 mb-3 border border-[#009ee3]/30 bg-[#f0f9ff] p-4 text-sm">
+                              <p className="font-semibold text-gray-800 text-center mb-3">Descubre la practicidad de Mercado Pago</p>
+                              <div className="grid grid-cols-2 gap-3 text-xs text-gray-600 mb-3">
+                                <div className="flex gap-2">
+                                  <span className="text-[#009ee3] mt-0.5 shrink-0">💳</span>
+                                  <span>Paga con tus tarjetas guardadas o dinero disponible sin completar datos.</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-[#009ee3] mt-0.5 shrink-0">🛡️</span>
+                                  <span>Compra de forma segura con el medio de pago que prefieras.</span>
+                                </div>
+                              </div>
+                              {/* Card network icons */}
+                              <div className="flex gap-1.5 justify-center mb-3">
+                                <svg viewBox="0 0 38 24" className="w-9 h-6" xmlns="http://www.w3.org/2000/svg">
+                                  <rect width="38" height="24" rx="4" fill="#1A1F71"/>
+                                  <text x="19" y="16" textAnchor="middle" fontFamily="Arial" fontWeight="900" fontSize="9" fill="#fff" letterSpacing="0.5">VISA</text>
+                                </svg>
+                                <svg viewBox="0 0 38 24" className="w-9 h-6" xmlns="http://www.w3.org/2000/svg">
+                                  <rect width="38" height="24" rx="4" fill="#fff" stroke="#e5e7eb" strokeWidth="1"/>
+                                  <circle cx="14" cy="12" r="7" fill="#EB001B"/>
+                                  <circle cx="24" cy="12" r="7" fill="#F79E1B"/>
+                                  <path d="M19 6.27A7 7 0 0121.73 12 7 7 0 0119 17.73 7 7 0 0116.27 12 7 7 0 0119 6.27z" fill="#FF5F00"/>
+                                </svg>
+                                <svg viewBox="0 0 38 24" className="w-9 h-6" xmlns="http://www.w3.org/2000/svg">
+                                  <rect width="38" height="24" rx="4" fill="#00558A"/>
+                                  <text x="19" y="16" textAnchor="middle" fontFamily="Arial" fontWeight="800" fontSize="7" fill="#fff" letterSpacing="0.3">PSE</text>
+                                </svg>
+                                <svg viewBox="0 0 38 24" className="w-9 h-6" xmlns="http://www.w3.org/2000/svg">
+                                  <rect width="38" height="24" rx="4" fill="#F5F5F5" stroke="#e5e7eb" strokeWidth="1"/>
+                                  <text x="19" y="10" textAnchor="middle" fontFamily="Arial" fontWeight="700" fontSize="5.5" fill="#555">débito</text>
+                                  <text x="19" y="18" textAnchor="middle" fontFamily="Arial" fontWeight="700" fontSize="5.5" fill="#555">y más</text>
+                                </svg>
+                              </div>
+                              <p className="text-center text-xs text-gray-500">🤝 Te llevaremos a Mercado Pago<br/><span className="text-gray-400">Si no tienes una cuenta, puedes usar tu e-mail.</span></p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                     </div>
                   </div>
                 )}
