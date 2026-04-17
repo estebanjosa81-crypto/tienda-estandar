@@ -1132,6 +1132,15 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
     }
 
     res.json({
+      // Normalize TINYINT booleans so frontend receives true/false, not 0/1
+      if (storeInfoRow) {
+        storeInfoRow.showSedes = storeInfoRow.showSedes !== 0 && storeInfoRow.showSedes !== false;
+        storeInfoRow.contactPageEnabled = !!storeInfoRow.contactPageEnabled;
+        storeInfoRow.allowContraentrega = storeInfoRow.allowContraentrega !== 0 && storeInfoRow.allowContraentrega !== false;
+        storeInfoRow.showInfoModule = !!storeInfoRow.showInfoModule;
+      }
+
+      res.json({
       success: true,
       data: {
         banners,
@@ -1349,7 +1358,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
 
     const allowCod = toBoolLike(allowContraentrega, true) ? 1 : 0;
     const infoModule = showInfoModule ? 1 : 0;
-    const showSedesVal = showSedes === false ? 0 : 1;
+    const showSedesVal = (showSedes === false || showSedes === 0 || showSedes === '0') ? 0 : 1;
     const contactEnabled = contactPageEnabled ? 1 : 0;
     const contactProducts = Array.isArray(contactPageProducts)
       ? JSON.stringify(contactPageProducts)
