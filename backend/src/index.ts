@@ -157,24 +157,15 @@ const startServer = async () => {
       process.exit(1);
     }
 
-    // Run lightweight schema migrations (idempotent)
+    // Run lightweight schema migrations (idempotent — each in its own try/catch for MySQL 5.7 compatibility)
+    const pool = (await import('./config/database')).default;
+    const addCol = async (sql: string) => { try { await pool.query(sql); } catch { /* already exists */ } };
+
+    await addCol(`ALTER TABLE store_info ADD COLUMN product_card_style VARCHAR(20) NULL DEFAULT 'style1' COMMENT 'Estilo de tarjeta de producto: style1 o style2'`);
+    await addCol(`ALTER TABLE employee_cargos ADD COLUMN permissions JSON NULL COMMENT 'Permisos granulares del cargo: ["ventas","inventario",...]'`);
+    await addCol(`ALTER TABLE users ADD COLUMN data_encrypted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = campos sensibles cifrados con AES-256'`);
+    // Sedes table
     try {
-      const pool = (await import('./config/database')).default;
-      await pool.query(
-        `ALTER TABLE store_info ADD COLUMN IF NOT EXISTS product_card_style VARCHAR(20) NULL DEFAULT 'style1'
-         COMMENT 'Estilo de tarjeta de producto: style1 o style2'`
-      );
-      // RBAC: permissions column on employee_cargos
-      await pool.query(
-        `ALTER TABLE employee_cargos ADD COLUMN IF NOT EXISTS permissions JSON NULL
-         COMMENT 'Permisos granulares del cargo: ["ventas","inventario",...]'`
-      );
-      // AES encryption marker columns (added when encryption migration runs)
-      await pool.query(
-        `ALTER TABLE users ADD COLUMN IF NOT EXISTS data_encrypted TINYINT(1) NOT NULL DEFAULT 0
-         COMMENT '1 = campos sensibles cifrados con AES-256'`
-      );
-      // Sedes table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS sedes (
           id VARCHAR(36) PRIMARY KEY,
@@ -187,26 +178,20 @@ const startServer = async () => {
           INDEX idx_sedes_tenant (tenant_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
-      // sede_id column in products
-      await pool.query(
-        `ALTER TABLE products ADD COLUMN IF NOT EXISTS sede_id VARCHAR(36) NULL
-         COMMENT 'Sede a la que pertenece el producto (NULL = todas las sedes)'`
-      );
-      // contraentrega toggle
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea'`);
-      // online discount
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuento activo para pagos en línea'`);
-      // info module columns
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS show_info_module TINYINT(1) NOT NULL DEFAULT 0`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS info_module_description TEXT NULL`);
-      // contact page columns
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_title VARCHAR(255) NULL`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_description TEXT NULL`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_products TEXT NULL`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_links TEXT NULL`);
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS contact_page_image VARCHAR(500) NULL`);
-      // Printers table
+    } catch { /* already exists */ }
+    await addCol(`ALTER TABLE products ADD COLUMN sede_id VARCHAR(36) NULL COMMENT 'Sede a la que pertenece el producto (NULL = todas las sedes)'`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea'`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuento activo para pagos en línea'`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN show_info_module TINYINT(1) NOT NULL DEFAULT 0`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN info_module_description TEXT NULL`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_title VARCHAR(255) NULL`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_description TEXT NULL`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_products TEXT NULL`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_links TEXT NULL`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_image VARCHAR(500) NULL`);
+    // Printers table
+    try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS printers (
           id VARCHAR(36) PRIMARY KEY,
@@ -225,7 +210,7 @@ const startServer = async () => {
           INDEX idx_printers_module (tenant_id, assigned_module)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
-    } catch { /* column may already exist or DB doesn't support IF NOT EXISTS */ }
+    } catch { /* already exists */ }
 
     // Run AES encryption migration for existing plaintext sensitive data
     try {
