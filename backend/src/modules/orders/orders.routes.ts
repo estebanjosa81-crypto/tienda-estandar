@@ -327,8 +327,8 @@ router.post(
       if (!addiClientId) addiClientId = stagingClientId;
       if (!addiClientSecret) addiClientSecret = 'U6zgGfhZ_F-HLbqyM70fkssviIQ2PDL34phvGIL4wIppfoSXv-z63mrldcrnUZUi';
 
-      // If real credentials are configured but production flag was never explicitly set, default to production
-      if (!addiProductionExplicitlySet && addiClientId !== stagingClientId) addiProduction = true;
+      // Real credentials always use production — staging fallback is only for default test creds
+      if (addiClientId !== stagingClientId) addiProduction = true;
 
       const addiAudience = addiProduction ? 'https://api.addi.com' : 'https://api.staging.addi.com';
       const addiAuthUrl = addiProduction ? 'https://auth.addi.com/oauth/token' : 'https://auth.addi-staging.com/oauth/token';

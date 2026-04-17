@@ -84,11 +84,11 @@ router.get(
       const params: any[] = [];
 
       if (showAll || !tenantId) {
-        whereClause = `WHERE (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
-        stockOnlyWhereClause = `WHERE p.stock > 0 AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        whereClause = `WHERE p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        stockOnlyWhereClause = `WHERE p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
       } else {
-        whereClause = 'WHERE p.tenant_id = ? AND (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1';
-        stockOnlyWhereClause = 'WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1';
+        whereClause = 'WHERE p.tenant_id = ? AND p.published_in_store = 1';
+        stockOnlyWhereClause = 'WHERE p.tenant_id = ? AND p.published_in_store = 1';
         params.push(tenantId);
       }
 
