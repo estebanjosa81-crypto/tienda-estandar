@@ -182,6 +182,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       contactPageEnabled?: boolean | null; contactPageTitle?: string | null
       contactPageDescription?: string | null; contactPageImage?: string | null
       contactPageProducts?: string | null; contactPageLinks?: string | null
+      showSedes?: boolean | null
     } | null
     announcementBar: { text: string; linkUrl: string | null; bgColor: string; textColor: string; isActive: boolean } | null
     activeDrop: {
@@ -2172,7 +2173,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
 
             <button onClick={() => { closeProductModal(); setCatalogSpecialFilter('all'); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Catálogo</button>
-            {storeSedes.length >= 2 && (
+            {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (
               <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`flex items-center gap-1 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>
                 <Store className="w-3.5 h-3.5" />
                 Sedes
@@ -2344,7 +2345,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex flex-col gap-6 text-sm font-bold tracking-widest text-white/70">
               <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setShowContact(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showContact && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Inicio</button>
               <button onClick={() => { closeProductModal(); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Catálogo</button>
-              {storeSedes.length >= 2 && (
+              {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (
                 <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 flex items-center gap-2 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>
                   <Store className="w-4 h-4" />
                   Sedes
@@ -3439,8 +3440,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     className={`w-full pl-10 pr-4 py-2.5 border font-light text-sm focus:outline-none ${isLightBg ? 'bg-black/[0.03] border-black/10 text-black placeholder-black/30 focus:border-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30 focus:border-black/30'}`}
                   />
                 </div>}
-                {/* Sede selector (only when store has 2+ sedes and not in sedes view mode or a sede is active) */}
-                {storeSedes.length >= 2 && (!sedesViewMode || activeSede) && (
+                {/* Sede selector (only when store has 2+ sedes, sedes visible, and not in sedes view mode or a sede is active) */}
+                {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (!sedesViewMode || activeSede) && (
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {sedesViewMode && activeSede && (
                       <button

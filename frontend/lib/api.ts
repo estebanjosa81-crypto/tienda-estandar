@@ -948,6 +948,7 @@ class ApiService {
     contactPageImage?: string;
     contactPageProducts?: string[];
     contactPageLinks?: Array<{ label: string; url: string }>;
+    showSedes?: boolean;
   }) {
     return this.request<any>('/storefront/store-extended-info', {
       method: 'PUT',
