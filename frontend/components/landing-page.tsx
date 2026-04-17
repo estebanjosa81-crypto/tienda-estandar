@@ -5000,18 +5000,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="p-2">
+                      <div className="p-2 text-center">
                         <h3 className="text-xs font-medium text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</h3>
-                        <div className="flex items-center gap-1.5">
-                          {isOffer ? (
-                            <>
-                              <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
-                              <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
-                            </>
-                          ) : (
+                        {isOffer ? (
+                          <div className="mb-1">
+                            <span className="text-gray-400 text-[10px] line-through block">{formatCOP(product.salePrice)}</span>
+                            <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
+                          </div>
+                        ) : (
+                          <div className="mb-1">
                             <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {product.stock > 0 ? (
+                          <div className="flex items-center justify-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block shrink-0" />
+                          </div>
+                        ) : product.allowPreorder ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                            Preorden
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                            Agotado
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -5222,18 +5237,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="p-2">
+                      <div className="p-2 text-center">
                         <h3 className="text-xs font-medium text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</h3>
-                        <div className="flex items-center gap-1.5">
-                          {isOffer ? (
-                            <>
-                              <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
-                              <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
-                            </>
-                          ) : (
+                        {isOffer ? (
+                          <div className="mb-1">
+                            <span className="text-gray-400 text-[10px] line-through block">{formatCOP(product.salePrice)}</span>
+                            <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
+                          </div>
+                        ) : (
+                          <div className="mb-1">
                             <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {product.stock > 0 ? (
+                          <div className="flex items-center justify-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block shrink-0" />
+                          </div>
+                        ) : product.allowPreorder ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                            Preorden
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                            Agotado
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -5857,18 +5887,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="p-2">
+                      <div className="p-2 text-center">
                         <h3 className="text-xs font-medium text-gray-800 line-clamp-2 mb-1 leading-snug">{product.name}</h3>
-                        <div className="flex items-center gap-1.5">
-                          {isOffer ? (
-                            <>
-                              <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
-                              <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
-                            </>
-                          ) : (
+                        {isOffer ? (
+                          <div className="mb-1">
+                            <span className="text-gray-400 text-[10px] line-through block">{formatCOP(product.salePrice)}</span>
+                            <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
+                          </div>
+                        ) : (
+                          <div className="mb-1">
                             <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {product.stock > 0 ? (
+                          <div className="flex items-center justify-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block shrink-0" />
+                          </div>
+                        ) : product.allowPreorder ? (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                            Preorden
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                            Agotado
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
