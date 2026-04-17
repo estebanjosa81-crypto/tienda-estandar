@@ -2954,9 +2954,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
                           <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
-                            <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-6 w-auto shrink-0 object-contain" />
+                            <div className="w-6 h-6 rounded-full bg-[#2BB673] flex items-center justify-center shrink-0">
+                              <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
+                            </div>
                             <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
-                              Compra con <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>sistecrédito</strong> en 6 cuotas de{' '}
+                              Compra con{' '}
+                              <img src="/pagos/logoSistecredito.png" alt="sistecrédito" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
+                              en 6 cuotas de{' '}
                               <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
                               <span
                                 className="text-[#2BB673] underline cursor-pointer font-medium"
@@ -2967,9 +2971,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         )}
                         {paymentConfig.addi && (
                           <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
-                            <img src="/pagos/ADDI_logo.png" alt="Addi" className="h-5 w-auto shrink-0 object-contain" />
+                            <div className="w-6 h-6 rounded-full bg-[#FF5E00] flex items-center justify-center shrink-0 text-white font-black text-xs">A</div>
                             <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
-                              Paga con <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>Addi</strong> en hasta <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>6 cuotas</strong>.{' '}
+                              Paga con{' '}
+                              <img src="/pagos/ADDI_logo.png" alt="Addi" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
+                              en hasta <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>6 cuotas</strong>.{' '}
                               <span
                                 className="text-[#FF5E00] underline cursor-pointer font-medium"
                                 onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('addi'); setShowCheckout(true) }}
@@ -3662,9 +3668,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-3 z-10">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors"
-                                    title="Agregar al carrito"
+                                    onClick={(e) => { e.stopPropagation(); if (product.stock > 0 || product.allowPreorder) agregarAlCarrito(product) }}
+                                    disabled={product.stock <= 0 && !product.allowPreorder}
+                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-black hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title={product.stock <= 0 && !product.allowPreorder ? 'Agotado' : 'Agregar al carrito'}
                                   >
                                     <ShoppingCart className="w-4 h-4" />
                                   </button>
@@ -3820,11 +3827,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             {/* Action bar — slides up from bottom */}
                             <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                               <button
-                                onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
+                                onClick={(e) => { e.stopPropagation(); if (product.stock > 0 || product.allowPreorder) agregarAlCarrito(product) }}
+                                disabled={product.stock <= 0 && !product.allowPreorder}
+                                className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isLightBg ? 'bg-black/80 hover:bg-black text-white' : 'bg-white/80 hover:bg-white text-black'}`}
                               >
                                 <ShoppingCart className="w-3 h-3" />
-                                Añadir
+                                {product.stock <= 0 && !product.allowPreorder ? 'Agotado' : product.allowPreorder && product.stock <= 0 ? 'Preorden' : 'Añadir'}
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); openProductModal(product) }}
