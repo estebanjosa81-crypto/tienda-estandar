@@ -37,6 +37,10 @@ function toBoolLike(value: any, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
+// Ensure allow_preorder column exists on products table (safe migration)
+pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_preorder TINYINT(1) NOT NULL DEFAULT 0')
+  .catch(() => { /* column already exists or DB doesn't support IF NOT EXISTS — ignore */ });
+
 // GET /api/storefront/products — Public endpoint, no auth required
 router.get(
   '/products',
@@ -79,10 +83,10 @@ router.get(
       const params: any[] = [];
 
       if (showAll || !tenantId) {
-        // Show products from all active tenants
-        whereClause = `WHERE p.stock > 0 AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        // Show products from all active tenants (including preorder items with no stock)
+        whereClause = `WHERE (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
       } else {
-        whereClause = 'WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1';
+        whereClause = 'WHERE p.tenant_id = ? AND (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1';
         params.push(tenantId);
       }
 
@@ -151,6 +155,7 @@ router.get(
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             p.delivery_type as deliveryType,
             p.sede_id as sedeId,
+            IF(p.allow_preorder, 1, 0) as allowPreorder,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -174,6 +179,7 @@ router.get(
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             NULL as deliveryType,
             NULL as sedeId,
+            0 as allowPreorder,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -445,7 +451,8 @@ router.get(
                   offer_price as offerPrice, offer_label as offerLabel, offer_end as offerEnd,
                   IF(available_for_delivery, 1, 0) as availableForDelivery,
                   delivery_type as deliveryType,
-                  IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate
+                  IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate,
+                  IF(allow_preorder, 1, 0) as allowPreorder
            FROM products
            WHERE tenant_id = ?
            ORDER BY name ASC`,
@@ -462,7 +469,8 @@ router.get(
                     offer_price as offerPrice, offer_label as offerLabel, offer_end as offerEnd,
                     IF(available_for_delivery, 1, 0) as availableForDelivery,
                     NULL as deliveryType,
-                    IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate
+                    IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate,
+                    0 as allowPreorder
              FROM products
              WHERE tenant_id = ?
              ORDER BY name ASC`,
@@ -478,7 +486,8 @@ router.get(
                     offer_price as offerPrice, offer_label as offerLabel, offer_end as offerEnd,
                     IF(available_for_delivery, 1, 0) as availableForDelivery,
                     NULL as deliveryType,
-                    0 as isNewLaunch, NULL as launchDate
+                    0 as isNewLaunch, NULL as launchDate,
+                    0 as allowPreorder
              FROM products
              WHERE tenant_id = ?
              ORDER BY name ASC`,
@@ -495,6 +504,7 @@ router.get(
         isOnOffer: Number(r.isOnOffer) === 1,
         availableForDelivery: Number(r.availableForDelivery) === 1,
         isNewLaunch: Number(r.isNewLaunch) === 1,
+        allowPreorder: Number(r.allowPreorder) === 1,
       }));
 
       res.json({ success: true, data });
@@ -1926,6 +1936,44 @@ router.put(
     } catch (error) {
       console.error('Toggle new launch error:', error);
       res.status(500).json({ success: false, error: 'Error al actualizar nuevo lanzamiento' });
+    }
+  }
+);
+
+// PUT /api/storefront/preorder/:productId — Activar/desactivar preorden para un producto
+router.put(
+  '/preorder/:productId',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).user.tenantId;
+      const { productId } = req.params;
+      const { allowPreorder } = req.body;
+
+      if (typeof allowPreorder !== 'boolean') {
+        res.status(400).json({ success: false, error: 'El campo "allowPreorder" debe ser verdadero o falso' });
+        return;
+      }
+
+      // Ensure column exists
+      try {
+        await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_preorder TINYINT(1) NOT NULL DEFAULT 0');
+      } catch { /* column may already exist */ }
+
+      const [result] = await pool.query(
+        'UPDATE products SET allow_preorder = ? WHERE id = ? AND tenant_id = ?',
+        [allowPreorder ? 1 : 0, productId, tenantId]
+      ) as any;
+
+      if (result.affectedRows === 0) {
+        res.status(404).json({ success: false, error: 'Producto no encontrado' });
+        return;
+      }
+
+      res.json({ success: true, data: { id: productId, allowPreorder } });
+    } catch (error) {
+      console.error('Toggle preorder error:', error);
+      res.status(500).json({ success: false, error: 'Error al actualizar preorden' });
     }
   }
 );

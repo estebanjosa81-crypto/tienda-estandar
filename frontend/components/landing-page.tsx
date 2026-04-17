@@ -107,6 +107,7 @@ interface StorefrontProduct {
   availableForDelivery?: boolean | number
   deliveryType?: 'domicilio' | 'envio' | 'ambos' | null
   sedeId?: string | null
+  allowPreorder?: boolean | number
 }
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
@@ -2485,7 +2486,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className={`flex items-center border rounded-lg overflow-hidden ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
                     <button
                       onClick={() => { setProductQuantity(q => Math.max(1, q - 1)); setQuantityMaxWarning(false) }}
-                      disabled={selectedProduct.stock === 0}
+                      disabled={selectedProduct.stock === 0 && !selectedProduct.allowPreorder}
                       className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                     >
                       <Minus className="w-4 h-4" />
@@ -2493,14 +2494,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <span className={`w-11 text-center text-base font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                     <button
                       onClick={() => {
-                        if (selectedProduct.stock && productQuantity >= selectedProduct.stock) {
+                        if (!selectedProduct.allowPreorder && selectedProduct.stock && productQuantity >= selectedProduct.stock) {
                           setQuantityMaxWarning(true)
                         } else {
-                          setProductQuantity(q => Math.min(selectedProduct.stock ?? 999, q + 1))
+                          setProductQuantity(q => Math.min(selectedProduct.allowPreorder ? 999 : (selectedProduct.stock ?? 999), q + 1))
                           setQuantityMaxWarning(false)
                         }
                       }}
-                      disabled={selectedProduct.stock === 0}
+                      disabled={selectedProduct.stock === 0 && !selectedProduct.allowPreorder}
                       className={`w-11 h-11 flex items-center justify-center transition-colors ${isLightBg ? 'text-black/40 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
                     >
                       <Plus className="w-4 h-4" />
@@ -2522,26 +2523,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
 
                 {/* CTA buttons */}
-                {selectedProduct.stock === 0 ? (
+                {selectedProduct.stock === 0 && !selectedProduct.allowPreorder ? (
                   <div className={`w-full py-4 text-sm uppercase tracking-widest font-semibold text-center border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
                     Agotado
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {selectedProduct.stock === 0 && selectedProduct.allowPreorder && (
+                      <p className={`text-xs text-center ${isLightBg ? 'text-amber-600' : 'text-amber-400'}`}>
+                        Pedido bajo orden — el producto se despachará en cuanto esté disponible
+                      </p>
+                    )}
                     <button
                       onClick={addFromModal}
                       className="w-full py-4 rounded-xl text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform bg-zinc-900"
                       style={{ color: '#ffffff' }}
                     >
                       <ShoppingCart className="w-4 h-4" />
-                      Añadir al carrito
+                      {selectedProduct.stock === 0 ? 'Preordenar' : 'Añadir al carrito'}
                     </button>
                     <button
                       onClick={() => { addFromModal(); fetchOrderBump(); setShowCheckout(true) }}
                       className="w-full py-4 rounded-xl text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-transform bg-zinc-900"
                       style={{ color: '#ffffff' }}
                     >
-                      Comprar ahora
+                      {selectedProduct.stock === 0 ? 'Preordenar ahora' : 'Comprar ahora'}
                     </button>
                   </div>
                 )}
@@ -2972,10 +2978,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                     {/* Stock status */}
                     <div>
-                      {selectedProduct.stock === 0 ? (
+                      {selectedProduct.stock === 0 && !selectedProduct.allowPreorder ? (
                         <div className="flex items-center gap-2 text-sm" style={{ color: isLightBg ? '#ef4444' : '#f87171' }}>
                           <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                           Agotado por el momento
+                        </div>
+                      ) : selectedProduct.stock === 0 && selectedProduct.allowPreorder ? (
+                        <div className="flex items-center gap-2 text-sm" style={{ color: isLightBg ? '#d97706' : '#fbbf24' }}>
+                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                          Pedido bajo orden
                         </div>
                       ) : selectedProduct.stock <= 5 ? (
                         <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
@@ -3022,22 +3033,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <button
                           onClick={() => { setProductQuantity(q => Math.max(1, q - 1)); setQuantityMaxWarning(false) }}
                           className={`w-10 h-10 flex items-center justify-center transition-colors rounded-l-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                          disabled={selectedProduct.stock === 0}
+                          disabled={selectedProduct.stock === 0 && !selectedProduct.allowPreorder}
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
                         <span className={`w-10 text-center text-sm font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{productQuantity}</span>
                         <button
                           onClick={() => {
-                            if (selectedProduct.stock && productQuantity >= selectedProduct.stock) {
+                            if (!selectedProduct.allowPreorder && selectedProduct.stock && productQuantity >= selectedProduct.stock) {
                               setQuantityMaxWarning(true)
                             } else {
-                              setProductQuantity(q => Math.min(selectedProduct.stock ?? 999, q + 1))
+                              setProductQuantity(q => Math.min(selectedProduct.allowPreorder ? 999 : (selectedProduct.stock ?? 999), q + 1))
                               setQuantityMaxWarning(false)
                             }
                           }}
                           className={`w-10 h-10 flex items-center justify-center transition-colors rounded-r-lg ${isLightBg ? 'text-black/50 hover:text-black hover:bg-black/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                          disabled={selectedProduct.stock === 0}
+                          disabled={selectedProduct.stock === 0 && !selectedProduct.allowPreorder}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -3059,7 +3070,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
 
                     {/* CTA buttons */}
-                    {selectedProduct.stock === 0 ? (
+                    {selectedProduct.stock === 0 && !selectedProduct.allowPreorder ? (
                       <div className={`w-full py-4 text-sm uppercase tracking-[0.2em] font-semibold text-center rounded-xl border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
                         Agotado
                       </div>
@@ -3074,14 +3085,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          Añadir al carrito
+                          {selectedProduct.stock === 0 ? 'Preordenar' : 'Añadir al carrito'}
                         </button>
                         <button
                           onClick={() => { addFromModal(); fetchOrderBump(); setShowCheckout(true) }}
                           style={{ color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' }}
                           className="flex-1 py-3.5 text-sm uppercase tracking-[0.12em] font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 hover:opacity-85"
                         >
-                          Comprar ahora
+                          {selectedProduct.stock === 0 ? 'Preordenar ahora' : 'Comprar ahora'}
                         </button>
                       </div>
                     )}
@@ -3693,16 +3704,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
                                 </div>
                               )}
-                              {product.stock > 0 ? (
-                                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-500">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block shrink-0" />
-                                  1 Opción disponible
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
-                                  Agotado
-                                </div>
+                              {product.stock <= 0 && (
+                                product.allowPreorder ? (
+                                  <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                                    Preorden
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                                    Agotado
+                                  </div>
+                                )
                               )}
                             </div>
                           </div>

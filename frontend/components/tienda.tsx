@@ -56,6 +56,7 @@ interface StoreProduct {
   deliveryType: 'domicilio' | 'envio' | 'ambos' | null
   isNewLaunch: boolean
   launchDate: string | null
+  allowPreorder: boolean
 }
 
 type ActiveTab = 'catalog' | 'new-launches' | 'order-bump'
@@ -123,6 +124,7 @@ export function Tienda() {
           availableForDelivery: p.availableForDelivery === true || p.availableForDelivery === 1 || Number(p.availableForDelivery) === 1,
           deliveryType: p.deliveryType || null,
           isNewLaunch: p.isNewLaunch === true || p.isNewLaunch === 1 || Number(p.isNewLaunch) === 1,
+          allowPreorder: p.allowPreorder === true || p.allowPreorder === 1 || Number(p.allowPreorder) === 1,
         }))
         setProducts(prods)
         const published = prods.filter((p: StoreProduct) => p.publishedInStore).length
@@ -265,6 +267,31 @@ export function Tienda() {
       }
     } catch {
       setErrorMsg('Error de conexión al cambiar estado de nuevo lanzamiento')
+      await fetchProducts()
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev)
+        next.delete(productId)
+        return next
+      })
+    }
+  }
+
+  const togglePreorder = async (productId: string, currentState: boolean) => {
+    setTogglingIds(prev => new Set(prev).add(productId))
+    setErrorMsg(null)
+    try {
+      const result = await api.toggleAllowPreorder(productId, !currentState)
+      if (result.success) {
+        setProducts(prev => prev.map(p =>
+          p.id === productId ? { ...p, allowPreorder: !currentState } : p
+        ))
+      } else {
+        setErrorMsg(result.error || 'Error al cambiar preorden')
+        await fetchProducts()
+      }
+    } catch {
+      setErrorMsg('Error de conexión al cambiar preorden')
       await fetchProducts()
     } finally {
       setTogglingIds(prev => {
@@ -613,6 +640,22 @@ export function Tienda() {
             >
               <Sparkles className="h-4 w-4" />
               {inNewLaunchTab && <span className="ml-1">{isNew ? 'Quitar' : 'Agregar'}</span>}
+            </Button>
+
+            {/* Preorder toggle */}
+            <Button
+              variant={product.allowPreorder ? 'default' : 'outline'}
+              size="sm"
+              className={product.allowPreorder
+                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                : 'border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20'
+              }
+              disabled={isToggling}
+              onClick={() => togglePreorder(product.id, product.allowPreorder)}
+              title={product.allowPreorder ? 'Desactivar preorden (no vender sin stock)' : 'Activar preorden (vender sin stock)'}
+            >
+              <Package className="h-4 w-4" />
+              <span className="ml-1 text-xs">{product.allowPreorder ? 'Preorden' : 'Preorden'}</span>
             </Button>
           </div>
           {isOffer && product.offerLabel && (

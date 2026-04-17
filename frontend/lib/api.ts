@@ -846,6 +846,13 @@ class ApiService {
     })
   }
 
+  async toggleAllowPreorder(productId: string, allowPreorder: boolean) {
+    return this.request<any>(`/storefront/preorder/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ allowPreorder }),
+    })
+  }
+
   async getPublicNewLaunches(store?: string) {
     const q = store ? `?store=${encodeURIComponent(store)}` : ''
     return this.request<any[]>(`/storefront/new-launches${q}`)
