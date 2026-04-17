@@ -2174,7 +2174,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
 
             <button onClick={() => { closeProductModal(); setCatalogSpecialFilter('all'); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Catálogo</button>
-            {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (
+            {storeSedes.length >= 2 && Number(storeConfig?.storeInfo?.showSedes) !== 0 && (
               <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`flex items-center gap-1 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>
                 <Store className="w-3.5 h-3.5" />
                 Sedes
@@ -2182,7 +2182,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
             {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Servicios</button>}
             {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Drop</button>}
-            {storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Contacto</button>}
+            {!!storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Contacto</button>}
           </div>
           <div className="flex items-center gap-3">
             {isAuthenticated && authUser ? (
@@ -2346,7 +2346,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex flex-col gap-6 text-sm font-bold tracking-widest text-white/70">
               <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setShowContact(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showContact && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Inicio</button>
               <button onClick={() => { closeProductModal(); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Catálogo</button>
-              {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (
+              {storeSedes.length >= 2 && Number(storeConfig?.storeInfo?.showSedes) !== 0 && (
                 <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 flex items-center gap-2 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>
                   <Store className="w-4 h-4" />
                   Sedes
@@ -2360,7 +2360,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Servicios</button>}
               {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Drop</button>}
               {offerProducts.length > 0 && <button onClick={() => { closeProductModal(); setShowOffers(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showOffers ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Ofertas</button>}
-              {storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Contacto</button>}
+              {!!storeConfig?.storeInfo?.contactPageEnabled && <button onClick={() => { closeProductModal(); setShowContact(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showContact ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Contacto</button>}
               {isAuthenticated && authUser ? (
                 <>
                   <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-white/80 hover:text-white transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
@@ -3452,7 +3452,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   />
                 </div>}
                 {/* Sede selector (only when store has 2+ sedes, sedes visible, and not in sedes view mode or a sede is active) */}
-                {storeSedes.length >= 2 && storeConfig?.storeInfo?.showSedes !== false && (!sedesViewMode || activeSede) && (
+                {storeSedes.length >= 2 && Number(storeConfig?.storeInfo?.showSedes) !== 0 && (!sedesViewMode || activeSede) && (
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {sedesViewMode && activeSede && (
                       <button
