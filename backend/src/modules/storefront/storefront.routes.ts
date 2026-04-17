@@ -729,7 +729,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.contact_page_description as contactPageDescription,
                 si.contact_page_image as contactPageImage,
                 si.contact_page_products as contactPageProducts,
-                si.contact_page_links as contactPageLinks
+                si.contact_page_links as contactPageLinks,
+                si.show_sedes as showSedes
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -1036,6 +1037,7 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
                 si.contact_page_image as contactPageImage,
                 si.contact_page_products as contactPageProducts,
                 si.contact_page_links as contactPageLinks,
+                si.show_sedes as showSedes,
                 t.slug as storeSlug
          FROM store_info si
          LEFT JOIN tenants t ON t.id = si.tenant_id
@@ -1328,11 +1330,12 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
       contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage,
-      contactPageProducts, contactPageLinks,
+      contactPageProducts, contactPageLinks, showSedes,
     } = req.body;
 
     const allowCod = toBoolLike(allowContraentrega, true) ? 1 : 0;
     const infoModule = showInfoModule ? 1 : 0;
+    const showSedesVal = showSedes === false ? 0 : 1;
     const contactEnabled = contactPageEnabled ? 1 : 0;
     const contactProducts = Array.isArray(contactPageProducts)
       ? JSON.stringify(contactPageProducts)
@@ -1352,7 +1355,8 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
           show_info_module = ?, info_module_description = ?,
           contact_page_enabled = ?, contact_page_title = ?, contact_page_description = ?,
-          contact_page_image = ?, contact_page_products = ?, contact_page_links = ?
+          contact_page_image = ?, contact_page_products = ?, contact_page_links = ?,
+          show_sedes = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
@@ -1361,7 +1365,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           department || null, municipality || null, productCardStyle || 'style1', allowCod,
           infoModule, infoModuleDescription || null,
           contactEnabled, contactPageTitle || null, contactPageDescription || null,
-          contactPageImage || null, contactProducts, contactLinks,
+          contactPageImage || null, contactProducts, contactLinks, showSedesVal,
           tenantId,
         ]
       ) as any;
@@ -1428,6 +1432,12 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
         [allowCod, tenantId]
       );
     } catch { /* column may not exist on older DBs — skip */ }
+
+    // Ensure show_sedes is saved (column may not exist on older DBs)
+    try {
+      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS show_sedes TINYINT(1) NOT NULL DEFAULT 1`);
+      await pool.query('UPDATE store_info SET show_sedes = ? WHERE tenant_id = ?', [showSedesVal, tenantId]);
+    } catch { /* skip */ }
 
     res.json({ success: true });
   } catch (error) {

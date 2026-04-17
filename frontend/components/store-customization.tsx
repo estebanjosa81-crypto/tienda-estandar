@@ -40,6 +40,7 @@ import {
   Copy,
   GripVertical,
   Pencil,
+  Store,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
@@ -96,6 +97,7 @@ interface StoreExtendedInfo {
   municipality: string
   productCardStyle: string
   allowContraentrega: boolean
+  showSedes: boolean
   showInfoModule: boolean
   infoModuleDescription: string
   contactPageEnabled: boolean
@@ -155,7 +157,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     paymentMethods: '', socialInstagram: '', socialFacebook: '',
     socialTiktok: '', socialWhatsapp: '',
     department: '', municipality: '', productCardStyle: 'style1',
-    allowContraentrega: true, showInfoModule: false, infoModuleDescription: '',
+    allowContraentrega: true, showSedes: true, showInfoModule: false, infoModuleDescription: '',
     contactPageEnabled: false, contactPageTitle: '', contactPageDescription: '',
     contactPageImage: '', contactPageProducts: [], contactPageLinks: [], storeSlug: '',
   })
@@ -247,6 +249,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             municipality: result.data.storeInfo.municipality || '',
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
             allowContraentrega: toBool(result.data.storeInfo.allowContraentrega, true),
+            showSedes: toBool(result.data.storeInfo.showSedes, true),
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
             contactPageEnabled: !!result.data.storeInfo.contactPageEnabled,
@@ -1429,6 +1432,33 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
                         storeInfo.allowContraentrega ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      <Store className="h-3 w-3" />
+                      Mostrar sección de Sedes
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {storeInfo.showSedes
+                        ? 'La sección de Sedes es visible en la tienda'
+                        : 'La sección de Sedes está oculta en la tienda'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStoreInfo(prev => ({ ...prev, showSedes: !prev.showSedes }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      storeInfo.showSedes ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        storeInfo.showSedes ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
