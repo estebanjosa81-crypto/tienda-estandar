@@ -417,18 +417,24 @@ router.post(
       const firstName = nameParts[0] || customerName;
       const lastName = nameParts.slice(1).join(' ') || customerName;
 
+      // Addi requires phone with +57 country code
+      const rawPhone = String(customerPhone || '').replace(/\D/g, '');
+      const addiPhone = rawPhone.startsWith('57') ? `+${rawPhone}` : `+57${rawPhone}`;
+
+      const addiClient: Record<string, any> = {
+        firstName,
+        lastName,
+        cellphone: addiPhone,
+        documentType: 'CC',
+      };
+      if (customerEmail) addiClient.email = customerEmail;
+      if (customerCedula) addiClient.document = customerCedula;
+
       const addiPayload: Record<string, any> = {
         orderId,
         totalAmount: total,
         currency: 'COP',
-        client: {
-          firstName,
-          lastName,
-          email: customerEmail || '',
-          cellphone: customerPhone,
-          document: customerCedula || '',
-          documentType: 'CC',
-        },
+        client: addiClient,
         products: items.map((item: any) => ({
           sku: String(item.productId),
           name: item.productName,
@@ -438,6 +444,8 @@ router.post(
         redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
         cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
       };
+
+      console.log('ADDI payload:', JSON.stringify(addiPayload));
 
       if (addiStoreSlug) {
         addiPayload.store = { slug: addiStoreSlug };
