@@ -37,9 +37,9 @@ function toBoolLike(value: any, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
-// Ensure allow_preorder column exists on products table (safe migration)
-pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_preorder TINYINT(1) NOT NULL DEFAULT 0')
-  .catch(() => { /* column already exists or DB doesn't support IF NOT EXISTS — ignore */ });
+// Ensure allow_preorder column exists (compatible with MySQL 5.7 and MariaDB)
+pool.query('ALTER TABLE products ADD COLUMN allow_preorder TINYINT(1) NOT NULL DEFAULT 0')
+  .catch(() => { /* duplicate column — column already exists, safe to ignore */ });
 
 // GET /api/storefront/products — Public endpoint, no auth required
 router.get(
@@ -80,29 +80,33 @@ router.get(
       }
 
       let whereClause: string;
+      let stockOnlyWhereClause: string; // fallback without allow_preorder column reference
       const params: any[] = [];
 
       if (showAll || !tenantId) {
-        // Show products from all active tenants (including preorder items with no stock)
         whereClause = `WHERE (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        stockOnlyWhereClause = `WHERE p.stock > 0 AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
       } else {
         whereClause = 'WHERE p.tenant_id = ? AND (p.stock > 0 OR p.allow_preorder = 1) AND p.published_in_store = 1';
+        stockOnlyWhereClause = 'WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1';
         params.push(tenantId);
       }
 
       if (category) {
         whereClause += ' AND p.category = ?';
+        stockOnlyWhereClause += ' AND p.category = ?';
         params.push(category);
       }
 
       if (search) {
         whereClause += ' AND (p.name LIKE ? OR p.brand LIKE ? OR p.description LIKE ?)';
+        stockOnlyWhereClause += ' AND (p.name LIKE ? OR p.brand LIKE ? OR p.description LIKE ?)';
         const searchTerm = `%${search}%`;
         params.push(searchTerm, searchTerm, searchTerm);
       }
 
       // Save fallback params (without municipality) before adding location filter
-      let fallbackWhereClause = whereClause;
+      let fallbackWhereClause = stockOnlyWhereClause;
       const fallbackParams = [...params];
 
       // Location filter
@@ -1955,10 +1959,9 @@ router.put(
         return;
       }
 
-      // Ensure column exists
       try {
-        await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_preorder TINYINT(1) NOT NULL DEFAULT 0');
-      } catch { /* column may already exist */ }
+        await pool.query('ALTER TABLE products ADD COLUMN allow_preorder TINYINT(1) NOT NULL DEFAULT 0');
+      } catch { /* duplicate column — already exists */ }
 
       const [result] = await pool.query(
         'UPDATE products SET allow_preorder = ? WHERE id = ? AND tenant_id = ?',
