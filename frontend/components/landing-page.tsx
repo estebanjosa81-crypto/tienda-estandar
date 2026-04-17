@@ -2954,9 +2954,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
                           <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
-                            <div className="w-6 h-6 rounded-full bg-[#2BB673] flex items-center justify-center shrink-0">
-                              <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
-                            </div>
+                            <img src="/icono-sistecredito.png" alt="sistecrédito" className="w-7 h-7 shrink-0 rounded-full object-cover" />
                             <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
                               Compra con{' '}
                               <img src="/pagos/logoSistecredito.png" alt="sistecrédito" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
@@ -2971,7 +2969,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         )}
                         {paymentConfig.addi && (
                           <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
-                            <div className="w-6 h-6 rounded-full bg-[#FF5E00] flex items-center justify-center shrink-0 text-white font-black text-xs">A</div>
+                            <img src="/icono-Addi.png" alt="Addi" className="w-7 h-7 shrink-0 rounded-full object-cover" />
                             <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
                               Paga con{' '}
                               <img src="/pagos/ADDI_logo.png" alt="Addi" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
