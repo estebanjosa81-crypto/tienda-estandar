@@ -425,39 +425,39 @@ router.post(
         firstName,
         lastName,
         cellphone: addiPhone,
-        documentType: 'CC',
+        idType: 'CC',
       };
       if (customerEmail) addiClient.email = customerEmail;
-      if (customerCedula) addiClient.document = customerCedula;
+      if (customerCedula) addiClient.idNumber = customerCedula;
 
       const addiPayload: Record<string, any> = {
-        orderId,
+        allyOrderId: orderId,
         totalAmount: total,
         currency: 'COP',
         client: addiClient,
-        products: items.map((item: any) => ({
+        items: items.map((item: any) => ({
           sku: String(item.productId),
           name: item.productName,
           quantity: Number(item.quantity),
           unitPrice: parseFloat(item.unitPrice),
+          tax: 0,
+          discount: 0,
         })),
-        redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
-        cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
+        redirectionUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
+        callbackUrl: `${config.mp.frontendUrl?.replace('https://perfummua.com', 'https://api.perfummua.com') || process.env.BACKEND_URL || 'https://api.perfummua.com'}/api/orders/addi-webhook`,
       };
 
-      console.log('ADDI payload:', JSON.stringify(addiPayload));
-
       if (addiStoreSlug) {
-        addiPayload.store = { slug: addiStoreSlug };
+        addiPayload.allySlug = addiStoreSlug;
       }
 
       if (address) {
-        addiPayload.pickUpAddress = {
-          city: municipality || '',
-          street: address,
-        };
+        addiPayload.pickUpAddress = { city: municipality || '', street: address };
       }
 
+      console.log('ADDI payload:', JSON.stringify(addiPayload));
+
+      // Addi returns HTTP 301 with Location header — must NOT follow redirect automatically
       const appRes = await fetch(`${addiApiUrl}/v1/online-applications`, {
         method: 'POST',
         headers: {
@@ -465,32 +465,29 @@ router.post(
           'Authorization': `Bearer ${addiToken}`,
         },
         body: JSON.stringify(addiPayload),
+        redirect: 'manual',
       });
 
-      const appData: any = await appRes.json();
+      console.log('ADDI response status:', appRes.status, 'Location:', appRes.headers.get('location'));
 
-      if (!appRes.ok) {
-        console.error('ADDI application error:', appData);
-        res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
+      // Success: 301 redirect with Location header containing the Addi checkout URL
+      if (appRes.status === 301 || appRes.status === 302) {
+        const applicationUrl = appRes.headers.get('location');
+        if (!applicationUrl) {
+          console.error('ADDI 301 but no Location header');
+          res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
+          return;
+        }
+        res.status(201).json({ success: true, data: { orderId, orderNumber, total, applicationUrl } });
         return;
       }
 
-      const applicationUrl = appData.applicationUrl || appData.url || appData.redirectUrl;
-      if (!applicationUrl) {
-        console.error('ADDI response missing URL:', appData);
-        res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
-        return;
-      }
-
-      res.status(201).json({
-        success: true,
-        data: {
-          orderId,
-          orderNumber,
-          total,
-          applicationUrl,
-        },
-      });
+      // Error response
+      let appData: any = {};
+      try { appData = await appRes.json(); } catch { /* no body */ }
+      console.error('ADDI application error:', appRes.status, JSON.stringify(appData));
+      res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
+      return;
     } catch (error) {
       console.error('ADDI application error:', error);
       res.status(500).json({ success: false, error: 'Error al crear la aplicación de crédito ADDI.' });
@@ -1316,6 +1313,46 @@ router.put(
       res.status(500).json({ success: false, error: 'Error al actualizar estado' });
     } finally {
       connection.release();
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Webhook de ADDI (callback de estado de transacción)
+// =============================================
+router.post(
+  '/addi-webhook',
+  async (req: Request, res: Response) => {
+    try {
+      const payload = req.body;
+      console.log('ADDI webhook received:', JSON.stringify(payload));
+
+      const { orderId, status } = payload || {};
+
+      if (orderId && status) {
+        // Map Addi status to internal order status
+        const statusMap: Record<string, string> = {
+          APPROVED: 'confirmado',
+          REJECTED: 'cancelado',
+          DECLINED: 'cancelado',
+          ABANDONED: 'cancelado',
+        };
+        const newStatus = statusMap[String(status).toUpperCase()];
+
+        if (newStatus) {
+          await pool.query(
+            "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ? AND status NOT IN ('entregado','cancelado')",
+            [newStatus, orderId]
+          );
+          console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
+        }
+      }
+
+      // Addi requires HTTP 200 echoing the exact received body
+      res.status(200).json(payload);
+    } catch (error) {
+      console.error('ADDI webhook error:', error);
+      res.status(200).json(req.body); // Always 200 to avoid Addi retries
     }
   }
 );
