@@ -438,8 +438,8 @@ router.post(
         products: items.map((item: any) => ({
           sku: String(item.productId),
           name: item.productName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          quantity: Number(item.quantity),
+          unitPrice: parseFloat(item.unitPrice),
         })),
         redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
         cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
