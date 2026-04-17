@@ -3678,20 +3678,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </div>
 
                             {/* Card info */}
-                            <div className="p-2">
-                              <h3 className="text-[11px] font-medium text-gray-800 line-clamp-2 mb-0.5 leading-snug">
+                            <div className="p-2 text-center">
+                              <h3 className="text-[11px] font-medium text-gray-800 line-clamp-2 mb-1 leading-snug">
                                 {product.name}
                               </h3>
-                              <div className="flex items-center gap-1.5">
-                                {isOffer ? (
-                                  <>
-                                    <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
-                                    <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
-                                  </>
-                                ) : (
+                              {isOffer ? (
+                                <div className="flex items-center justify-center gap-1.5 mb-1">
+                                  <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
+                                </div>
+                              ) : (
+                                <div className="mb-1">
                                   <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
-                                )}
-                              </div>
+                                </div>
+                              )}
+                              {product.stock > 0 ? (
+                                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-500">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block shrink-0" />
+                                  1 Opción disponible
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                                  Agotado
+                                </div>
+                              )}
                             </div>
                           </div>
                         )
