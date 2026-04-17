@@ -425,24 +425,25 @@ router.post(
         firstName,
         lastName,
         cellphone: addiPhone,
-        documentType: 'CC',
+        idType: 'CC',
       };
       if (customerEmail) addiClient.email = customerEmail;
-      if (customerCedula) addiClient.document = customerCedula;
+      if (customerCedula) addiClient.idNumber = customerCedula;
 
       const addiPayload: Record<string, any> = {
-        orderId,
+        allyOrderId: orderId,
         totalAmount: total,
         currency: 'COP',
         client: addiClient,
-        products: items.map((item: any) => ({
+        items: items.map((item: any) => ({
           sku: String(item.productId),
           name: item.productName,
           quantity: Number(item.quantity),
           unitPrice: parseFloat(item.unitPrice),
+          tax: 0,
+          discount: 0,
         })),
-        redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
-        cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
+        redirectionUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
       };
 
       console.log('ADDI payload:', JSON.stringify(addiPayload));
@@ -468,6 +469,7 @@ router.post(
       });
 
       const appData: any = await appRes.json();
+      if (!appRes.ok) console.error('ADDI full response:', JSON.stringify(appData));
 
       if (!appRes.ok) {
         console.error('ADDI application error:', appData);
