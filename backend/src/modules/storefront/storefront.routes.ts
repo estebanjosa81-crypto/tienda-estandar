@@ -1447,9 +1447,11 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       );
     } catch { /* column may not exist on older DBs — skip */ }
 
-    // Ensure show_sedes is saved (column may not exist on older DBs)
+    // Ensure show_sedes column exists, then save value
     try {
-      await pool.query(`ALTER TABLE store_info ADD COLUMN IF NOT EXISTS show_sedes TINYINT(1) NOT NULL DEFAULT 1`);
+      await pool.query('ALTER TABLE store_info ADD COLUMN show_sedes TINYINT(1) NOT NULL DEFAULT 1');
+    } catch { /* duplicate column — already exists, safe to ignore */ }
+    try {
       await pool.query('UPDATE store_info SET show_sedes = ? WHERE tenant_id = ?', [showSedesVal, tenantId]);
     } catch { /* skip */ }
 
