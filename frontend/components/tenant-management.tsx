@@ -150,7 +150,7 @@ export function TenantManagement() {
   const [addiClientId, setAddiClientId] = useState('')
   const [addiClientSecret, setAddiClientSecret] = useState('')
   const [addiStoreSlug, setAddiStoreSlug] = useState('')
-  const [addiProduction, setAddiProduction] = useState(false)
+  const [addiProduction, setAddiProduction] = useState(true)
   const [addiSaved, setAddiSaved] = useState(false)
   const [showAddiSecret, setShowAddiSecret] = useState(false)
   const [isSavingAddi, setIsSavingAddi] = useState(false)
