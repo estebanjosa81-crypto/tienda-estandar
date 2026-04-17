@@ -1131,16 +1131,14 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
       } catch { drop.products = []; }
     }
 
-    res.json({
-      // Normalize TINYINT booleans so frontend receives true/false, not 0/1
-      if (storeInfoRow) {
-        storeInfoRow.showSedes = storeInfoRow.showSedes !== 0 && storeInfoRow.showSedes !== false;
-        storeInfoRow.contactPageEnabled = !!storeInfoRow.contactPageEnabled;
-        storeInfoRow.allowContraentrega = storeInfoRow.allowContraentrega !== 0 && storeInfoRow.allowContraentrega !== false;
-        storeInfoRow.showInfoModule = !!storeInfoRow.showInfoModule;
-      }
+    if (storeInfoRow) {
+      storeInfoRow.showSedes = storeInfoRow.showSedes !== 0 && storeInfoRow.showSedes !== false;
+      storeInfoRow.contactPageEnabled = !!storeInfoRow.contactPageEnabled;
+      storeInfoRow.allowContraentrega = storeInfoRow.allowContraentrega !== 0 && storeInfoRow.allowContraentrega !== false;
+      storeInfoRow.showInfoModule = !!storeInfoRow.showInfoModule;
+    }
 
-      res.json({
+    res.json({
       success: true,
       data: {
         banners,
