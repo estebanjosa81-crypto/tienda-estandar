@@ -46,7 +46,7 @@ router.get(
   '/products',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Pagina invalida'),
-    query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('Limite invalido'),
+    query('limit').optional().isInt({ min: 1, max: 2000 }).withMessage('Limite invalido'),
     query('category').optional().notEmpty().withMessage('Categoria invalida'),
     query('search').optional().notEmpty(),
     query('store').optional().notEmpty(),
@@ -58,7 +58,7 @@ router.get(
   async (req: Request, res: Response, _next: NextFunction) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 200;
+      const limit = parseInt(req.query.limit as string) || 1000;
       const offset = (page - 1) * limit;
       const category = req.query.category as string | undefined;
       const search = req.query.search as string | undefined;

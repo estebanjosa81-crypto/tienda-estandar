@@ -308,6 +308,7 @@ router.post(
       let addiClientSecret = process.env.ADDI_CLIENT_SECRET || '';
       let addiStoreSlug = process.env.ADDI_STORE_SLUG || '';
       let addiProduction = process.env.ADDI_PRODUCTION === 'true';
+      let addiProductionExplicitlySet = !!process.env.ADDI_PRODUCTION;
 
       if (!addiClientId || !addiClientSecret) {
         const [psRows] = await pool.query(
@@ -317,13 +318,17 @@ router.post(
           if (r.setting_key === 'addi_client_id') addiClientId = r.setting_value || addiClientId;
           if (r.setting_key === 'addi_client_secret') addiClientSecret = r.setting_value || addiClientSecret;
           if (r.setting_key === 'addi_store_slug') addiStoreSlug = r.setting_value || addiStoreSlug;
-          if (r.setting_key === 'addi_production') addiProduction = r.setting_value === 'true';
+          if (r.setting_key === 'addi_production') { addiProduction = r.setting_value === 'true'; addiProductionExplicitlySet = true; }
         }
       }
 
       // Use staging credentials as fallback if nothing configured
-      if (!addiClientId) addiClientId = 'y61CPhOS0YB7wxz8BgKBpQt4YcTsW0wi';
+      const stagingClientId = 'y61CPhOS0YB7wxz8BgKBpQt4YcTsW0wi';
+      if (!addiClientId) addiClientId = stagingClientId;
       if (!addiClientSecret) addiClientSecret = 'U6zgGfhZ_F-HLbqyM70fkssviIQ2PDL34phvGIL4wIppfoSXv-z63mrldcrnUZUi';
+
+      // If real credentials are configured but production flag was never explicitly set, default to production
+      if (!addiProductionExplicitlySet && addiClientId !== stagingClientId) addiProduction = true;
 
       const addiAudience = addiProduction ? 'https://api.addi.com' : 'https://api.staging.addi.com';
       const addiAuthUrl = addiProduction ? 'https://auth.addi.com/oauth/token' : 'https://auth.addi-staging.com/oauth/token';

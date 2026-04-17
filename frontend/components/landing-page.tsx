@@ -745,7 +745,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const munParam = clientMunicipality ? `&municipality=${encodeURIComponent(clientMunicipality)}` : ''
         const noLocationParam = !clientMunicipality && locationSkipped ? '&no_location=true' : ''
         const sedeParam = activeSede ? `&sede=${activeSede}` : ''
-        const res = await fetch(`${API_URL}/storefront/products?limit=200${storeParam}${munParam}${noLocationParam}${sedeParam}`)
+        const res = await fetch(`${API_URL}/storefront/products?limit=1000${storeParam}${munParam}${noLocationParam}${sedeParam}`)
         const json = await res.json()
         if (json.success && json.data?.products) {
           setProducts(json.data.products)
@@ -2953,11 +2953,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {(paymentConfig.sistecredito || paymentConfig.addi) && (
                       <div className="space-y-2">
                         {paymentConfig.sistecredito && (
-                          <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-[#2BB673] bg-white text-sm">
-                            <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-5 shrink-0 object-contain" />
-                            <span className="text-gray-700 leading-snug">
-                              Compra con <strong className="text-gray-900">sistecrédito</strong> en 6 cuotas de{' '}
-                              <strong className="text-gray-900">{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
+                          <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
+                            <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-6 w-auto shrink-0 object-contain" />
+                            <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
+                              Compra con <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>sistecrédito</strong> en 6 cuotas de{' '}
+                              <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
                               <span
                                 className="text-[#2BB673] underline cursor-pointer font-medium"
                                 onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('sistecredito'); setShowCheckout(true) }}
@@ -2966,10 +2966,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         )}
                         {paymentConfig.addi && (
-                          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm ${isLightBg ? 'border-blue-200 bg-blue-50' : 'border-blue-800/40 bg-blue-900/10'}`}>
-                            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">A</div>
-                            <span className={isLightBg ? 'text-blue-800' : 'text-blue-400'}>
-                              Paga con <strong>Addi</strong> en hasta <strong>6 cuotas</strong>
+                          <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
+                            <img src="/pagos/ADDI_logo.png" alt="Addi" className="h-5 w-auto shrink-0 object-contain" />
+                            <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
+                              Paga con <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>Addi</strong> en hasta <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>6 cuotas</strong>.{' '}
+                              <span
+                                className="text-[#FF5E00] underline cursor-pointer font-medium"
+                                onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('addi'); setShowCheckout(true) }}
+                              >Pide un cupo.</span>
                             </span>
                           </div>
                         )}
@@ -3704,18 +3708,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
                                 </div>
                               )}
-                              {product.stock <= 0 && (
-                                product.allowPreorder ? (
-                                  <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
-                                    Preorden
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
-                                    Agotado
-                                  </div>
-                                )
+                              {product.stock > 0 ? (
+                                <div className="flex items-center justify-center gap-1 text-[10px] text-green-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block shrink-0" />
+                                  Disponible
+                                </div>
+                              ) : product.allowPreorder ? (
+                                <div className="flex items-center justify-center gap-1 text-[10px] text-amber-500">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                                  Preorden
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1 text-[10px] text-red-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                                  Agotado
+                                </div>
                               )}
                             </div>
                           </div>
@@ -3780,14 +3787,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <h3 className="font-bold text-sm leading-tight text-white line-clamp-2 drop-shadow">
                                 {product.name}
                               </h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                {isOffer ? (
-                                  <>
-                                    <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
-                                    <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                  </>
+                              <div className="flex items-center justify-between mt-1">
+                                <div className="flex items-center gap-2">
+                                  {isOffer ? (
+                                    <>
+                                      <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.offerPrice!)}</span>
+                                      <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
+                                    </>
+                                  ) : (
+                                    <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
+                                  )}
+                                </div>
+                                {product.stock > 0 ? (
+                                  <div className="flex items-center gap-1 text-[9px] text-green-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block shrink-0" />
+                                    Disponible
+                                  </div>
+                                ) : product.allowPreorder ? (
+                                  <div className="flex items-center gap-1 text-[9px] text-amber-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                                    Preorden
+                                  </div>
                                 ) : (
-                                  <span className={`text-base font-black tabular-nums drop-shadow ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(product.salePrice)}</span>
+                                  <div className="flex items-center gap-1 text-[9px] text-red-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block shrink-0" />
+                                    Agotado
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -4823,8 +4848,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       </section>
 
 
-      {/* ========== SEDES BANNER (only when 2+ sedes) ========== */}
-      {storeSedes.length >= 2 && (
+      {/* ========== SEDES BANNER (only when 2+ sedes and showSedes not disabled) ========== */}
+      {storeSedes.length >= 2 && Number(storeConfig?.storeInfo?.showSedes) !== 0 && (
         <div className="landing-section-bg border-t border-white/5 py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-white/40 text-xs uppercase tracking-[0.2em]">
