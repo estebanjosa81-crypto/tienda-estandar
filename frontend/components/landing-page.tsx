@@ -3604,7 +3604,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   </div>
                 ) : (
-                  <div className={`grid ${productCardStyle === 'style2' ? 'gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 gap-3 max-w-2xl mx-auto px-3 py-4'}`}>
+                  <div className={`grid ${productCardStyle === 'style2' ? 'gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2'}`}>
                     {catalogFilteredProducts.map(product => {
                       const inCart = carrito.find(c => c.id === product.id)
                       const isOffer = product.isOnOffer && product.offerPrice
@@ -3614,11 +3614,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         return (
                           <div
                             key={product.id}
-                            className="group relative bg-white rounded-lg overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-all duration-300"
+                            className="group relative bg-white rounded-md overflow-hidden shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all duration-300"
                             onClick={() => openProductModal(product)}
                           >
                             {/* Image area */}
-                            <div className="relative aspect-[4/3] sm:aspect-square overflow-hidden bg-gray-50">
+                            <div className="relative aspect-square overflow-hidden bg-gray-50">
                               {product.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -3678,23 +3678,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </div>
 
                             {/* Card info */}
-                            <div className="p-3">
-                              <h3 className="text-xs sm:text-sm font-medium text-gray-800 line-clamp-2 mb-1 leading-snug">
+                            <div className="p-2">
+                              <h3 className="text-[11px] font-medium text-gray-800 line-clamp-2 mb-0.5 leading-snug">
                                 {product.name}
                               </h3>
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-1.5">
                                 {isOffer ? (
                                   <>
-                                    <span className="text-gray-400 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                    <span className="text-gray-900 font-bold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                    <span className="text-gray-400 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
+                                    <span className="text-gray-900 font-bold text-xs">{formatCOP(product.offerPrice!)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-gray-900 font-bold text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-gray-900 font-bold text-xs">{formatCOP(product.salePrice)}</span>
                                 )}
-                              </div>
-                              <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                                <span className={`w-1.5 h-1.5 rounded-full inline-block ${isLightBg ? 'bg-black/40' : 'bg-white/40'}`} />
-                                1 Opción disponible
                               </div>
                             </div>
                           </div>
@@ -7774,7 +7770,7 @@ function CatalogSidebar({
   return (
     <div className="p-5 space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className={`text-xs uppercase tracking-widest font-medium ${t('text-white/60', 'text-black/60')}`}>Filtros</h3>
+        <h3 className={`text-xs uppercase tracking-widest font-bold ${t('text-white', 'text-black')}`}>Filtros</h3>
         {hasFilters && (
           <button onClick={onClear} className={`text-[10px] uppercase tracking-wider ${t('text-white/60 hover:text-white', 'text-black/60 hover:text-black')}`}>Limpiar</button>
         )}
@@ -7782,7 +7778,7 @@ function CatalogSidebar({
 
       {/* Price */}
       <div className={`border-b pb-6 ${t('border-white/5', 'border-black/8')}`}>
-        <h4 className={`text-[11px] uppercase tracking-widest mb-4 ${t('text-white/40', 'text-black/40')}`}>Precio</h4>
+        <h4 className={`text-[11px] uppercase tracking-widest font-semibold mb-4 ${t('text-white/80', 'text-black/70')}`}>Precio</h4>
         {/* Range values */}
         <div className="flex items-center justify-between mb-5">
           <span className={`text-xs font-light tabular-nums ${t('text-white/70', 'text-black/70')}`}>{formatCOP(priceMin)}</span>
@@ -7840,7 +7836,7 @@ function CatalogSidebar({
       {/* Categories */}
       {categories.length > 0 && (
         <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
-          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Categorías</h4>
+          <h4 className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t('text-white/80', 'text-black/70')}`}>Categorías</h4>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {categories.map(cat => (
               <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
@@ -7857,7 +7853,7 @@ function CatalogSidebar({
       {/* Brands */}
       {availableBrands.length > 0 && (
         <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
-          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Marcas</h4>
+          <h4 className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t('text-white/80', 'text-black/70')}`}>Marcas</h4>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {availableBrands.map(brand => (
               <label key={brand} className="flex items-center gap-2.5 cursor-pointer group">
@@ -7874,7 +7870,7 @@ function CatalogSidebar({
       {/* Gender */}
       {availableGenders.length > 0 && (
         <div className={`border-b pb-5 ${t('border-white/5', 'border-black/8')}`}>
-          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Género</h4>
+          <h4 className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t('text-white/80', 'text-black/70')}`}>Género</h4>
           <div className="space-y-2">
             {availableGenders.map(g => (
               <label key={g} className="flex items-center gap-2.5 cursor-pointer group">
@@ -7891,7 +7887,7 @@ function CatalogSidebar({
       {/* Sizes */}
       {availableSizes.length > 0 && (
         <div className="pb-5">
-          <h4 className={`text-[11px] uppercase tracking-widest mb-3 ${t('text-white/40', 'text-black/40')}`}>Tamaños</h4>
+          <h4 className={`text-[11px] uppercase tracking-widest font-semibold mb-3 ${t('text-white/80', 'text-black/70')}`}>Tamaños</h4>
           <div className="flex flex-wrap gap-2">
             {availableSizes.map(size => (
               <button key={size} onClick={() => toggle(size, selectedSizes, setSelectedSizes)}
