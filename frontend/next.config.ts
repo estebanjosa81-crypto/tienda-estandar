@@ -22,20 +22,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async redirects() {
-    return [
-      {
-        source: '/api/.env:path*',
-        destination: '/',
-        permanent: false,
-      },
-      {
-        source: '/api/env:path*',
-        destination: '/',
-        permanent: false,
-      },
-    ];
-  },
 };
 
 export default nextConfig;
