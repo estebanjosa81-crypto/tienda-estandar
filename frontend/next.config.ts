@@ -13,6 +13,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Block direct access to sensitive files via the proxy
+        source: '/api/:file(\\.env.*|env.*|\\.git.*|config.*)',
+        headers: [{ key: 'x-robots-tag', value: 'noindex' }],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/api/:file(\\.env(.*)|env(.*)|config\\.js|config\\.json)',
+        destination: '/',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

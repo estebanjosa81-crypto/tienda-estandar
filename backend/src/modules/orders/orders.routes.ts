@@ -427,32 +427,29 @@ router.post(
       const addiPhone = rawPhone.startsWith('57') ? `+${rawPhone}` : `+57${rawPhone}`;
 
       const addiClient: Record<string, any> = {
+        idType: 'CC',
+        idNumber: customerCedula || '0000000000',
         firstName,
         lastName,
         cellphone: addiPhone,
-        idType: 'CC',
       };
       if (customerEmail) addiClient.email = customerEmail;
-      if (customerCedula) addiClient.idNumber = customerCedula;
 
+      const backendUrl = process.env.BACKEND_URL || 'https://api.perfummua.com';
       const addiPayload: Record<string, any> = {
         allyOrderId: orderId,
-        totalAmount: total,
-        currency: 'COP',
+        totalAmount: Math.round(total),
         client: addiClient,
         items: items.map((item: any) => ({
           sku: String(item.productId),
           name: item.productName,
           quantity: Number(item.quantity),
-          unitPrice: parseFloat(item.unitPrice),
-          tax: 0,
-          discount: 0,
+          unitPrice: Math.round(Number(item.unitPrice)),
         })),
         redirectionUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
-        callbackUrl: `${config.mp.frontendUrl?.replace('https://perfummua.com', 'https://api.perfummua.com') || process.env.BACKEND_URL || 'https://api.perfummua.com'}/api/orders/addi-webhook`,
+        callbackUrl: `${backendUrl}/api/orders/addi-webhook`,
+        allySlug: addiStoreSlug,
       };
-
-      addiPayload.allySlug = addiStoreSlug;
 
       console.log('ADDI payload:', JSON.stringify(addiPayload));
 
