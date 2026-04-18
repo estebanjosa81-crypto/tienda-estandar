@@ -1631,14 +1631,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     else throw new Error('No se recibió URL de ADDI')
   }
 
-  const handlePagarConSistecredito = async () => {
+  const handlePagarConSistecredito = async (docType: string = 'CC', docNumber?: string) => {
     if (carrito.length === 0) return
     const firstTenantId = carrito.find(i => i.tenantId)?.tenantId || undefined
     const payload: Record<string, any> = {
       customerName: formData.nombre,
       customerPhone: formData.telefono,
       customerEmail: formData.email,
-      customerCedula: formData.cedula,
+      customerCedula: docNumber || formData.cedula,
+      documentType: docType,
       department: formData.departamento,
       municipality: formData.municipio,
       address: formData.direccion,

@@ -20,11 +20,17 @@ export class SalesController {
       }
 
       if (req.query.startDate) {
-        filters.startDate = new Date(req.query.startDate as string);
+        // Interpret date as Colombia timezone (UTC-5): midnight Colombia = 05:00 UTC
+        const d = (req.query.startDate as string).split('T')[0];
+        filters.startDate = new Date(d + 'T05:00:00Z');
       }
 
       if (req.query.endDate) {
-        filters.endDate = new Date(req.query.endDate as string);
+        // End of day Colombia = next day 04:59:59 UTC
+        const d = (req.query.endDate as string).split('T')[0];
+        const end = new Date(d + 'T04:59:59Z');
+        end.setUTCDate(end.getUTCDate() + 1);
+        filters.endDate = end;
       }
 
       if (req.query.search) {

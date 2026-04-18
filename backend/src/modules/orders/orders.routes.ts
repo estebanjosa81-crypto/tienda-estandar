@@ -200,8 +200,8 @@ router.post(
       const discountedItems = items.map((item: any) => ({
         ...item,
         unitPrice: onlineDiscountEnabled
-          ? Math.round(item.unitPrice * (1 - ONLINE_DISCOUNT))
-          : item.unitPrice,
+          ? Math.round(Number(item.unitPrice) * (1 - ONLINE_DISCOUNT))
+          : Number(item.unitPrice),
       }));
 
       const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
@@ -247,8 +247,8 @@ router.post(
           items: discountedItems.map((item: any) => ({
             id: item.productId,
             title: item.productName,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
+            quantity: parseInt(item.quantity, 10),
+            unit_price: parseFloat(Number(item.unitPrice).toFixed(2)),
             currency_id: 'COP',
           })),
           payer: {
@@ -593,6 +593,7 @@ router.post(
 
       const {
         customerName, customerPhone, customerEmail, customerCedula,
+        documentType = 'CC',
         department, municipality, address, notes,
         items, tenantId: requestedTenantId, couponCode, discount = 0,
       } = req.body;
@@ -665,7 +666,7 @@ router.post(
         urlConfirmation: `${backendUrl}/api/orders/sistecredito-webhook`,
         methodConfirmation: 'POST',
         client: {
-          docType: 'CC',
+          docType: documentType,
           document: customerCedula,
           name: firstName,
           lastName: lastName,
