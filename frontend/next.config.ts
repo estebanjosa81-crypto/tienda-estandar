@@ -25,7 +25,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: '/api/:file(\\.env(.*)|env(.*)|config\\.js|config\\.json)',
+        source: '/api/.env:path*',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/api/env:path*',
         destination: '/',
         permanent: false,
       },
