@@ -441,7 +441,8 @@ router.post(
         totalAmount: Math.round(total),
         client: addiClient,
         items: items.map((item: any) => ({
-          sku: String(item.productId),
+          // ADDI rejects UUIDs with dashes as SKU — strip them to alphanumeric
+          sku: String(item.productId).replace(/-/g, '').substring(0, 32),
           name: item.productName,
           quantity: Number(item.quantity),
           unitPrice: Math.round(Number(item.unitPrice)),
@@ -486,7 +487,8 @@ router.post(
         appData = JSON.parse(appRawBody);
       } catch { /* no body */ }
       console.error('ADDI application error:', appRes.status, appRawBody);
-      res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
+      // Use 422 instead of 502 — nginx intercepts 502 and strips CORS headers causing browser CORS errors
+      res.status(422).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
       return;
     } catch (error) {
       console.error('ADDI application error:', error);
