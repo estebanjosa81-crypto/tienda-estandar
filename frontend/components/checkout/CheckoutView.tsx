@@ -71,7 +71,7 @@ interface CheckoutViewProps {
   // ADDI crédito
   onPagarConAddi?: () => Promise<void>;
   // Sistecredito
-  onPagarConSistecredito?: () => Promise<void>;
+  onPagarConSistecredito?: (docType: string, docNumber: string) => Promise<void>;
   // Contraentrega toggle
   allowContraentrega?: boolean;
   // Online payment discount (10% off when paying with MP)
@@ -124,6 +124,8 @@ export function CheckoutView({
   const [errorAddi, setErrorAddi] = useState('');
   const [loadingSiste, setLoadingSiste] = useState(false);
   const [errorSiste, setErrorSiste] = useState('');
+  const [sisteDocType, setSisteDocType] = useState('CC');
+  const [sisteDocNumber, setSisteDocNumber] = useState('');
   const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : 'contraentrega';
   const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito'>(initialPaymentMethod ?? defaultPayment);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
@@ -200,10 +202,15 @@ export function CheckoutView({
   const handlePagarConSistecredito = async () => {
     if (!onPagarConSistecredito) return;
     if (!validateForm()) return;
+    const docNum = sisteDocNumber.trim() || formData.cedula?.trim();
+    if (!docNum) {
+      setErrorSiste('Ingresa tu número de documento para continuar.');
+      return;
+    }
     setLoadingSiste(true);
     setErrorSiste('');
     try {
-      await onPagarConSistecredito();
+      await onPagarConSistecredito(sisteDocType, docNum);
     } catch {
       setErrorSiste('Error al iniciar el pago con Sistecredito. Intenta de nuevo.');
     } finally {
@@ -839,14 +846,41 @@ export function CheckoutView({
 
                       {/* Sistecrédito */}
                       {onPagarConSistecredito && (
-                        <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                          <input type="radio" name="paymentMethod" value="sistecredito"
-                            checked={paymentMethod === 'sistecredito'}
-                            onChange={() => setPaymentMethod('sistecredito')}
-                            className="shrink-0" style={{ accentColor: '#2BB673' }} />
-                          <span className="text-sm text-gray-800">Paga con</span>
-                          <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-5 shrink-0 object-contain" />
-                        </label>
+                        <div>
+                          <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="radio" name="paymentMethod" value="sistecredito"
+                              checked={paymentMethod === 'sistecredito'}
+                              onChange={() => setPaymentMethod('sistecredito')}
+                              className="shrink-0" style={{ accentColor: '#2BB673' }} />
+                            <span className="text-sm text-gray-800">Paga con</span>
+                            <img src="/pagos/logoSistecredito.png" alt="Sistecrédito" className="h-5 shrink-0 object-contain" />
+                          </label>
+                          {paymentMethod === 'sistecredito' && (
+                            <div className="mx-4 mb-3 border border-[#2BB673]/30 bg-[#f0fff8] p-4">
+                              <div className="flex gap-2">
+                                <select
+                                  value={sisteDocType}
+                                  onChange={e => setSisteDocType(e.target.value)}
+                                  className="border border-gray-300 bg-white text-gray-800 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2BB673] w-44 shrink-0"
+                                >
+                                  <option value="CC">Cédula de Ciudadanía</option>
+                                  <option value="CE">Cédula de Extranjería</option>
+                                  <option value="NIT">NIT</option>
+                                  <option value="PAS">Pasaporte</option>
+                                  <option value="TI">Tarjeta de Identidad</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="Número de documento"
+                                  value={sisteDocNumber || formData.cedula || ''}
+                                  onChange={e => setSisteDocNumber(e.target.value)}
+                                  className="flex-1 border border-gray-300 bg-white text-gray-800 text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#2BB673] placeholder-gray-400"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* MercadoPago */}
