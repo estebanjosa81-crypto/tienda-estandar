@@ -451,10 +451,6 @@ router.post(
         addiPayload.allySlug = addiStoreSlug;
       }
 
-      if (address) {
-        addiPayload.pickUpAddress = { city: municipality || '', street: address };
-      }
-
       console.log('ADDI payload:', JSON.stringify(addiPayload));
 
       // Addi returns HTTP 301 with Location header — must NOT follow redirect automatically
@@ -468,24 +464,28 @@ router.post(
         redirect: 'manual',
       });
 
-      console.log('ADDI response status:', appRes.status, 'Location:', appRes.headers.get('location'));
+      const resLocation = appRes.headers.get('location');
+      console.log('ADDI response status:', appRes.status, 'Location:', resLocation);
 
       // Success: 301 redirect with Location header containing the Addi checkout URL
       if (appRes.status === 301 || appRes.status === 302) {
-        const applicationUrl = appRes.headers.get('location');
-        if (!applicationUrl) {
+        if (!resLocation) {
           console.error('ADDI 301 but no Location header');
           res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
           return;
         }
-        res.status(201).json({ success: true, data: { orderId, orderNumber, total, applicationUrl } });
+        res.status(201).json({ success: true, data: { orderId, orderNumber, total, applicationUrl: resLocation } });
         return;
       }
 
-      // Error response
+      // Error response — log full body for debugging
+      let appRawBody = '';
       let appData: any = {};
-      try { appData = await appRes.json(); } catch { /* no body */ }
-      console.error('ADDI application error:', appRes.status, JSON.stringify(appData));
+      try {
+        appRawBody = await appRes.text();
+        appData = JSON.parse(appRawBody);
+      } catch { /* no body */ }
+      console.error('ADDI application error:', appRes.status, appRawBody);
       res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
       return;
     } catch (error) {
