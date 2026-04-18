@@ -813,11 +813,30 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
     }
 
     if (mpStatus === 'approved') {
-      await pool.query(
+      const [upd] = await pool.query(
         "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ? AND status = 'pendiente'",
         [orderId]
-      );
-      console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+      ) as any;
+      if (upd.affectedRows > 0) {
+        console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+        try {
+          const [oRows] = await pool.query(
+            'SELECT tenant_id, order_number, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1',
+            [orderId]
+          ) as any;
+          const o = oRows?.[0];
+          if (o) {
+            await pool.query(
+              `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+               VALUES (?, 'new_order', ?, ?, ?)`,
+              [o.tenant_id,
+               `Pago MercadoPago confirmado: #${o.order_number}`,
+               `${o.customer_name} pagó con MercadoPago $${Number(o.total).toLocaleString('es-CO')}`,
+               JSON.stringify({ orderId, orderNumber: o.order_number, paymentMethod: 'mercadopago' })]
+            );
+          }
+        } catch { /* notifications non-critical */ }
+      }
     } else if (mpStatus === 'rejected' || mpStatus === 'cancelled') {
       await pool.query(
         "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
@@ -911,6 +930,23 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
         [order.id]
       );
       console.log(`Sistecredito webhook: order ${order.id} confirmed (Approved)`);
+      try {
+        const [oRows] = await pool.query(
+          'SELECT tenant_id, order_number, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1',
+          [order.id]
+        ) as any;
+        const o = oRows?.[0];
+        if (o) {
+          await pool.query(
+            `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+             VALUES (?, 'new_order', ?, ?, ?)`,
+            [o.tenant_id,
+             `Pago Sistecrédito confirmado: #${o.order_number}`,
+             `${o.customer_name} pagó con Sistecrédito $${Number(o.total).toLocaleString('es-CO')}`,
+             JSON.stringify({ orderId: order.id, orderNumber: o.order_number, paymentMethod: 'sistecredito' })]
+          );
+        }
+      } catch { /* notifications non-critical */ }
     } else if (['Rejected', 'Cancelled', 'Expired', 'Abandoned', 'Failed'].includes(transactionStatus)) {
       await pool.query(
         "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
@@ -1344,11 +1380,32 @@ router.post(
         const newStatus = statusMap[String(status).toUpperCase()];
 
         if (newStatus) {
-          await pool.query(
-            "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ? AND status NOT IN ('entregado','cancelado')",
-            [newStatus, orderId]
-          );
-          console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
+          const [orderRows] = await pool.query(
+            "SELECT id, tenant_id, order_number, customer_name, total, status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+            [orderId]
+          ) as any;
+
+          const order = orderRows?.[0];
+          if (order && !['entregado', 'cancelado'].includes(order.status)) {
+            await pool.query(
+              'UPDATE storefront_orders SET status = ? WHERE id = ?',
+              [newStatus, orderId]
+            );
+            console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
+
+            if (newStatus === 'confirmado') {
+              try {
+                await pool.query(
+                  `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+                   VALUES (?, 'new_order', ?, ?, ?)`,
+                  [order.tenant_id,
+                   `Pago ADDI confirmado: #${order.order_number}`,
+                   `${order.customer_name} pagó con ADDI $${Number(order.total).toLocaleString('es-CO')}`,
+                   JSON.stringify({ orderId: order.id, orderNumber: order.order_number, paymentMethod: 'addi' })]
+                );
+              } catch { /* notifications non-critical */ }
+            }
+          }
         }
       }
 
