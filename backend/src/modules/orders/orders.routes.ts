@@ -361,6 +361,11 @@ router.post(
         return;
       }
 
+      if (!addiStoreSlug) {
+        res.status(503).json({ success: false, error: 'ADDI: falta configurar el slug de la tienda (addi_store_slug) en la configuración del panel.' });
+        return;
+      }
+
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
@@ -447,9 +452,7 @@ router.post(
         callbackUrl: `${config.mp.frontendUrl?.replace('https://perfummua.com', 'https://api.perfummua.com') || process.env.BACKEND_URL || 'https://api.perfummua.com'}/api/orders/addi-webhook`,
       };
 
-      if (addiStoreSlug) {
-        addiPayload.allySlug = addiStoreSlug;
-      }
+      addiPayload.allySlug = addiStoreSlug;
 
       console.log('ADDI payload:', JSON.stringify(addiPayload));
 
