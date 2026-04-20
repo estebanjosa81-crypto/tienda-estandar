@@ -1925,6 +1925,73 @@ function ProductFormDialog({
                 </div>
               </>
             )}
+
+            {/* Presentations / Variants */}
+            <div className="border-t border-border pt-4 mt-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Presentaciones disponibles</p>
+                  <p className="text-xs text-muted-foreground">Activa esto si el producto tiene varios tamaños con precios distintos (ej: 75ml, 125ml)</p>
+                </div>
+                <Checkbox
+                  checked={!!formData.presentationsEnabled}
+                  onCheckedChange={(checked) => updateField('presentationsEnabled', !!checked)}
+                />
+              </div>
+              {formData.presentationsEnabled && (
+                <div className="space-y-2 pl-1">
+                  {((formData.presentations as Array<{ size: string; price: number }>) || []).map((p, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Tamaño (ej: 75ml)"
+                        value={p.size}
+                        onChange={(e) => {
+                          const next = [...((formData.presentations as Array<{ size: string; price: number }>) || [])]
+                          next[i] = { ...next[i], size: e.target.value }
+                          updateField('presentations', next)
+                        }}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder="Precio"
+                        type="number"
+                        min="0"
+                        value={p.price || ''}
+                        onChange={(e) => {
+                          const next = [...((formData.presentations as Array<{ size: string; price: number }>) || [])]
+                          next[i] = { ...next[i], price: parseFloat(e.target.value) || 0 }
+                          updateField('presentations', next)
+                        }}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          const next = ((formData.presentations as Array<{ size: string; price: number }>) || []).filter((_, idx) => idx !== i)
+                          updateField('presentations', next)
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const current = (formData.presentations as Array<{ size: string; price: number }>) || []
+                      updateField('presentations', [...current, { size: '', price: 0 }])
+                    }}
+                  >
+                    + Agregar presentación
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

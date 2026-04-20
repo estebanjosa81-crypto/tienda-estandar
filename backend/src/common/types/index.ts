@@ -45,6 +45,11 @@ export interface User {
   updatedAt: Date;
 }
 
+export interface ProductPresentation {
+  size: string;
+  price: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -131,6 +136,9 @@ export interface Product {
   packageContents?: string;
   safetyWarnings?: string;
   sedeId?: string;
+  // Presentaciones
+  presentationsEnabled?: boolean;
+  presentations?: ProductPresentation[];
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
