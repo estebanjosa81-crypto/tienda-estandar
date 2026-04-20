@@ -10,19 +10,27 @@ const router: ReturnType<typeof Router> = Router();
 function parseImages(row: any): any {
   if (!row) return row;
   const raw = row.images;
-  if (raw === null || raw === undefined) return { ...row, images: null };
+  let images: string[] | null = null;
   if (Array.isArray(raw)) {
-    return { ...row, images: (raw as string[]).filter(Boolean) };
-  }
-  if (typeof raw === 'string') {
+    images = (raw as string[]).filter(Boolean);
+  } else if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      return { ...row, images: Array.isArray(parsed) ? (parsed as string[]).filter(Boolean) : null };
-    } catch {
-      return { ...row, images: null };
-    }
+      images = Array.isArray(parsed) ? (parsed as string[]).filter(Boolean) : null;
+    } catch { images = null; }
   }
-  return { ...row, images: null };
+  let presentations: any[] | null = null;
+  if (row.presentations) {
+    try {
+      presentations = typeof row.presentations === 'string' ? JSON.parse(row.presentations) : row.presentations;
+    } catch { presentations = null; }
+  }
+  return {
+    ...row,
+    images,
+    presentationsEnabled: Number(row.presentationsEnabled) === 1,
+    presentations: presentations || undefined,
+  };
 }
 
 function toBoolLike(value: any, defaultValue: boolean): boolean {
@@ -160,6 +168,8 @@ router.get(
             p.delivery_type as deliveryType,
             p.sede_id as sedeId,
             IF(p.allow_preorder, 1, 0) as allowPreorder,
+            IF(p.presentations_enabled, 1, 0) as presentationsEnabled,
+            p.presentations as presentations,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -694,6 +704,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 p.offer_label as offerLabel,
                 IF(p.available_for_delivery, 1, 0) as availableForDelivery,
                 p.delivery_type as deliveryType,
+                IF(p.presentations_enabled, 1, 0) as presentationsEnabled,
+                p.presentations as presentations,
                 p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM store_featured_products sfp
          INNER JOIN products p ON p.id = sfp.product_id
@@ -715,6 +727,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
               p.offer_label as offerLabel,
               IF(p.available_for_delivery, 1, 0) as availableForDelivery,
               p.delivery_type as deliveryType,
+              IF(p.presentations_enabled, 1, 0) as presentationsEnabled,
+              p.presentations as presentations,
               p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
        FROM products p
        LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -826,6 +840,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 p.offer_label as offerLabel, p.launch_date as launchDate,
                 IF(p.available_for_delivery, 1, 0) as availableForDelivery,
                 p.delivery_type as deliveryType,
+                IF(p.presentations_enabled, 1, 0) as presentationsEnabled,
+                p.presentations as presentations,
                 p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM products p
          LEFT JOIN tenants t ON t.id = p.tenant_id

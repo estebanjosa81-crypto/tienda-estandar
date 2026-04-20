@@ -216,7 +216,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [productReviews, setProductReviews] = useState<any[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [showReviewForm, setShowReviewForm] = useState(false)
-  const [reviewForm, setReviewForm] = useState({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '' })
+  const [reviewForm, setReviewForm] = useState({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '', imageUrl1: '' })
+  const [reviewImageUploading, setReviewImageUploading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewSuccess, setReviewSuccess] = useState(false)
   const [reviewError, setReviewError] = useState('')
@@ -287,6 +288,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showCheckout, setShowCheckout] = useState(false)
   const [checkoutInitialPayment, setCheckoutInitialPayment] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | undefined>(undefined)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobilePerfumesOpen, setMobilePerfumesOpen] = useState(false)
+  const [selectedPresentation, setSelectedPresentation] = useState<{ size: string; price: number } | null>(null)
   const [showDrop, setShowDrop] = useState(false)
   const [showServices, setShowServices] = useState(false)
   const [showNewLaunches, setShowNewLaunches] = useState(false)
@@ -1228,13 +1231,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // ====== PRODUCT MODAL FUNCTIONS ======
   const openProductModal = (product: StorefrontProduct) => {
     setSelectedProduct(product)
+    setSelectedPresentation(null)
     setProductQuantity(1)
     setActiveImageIdx(0)
     setShowProductModal(true)
     setProductReviews([])
     setReviewSuccess(false)
     setShowReviewForm(false)
-    setReviewForm({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '' })
+    setReviewForm({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '', imageUrl1: '' })
     setReviewError('')
     // Update URL so the product link is shareable
     window.history.pushState({}, '', `${window.location.pathname}?product=${product.id}`)
@@ -1281,15 +1285,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       ? storeConfig.activeDrop.products.find(dp => dp.id === selectedProduct.id)
       : null
 
-    let finalPrice = selectedProduct.salePrice
+    const basePrice = selectedPresentation ? selectedPresentation.price : selectedProduct.salePrice
+    let finalPrice = basePrice
     let precioOriginal: number | undefined
     let descuentoPorcentaje: number | undefined
 
     if (dropProduct) {
       finalPrice = dropProduct.finalPrice
-      precioOriginal = selectedProduct.salePrice
+      precioOriginal = basePrice
       descuentoPorcentaje = dropProduct.customDiscount ?? storeConfig!.activeDrop!.globalDiscount
-    } else if (selectedProduct.isOnOffer && selectedProduct.offerPrice) {
+    } else if (!selectedPresentation && selectedProduct.isOnOffer && selectedProduct.offerPrice) {
       finalPrice = selectedProduct.offerPrice
       precioOriginal = selectedProduct.salePrice
     }
@@ -2151,24 +2156,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     >
                       Todas
                     </button>
-                    {categories.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => {
-                          closeProductModal(); setCatalogSpecialFilter('all'); setSedesViewMode(false)
-                          setCatalogSelectedCategories(new Set([cat])); setShowCatalog(true)
-                          setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false)
-                          window.scrollTo({ top: 0, behavior: 'smooth' })
-                        }}
-                        className={`w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest transition-colors hover:bg-gray-50 ${
-                          catalogSelectedCategories.has(cat) && showCatalog
-                            ? 'text-gray-900 font-semibold'
-                            : 'text-gray-500 hover:text-gray-900'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                    {categories.map(cat => {
+                      const catConfig = storeConfig?.categories?.find(c => c.name === cat)
+                      const displayName = catConfig?.displayName || cat
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            closeProductModal(); setCatalogSpecialFilter('all'); setSedesViewMode(false)
+                            setCatalogSelectedCategories(new Set([cat])); setShowCatalog(true)
+                            setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false)
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                          className={`w-full text-left px-4 py-2 text-[11px] uppercase tracking-widest transition-colors hover:bg-gray-50 ${
+                            catalogSelectedCategories.has(cat) && showCatalog
+                              ? 'text-gray-900 font-semibold'
+                              : 'text-gray-500 hover:text-gray-900'
+                          }`}
+                        >
+                          {displayName}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -2347,6 +2356,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex flex-col gap-6 text-sm font-bold tracking-widest text-white/70">
               <button onClick={() => { closeProductModal(); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setShowContact(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${!showCatalog && !showDrop && !showServices && !showNewLaunches && !showOffers && !showContact && !showProductModal ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Inicio</button>
               <button onClick={() => { closeProductModal(); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showCatalog && !sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Catálogo</button>
+              {categories.length > 0 && (
+                <div className="border-b border-white/5">
+                  <button onClick={() => setMobilePerfumesOpen(o => !o)} className="w-full flex items-center justify-between py-2 text-white/70 hover:text-white transition-colors uppercase">
+                    <span>Perfumes</span>
+                    <svg className={`w-4 h-4 transition-transform ${mobilePerfumesOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                  {mobilePerfumesOpen && (
+                    <div className="pb-3 flex flex-col gap-2 pl-3">
+                      {categories.map(cat => {
+                        const catConfig = storeConfig?.categories?.find(c => c.name === cat)
+                        const displayName = catConfig?.displayName || cat
+                        return (
+                          <button key={cat} onClick={() => { closeProductModal(); setSedesViewMode(false); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setCatalogSelectedCategories(new Set([cat])); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-left text-xs py-1 text-white/50 hover:text-white transition-colors uppercase">
+                            {displayName}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               {storeSedes.length >= 2 && Number(storeConfig?.storeInfo?.showSedes) !== 0 && (
                 <button onClick={() => { closeProductModal(); setSedesViewMode(true); setActiveSede(null); setCatalogSpecialFilter('all'); setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 flex items-center gap-2 ${showCatalog && sedesViewMode ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>
                   <Store className="w-4 h-4" />
@@ -2856,43 +2886,43 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {selectedProduct.category && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Categoría</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.category}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.category}</p>
                         </div>
                       )}
                       {selectedProduct.brand && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Marca</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.brand}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.brand}</p>
                         </div>
                       )}
                       {selectedProduct.gender && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Género</p>
-                          <p className={`text-sm font-light capitalize ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.gender}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.gender}</p>
                         </div>
                       )}
                       {selectedProduct.size && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tamaño</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.size}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.size}</p>
                         </div>
                       )}
                       {selectedProduct.color && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Color</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.color}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.color}</p>
                         </div>
                       )}
                       {selectedProduct.material && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Material</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.material}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.material}</p>
                         </div>
                       )}
                       {selectedProduct.netWeight && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Peso</p>
-                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.netWeight} {selectedProduct.weightUnit || ''}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.netWeight} {selectedProduct.weightUnit || ''}</p>
                         </div>
                       )}
                       {selectedProduct.warrantyMonths && (
@@ -2930,7 +2960,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                     {/* Price */}
                     <div className="space-y-2">
-                      {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
+                      {selectedProduct.presentationsEnabled && selectedProduct.presentations && selectedProduct.presentations.length > 0 ? (
+                        (() => {
+                          const prices = selectedProduct.presentations.map(p => p.price)
+                          const minP = Math.min(...prices)
+                          const maxP = Math.max(...prices)
+                          const displayPrice = selectedPresentation ? selectedPresentation.price : null
+                          return (
+                            <span className={`text-4xl font-semibold ${isLightBg ? 'text-black' : 'text-white'}`}>
+                              {displayPrice !== null ? formatCOP(displayPrice) : (minP === maxP ? formatCOP(minP) : `${formatCOP(minP)} - ${formatCOP(maxP)}`)}
+                            </span>
+                          )
+                        })()
+                      ) : selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
                         <div className="space-y-1.5">
                           <div className="flex items-end gap-3 flex-wrap">
                             <span className={`text-4xl font-semibold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
@@ -3010,8 +3052,41 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       )}
                     </div>
 
-                    {/* Variants */}
-                    {(selectedProduct.color || selectedProduct.size) && (
+                    {/* Variants / Presentations */}
+                    {selectedProduct.presentationsEnabled && selectedProduct.presentations && selectedProduct.presentations.length > 0 ? (
+                      <div>
+                        <p className={`text-sm font-medium mb-2 ${isLightBg ? 'text-black' : 'text-white'}`}>
+                          Tamaño : {selectedPresentation && <span className={`font-normal text-sm ${isLightBg ? 'text-black/60' : 'text-white/60'}`}>{selectedPresentation.size}</span>}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className={`relative flex-1 border rounded-md ${isLightBg ? 'border-black/20 bg-white' : 'border-white/20 bg-white/5'}`}>
+                            <select
+                              value={selectedPresentation?.size || ''}
+                              onChange={(e) => {
+                                const found = selectedProduct.presentations!.find(p => p.size === e.target.value)
+                                setSelectedPresentation(found || null)
+                              }}
+                              className={`w-full px-3 py-2.5 pr-8 text-sm appearance-none bg-transparent outline-none ${isLightBg ? 'text-black' : 'text-white'} ${!selectedPresentation ? (isLightBg ? 'text-black/40' : 'text-white/40') : ''}`}
+                            >
+                              <option value="" disabled>Elige una opción</option>
+                              {selectedProduct.presentations.map(p => (
+                                <option key={p.size} value={p.size} className="text-black">{p.size}</option>
+                              ))}
+                            </select>
+                            <svg className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${isLightBg ? 'text-black/40' : 'text-white/40'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                          {selectedPresentation && (
+                            <button
+                              onClick={() => setSelectedPresentation(null)}
+                              className={`text-xs flex items-center gap-1 px-2 py-2 transition-colors ${isLightBg ? 'text-black/50 hover:text-black' : 'text-white/50 hover:text-white'}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (selectedProduct.color || selectedProduct.size) ? (
                       <div className="space-y-3">
                         {selectedProduct.color && (
                           <div>
@@ -3030,7 +3105,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* Quantity + Wishlist */}
                     <div className="flex flex-col gap-1.5">
@@ -3082,6 +3157,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {selectedProduct.stock === 0 && !selectedProduct.allowPreorder ? (
                       <div className={`w-full py-4 text-sm uppercase tracking-[0.2em] font-semibold text-center rounded-xl border ${isLightBg ? 'border-black/10 text-black/20' : 'border-white/10 text-white/20'}`}>
                         Agotado
+                      </div>
+                    ) : selectedProduct.presentationsEnabled && selectedProduct.presentations && selectedProduct.presentations.length > 0 && !selectedPresentation ? (
+                      <div className={`w-full py-4 text-sm text-center rounded-xl border ${isLightBg ? 'border-black/10 text-black/40' : 'border-white/10 text-white/40'}`}>
+                        Selecciona un tamaño para continuar
                       </div>
                     ) : (
                       <div className="flex gap-3">
@@ -3260,6 +3339,50 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
                       />
                     </div>
+                    <div>
+                      <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Foto (opcional)</label>
+                      {reviewForm.imageUrl1 ? (
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover border border-white/10" />
+                          <button
+                            type="button"
+                            onClick={() => setReviewForm(p => ({ ...p, imageUrl1: '' }))}
+                            className="text-xs text-white/40 hover:text-red-400 transition-colors"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      ) : (
+                        <label className={`flex items-center gap-2 cursor-pointer border border-dashed border-white/20 px-3 py-2.5 w-fit transition-colors hover:border-white/40 ${reviewImageUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <svg className="w-4 h-4 text-white/40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                          <span className="text-xs text-white/40">{reviewImageUploading ? 'Subiendo…' : 'Subir imagen'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              setReviewImageUploading(true)
+                              try {
+                                const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ''
+                                const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ''
+                                const formData = new FormData()
+                                formData.append('file', file)
+                                formData.append('upload_preset', uploadPreset)
+                                const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData })
+                                if (res.ok) {
+                                  const data = await res.json()
+                                  setReviewForm(p => ({ ...p, imageUrl1: data.secure_url }))
+                                }
+                              } catch { /* noop */ }
+                              setReviewImageUploading(false)
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
                     {reviewError && <p className="text-red-400 text-xs">{reviewError}</p>}
                     <button
                       disabled={reviewSubmitting || !reviewForm.reviewerName.trim()}
@@ -3279,6 +3402,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           rating: reviewForm.rating,
                           title: reviewForm.title || undefined,
                           body: reviewForm.body || undefined,
+                          imageUrl1: reviewForm.imageUrl1 || undefined,
                         })
                         setReviewSubmitting(false)
                         if (res.success) {
@@ -3402,6 +3526,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <aside className={`hidden lg:block w-72 shrink-0 border-r landing-sidebar overflow-y-auto ${isLightBg ? 'border-black/10' : 'border-white/10'}`} style={{ position: 'sticky', top: headerH, height: `calc(100vh - ${headerH}px)` }}>
               <CatalogSidebar
                 categories={categories}
+                categoryDisplayNames={storeConfig?.categories ? Object.fromEntries(storeConfig.categories.map(c => [c.name, c.displayName || c.name])) : undefined}
                 availableBrands={availableBrands}
                 availableGenders={availableGenders}
                 availableSizes={availableSizes}
@@ -3869,6 +3994,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
                 <CatalogSidebar
                   categories={categories}
+                  categoryDisplayNames={storeConfig?.categories ? Object.fromEntries(storeConfig.categories.map(c => [c.name, c.displayName || c.name])) : undefined}
                   availableBrands={availableBrands}
                   availableGenders={availableGenders}
                   availableSizes={availableSizes}
@@ -7845,14 +7971,14 @@ function CountUpStat({ value, suffix = '', label }: { value: number; suffix?: st
 
 /* ========== CatalogSidebar ========== */
 function CatalogSidebar({
-  categories, availableBrands, availableGenders, availableSizes,
+  categories, categoryDisplayNames, availableBrands, availableGenders, availableSizes,
   selectedCategories, setSelectedCategories,
   selectedBrands, setSelectedBrands,
   selectedGenders, setSelectedGenders,
   selectedSizes, setSelectedSizes,
   priceMin, priceMax, setPriceMin, setPriceMax, onClear, isLightBg,
 }: {
-  categories: string[]; availableBrands: string[]; availableGenders: string[]; availableSizes: string[]
+  categories: string[]; categoryDisplayNames?: Record<string, string>; availableBrands: string[]; availableGenders: string[]; availableSizes: string[]
   selectedCategories: Set<string>; setSelectedCategories: (v: Set<string>) => void
   selectedBrands: Set<string>; setSelectedBrands: (v: Set<string>) => void
   selectedGenders: Set<string>; setSelectedGenders: (v: Set<string>) => void
@@ -7945,7 +8071,7 @@ function CatalogSidebar({
                 <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? t('bg-white border-white', 'bg-black border-black') : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedCategories.has(cat) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
-                <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className={`text-xs transition-colors text-left ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{cat}</button>
+                <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className={`text-xs transition-colors text-left uppercase ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{categoryDisplayNames?.[cat] || cat}</button>
               </label>
             ))}
           </div>
@@ -7979,7 +8105,7 @@ function CatalogSidebar({
                 <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? t('bg-white border-white', 'bg-black border-black') : t('border-white/20 group-hover:border-white/40', 'border-black/20 group-hover:border-black/50')}`}>
                   {selectedGenders.has(g) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
-                <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className={`text-xs transition-colors text-left capitalize ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{g}</button>
+                <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className={`text-xs transition-colors text-left uppercase ${t('text-white/60 group-hover:text-white', 'text-black/60 group-hover:text-black')}`}>{g}</button>
               </label>
             ))}
           </div>

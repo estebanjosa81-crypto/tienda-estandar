@@ -331,6 +331,10 @@ CREATE TABLE IF NOT EXISTS products (
     offer_start DATETIME NULL,
     offer_end DATETIME NULL,
 
+    -- Presentaciones (variantes de tamaño con precio)
+    presentations_enabled BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Habilita selector de presentaciones en la tienda',
+    presentations JSON NULL COMMENT 'Array de presentaciones [{size, price}]',
+
     -- Sede/Sucursal
     sede_id VARCHAR(36) NULL COMMENT 'Sede a la que pertenece el producto (NULL = todas las sedes)',
 

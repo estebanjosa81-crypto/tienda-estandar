@@ -92,6 +92,9 @@ interface ProductRow extends RowDataPacket {
   safety_warnings: string | null;
   // Sede
   sede_id: string | null;
+  // Presentaciones
+  presentations_enabled: boolean | null;
+  presentations: string | null;
   // Timestamps
   created_at: Date;
   updated_at: Date;
@@ -190,6 +193,8 @@ const fieldMap: Record<string, string> = {
   packageContents: 'package_contents',
   safetyWarnings: 'safety_warnings',
   sedeId: 'sede_id',
+  presentationsEnabled: 'presentations_enabled',
+  presentations: 'presentations',
 };
 
 interface RecipeRow extends RowDataPacket {
@@ -329,6 +334,8 @@ export class ProductsService {
       packageContents: row.package_contents || undefined,
       safetyWarnings: row.safety_warnings || undefined,
       sedeId: row.sede_id || undefined,
+      presentationsEnabled: row.presentations_enabled != null ? Boolean(row.presentations_enabled) : undefined,
+      presentations: row.presentations ? (typeof row.presentations === 'string' ? JSON.parse(row.presentations) : row.presentations) : undefined,
       // Timestamps
       createdAt: row.created_at,
       updatedAt: row.updated_at,

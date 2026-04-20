@@ -10,6 +10,11 @@ export type StockStatus = 'suficiente' | 'bajo' | 'agotado'
 
 export type CreditStatus = 'pendiente' | 'parcial' | 'pagado'
 
+export interface ProductPresentation {
+  size: string
+  price: number
+}
+
 export interface Product {
   id: string
   name: string
@@ -103,6 +108,9 @@ export interface Product {
   // Storefront delivery
   availableForDelivery?: boolean
   deliveryType?: 'domicilio' | 'envio' | 'ambos' | null
+  // Presentaciones (variantes de tamaño con precio)
+  presentationsEnabled?: boolean
+  presentations?: ProductPresentation[]
   // Ofertas
   isOnOffer?: boolean
   offerPrice?: number | null

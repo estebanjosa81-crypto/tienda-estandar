@@ -9,7 +9,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'perfum mua - !Bienvenido a la mejor perfumeria de colombia!',
-  description: 'Sistema completo de gestión de inventario',
+  description: '',
   generator: 'v0.app',
   icons: {
     icon: '/faviconbeso.png',
