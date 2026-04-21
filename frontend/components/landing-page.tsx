@@ -2662,7 +2662,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {selectedProduct.category && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Categoría</p>
-                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.category}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{storeConfig?.categories?.find(c => c.name === selectedProduct.category)?.displayName || selectedProduct.category}</p>
                         </div>
                       )}
                       {selectedProduct.brand && (
@@ -3006,7 +3006,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {selectedProduct.category && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Categoría</p>
-                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.category}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{storeConfig?.categories?.find(c => c.name === selectedProduct.category)?.displayName || selectedProduct.category}</p>
                         </div>
                       )}
                       {selectedProduct.brand && (
