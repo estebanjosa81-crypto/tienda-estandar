@@ -2583,11 +2583,131 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
 
+                {/* Payment gateways — mobile */}
+                {(paymentConfig.sistecredito || paymentConfig.addi) && (
+                  <div className="space-y-2">
+                    {paymentConfig.sistecredito && (
+                      <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
+                        <img src="/icono-sistecredito.png" alt="sistecrédito" className="w-7 h-7 shrink-0 rounded-full object-cover" />
+                        <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
+                          Compra con{' '}
+                          <img src="/pagos/logoSistecredito.png" alt="sistecrédito" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
+                          en 6 cuotas de{' '}
+                          <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>{formatCOP(Math.round((selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice) / 6))}/mensual</strong>.{' '}
+                          <span
+                            className="text-[#2BB673] underline cursor-pointer font-medium"
+                            onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('sistecredito'); setShowCheckout(true) }}
+                          >Solicita tu cupo.</span>
+                        </span>
+                      </div>
+                    )}
+                    {paymentConfig.addi && (
+                      <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm ${isLightBg ? 'border-gray-200 bg-white' : 'border-white/10 bg-white/5'}`}>
+                        <img src="/icono-Addi.png" alt="Addi" className="w-7 h-7 shrink-0 rounded-full object-cover" />
+                        <span className={`leading-snug ${isLightBg ? 'text-gray-700' : 'text-gray-300'}`}>
+                          Paga con{' '}
+                          <img src="/pagos/ADDI_logo.png" alt="Addi" className="inline h-4 w-auto object-contain align-middle mx-0.5" />{' '}
+                          en hasta <strong className={isLightBg ? 'text-gray-900' : 'text-white'}>6 cuotas</strong>.{' '}
+                          <span
+                            className="text-[#FF5E00] underline cursor-pointer font-medium"
+                            onClick={() => { addFromModal(); fetchOrderBump(); setCheckoutInitialPayment('addi'); setShowCheckout(true) }}
+                          >Pide un cupo.</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Presentation image — mobile */}
                 {selectedProduct.images?.[4] && (
                   <div className="w-full rounded-xl overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={selectedProduct.images?.[4]} alt="Información del producto" className="w-full object-contain" />
+                  </div>
+                )}
+
+                {/* Description — mobile */}
+                {selectedProduct.description && (
+                  <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                    <h4 className={`text-[10px] uppercase tracking-widest mb-4 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Descripción</h4>
+                    <div className="space-y-2.5">
+                      {selectedProduct.description
+                        .split(/\n+/)
+                        .map(line => line.trim())
+                        .filter(Boolean)
+                        .map((line, i) => {
+                          const isBullet = /^[-•*►▸→✓✔·]\s/.test(line)
+                          const cleanLine = isBullet ? line.replace(/^[-•*►▸→✓✔·]\s*/, '') : line
+                          if (isBullet) {
+                            return (
+                              <div key={i} className="flex items-start gap-2.5">
+                                <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${isLightBg ? 'bg-black/40' : 'bg-white/40'}`} />
+                                <p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{cleanLine}</p>
+                              </div>
+                            )
+                          }
+                          return (
+                            <p key={i} className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{line}</p>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Specs — mobile */}
+                {(selectedProduct.category || selectedProduct.brand || selectedProduct.gender || selectedProduct.size || selectedProduct.color || selectedProduct.material || selectedProduct.netWeight || selectedProduct.warrantyMonths) && (
+                  <div className={`pt-4 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                    <h4 className={`text-[10px] uppercase tracking-widest mb-4 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Especificaciones</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedProduct.category && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Categoría</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{storeConfig?.categories?.find(c => c.name === selectedProduct.category)?.displayName || selectedProduct.category}</p>
+                        </div>
+                      )}
+                      {selectedProduct.brand && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Marca</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.brand}</p>
+                        </div>
+                      )}
+                      {selectedProduct.gender && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Género</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.gender}</p>
+                        </div>
+                      )}
+                      {selectedProduct.size && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tamaño</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.size}</p>
+                        </div>
+                      )}
+                      {selectedProduct.color && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Color</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.color}</p>
+                        </div>
+                      )}
+                      {selectedProduct.material && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Material</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.material}</p>
+                        </div>
+                      )}
+                      {selectedProduct.netWeight && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Peso</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.netWeight} {selectedProduct.weightUnit || ''}</p>
+                        </div>
+                      )}
+                      {selectedProduct.warrantyMonths && (
+                        <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
+                          <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Garantía</p>
+                          <p className={`text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.warrantyMonths} meses</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2886,7 +3006,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {selectedProduct.category && (
                         <div className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
                           <p className={`text-[10px] uppercase ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Categoría</p>
-                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{selectedProduct.category}</p>
+                          <p className={`text-sm font-light uppercase ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{storeConfig?.categories?.find(c => c.name === selectedProduct.category)?.displayName || selectedProduct.category}</p>
                         </div>
                       )}
                       {selectedProduct.brand && (
