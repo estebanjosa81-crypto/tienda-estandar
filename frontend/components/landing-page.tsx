@@ -3678,7 +3678,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       : catalogSpecialFilter === 'trending' ? 'Tendencia'
                       : catalogSpecialFilter === 'featured' ? 'Productos Destacados'
                       : catalogSpecialFilter === 'offers' ? 'Ofertas'
-                      : catalogSelectedCategories.size === 1 ? Array.from(catalogSelectedCategories)[0]
+                      : catalogSelectedCategories.size === 1 ? (storeConfig?.categories ? Object.fromEntries(storeConfig.categories.map(c => [c.name, c.displayName || c.name])) : {})[Array.from(catalogSelectedCategories)[0]] || Array.from(catalogSelectedCategories)[0]
                       : 'Catálogo'}
                   </h1>
                   <div className="flex items-center gap-3">
@@ -3741,7 +3741,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {(catalogSelectedCategories.size > 0 || catalogSelectedBrands.size > 0 || catalogSelectedGenders.size > 0 || catalogSelectedSizes.size > 0 || catalogPriceMin > 0 || catalogPriceMax > 0) && (
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     {Array.from(catalogSelectedCategories).map(v => (
-                      <FilterPill key={`cat-${v}`} label={v} onRemove={() => { const s = new Set(catalogSelectedCategories); s.delete(v); setCatalogSelectedCategories(s) }} />
+                      <FilterPill key={`cat-${v}`} label={(storeConfig?.categories ? Object.fromEntries(storeConfig.categories.map(c => [c.name, c.displayName || c.name])) : {})[v] || v} onRemove={() => { const s = new Set(catalogSelectedCategories); s.delete(v); setCatalogSelectedCategories(s) }} />
                     ))}
                     {Array.from(catalogSelectedBrands).map(v => (
                       <FilterPill key={`brand-${v}`} label={v} onRemove={() => { const s = new Set(catalogSelectedBrands); s.delete(v); setCatalogSelectedBrands(s) }} />
