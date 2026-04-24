@@ -2058,7 +2058,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           )}
           {/* Marquee text — ocupa el resto */}
           <div className="flex-1 overflow-hidden">
-            <div className="flex whitespace-nowrap" style={{ animation: `marquee ${isMobile ? '20s' : '60s'} linear infinite` }}>
+            <div className="flex whitespace-nowrap" style={{ animation: `marquee ${isMobile ? '12s' : '35s'} linear infinite` }}>
               {[...Array(20)].map((_, i) => (
                 <span key={i} className="inline-flex items-center mx-12 shrink-0">
                   {storeConfig.announcementBar!.linkUrl ? (
