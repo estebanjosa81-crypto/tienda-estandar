@@ -83,12 +83,14 @@ function SedeCard({ sedeData, sedeName }: { sedeData: SedeReportData; sedeName: 
                       <span className="font-semibold">{fmt(data.total)}</span>
                     </div>
                   </div>
-                  {method === 'mixto' && data.mixedEfectivo != null && data.mixedEfectivo > 0 && (
+                  {method === 'mixto' && (data.mixedEfectivo != null || data.mixedSecond != null) && (
                     <div className="ml-2 mt-1 space-y-0.5 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>↳ Efectivo</span>
-                        <span className="font-medium text-foreground">{fmt(data.mixedEfectivo)}</span>
-                      </div>
+                      {data.mixedEfectivo != null && data.mixedEfectivo > 0 && (
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>↳ Efectivo</span>
+                          <span className="font-medium text-foreground">{fmt(data.mixedEfectivo)}</span>
+                        </div>
+                      )}
                       {data.mixedSecond != null && data.mixedSecond > 0 && (
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>↳ {PAYMENT_LABELS[data.mixedSecondMethod || ''] || data.mixedSecondMethod || 'Otro'}</span>
@@ -201,13 +203,13 @@ export function DailyClosingReport() {
           <td style="text-align:center">${d.count}</td>
           <td style="text-align:right">$${Math.round(d.total).toLocaleString('es-CO')}</td>
         </tr>`
-        if (m === 'mixto' && d.mixedEfectivo != null && d.mixedEfectivo > 0) {
-          const efectivoRow = `
+        if (m === 'mixto' && (d.mixedEfectivo != null || d.mixedSecond != null)) {
+          const efectivoRow = d.mixedEfectivo != null && d.mixedEfectivo > 0 ? `
         <tr style="color:#666;font-size:0.85em">
           <td style="padding-left:16px">↳ Efectivo</td>
           <td></td>
           <td style="text-align:right">$${Math.round(d.mixedEfectivo).toLocaleString('es-CO')}</td>
-        </tr>`
+        </tr>` : ''
           const secondRow = d.mixedSecond != null && d.mixedSecond > 0 ? `
         <tr style="color:#666;font-size:0.85em">
           <td style="padding-left:16px">↳ ${PAYMENT_LABELS[d.mixedSecondMethod || ''] || d.mixedSecondMethod || 'Otro'}</td>
