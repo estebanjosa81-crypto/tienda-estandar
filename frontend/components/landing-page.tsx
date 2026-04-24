@@ -7334,7 +7334,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       )}
 
       {/* ========== MOBILE: OFERTAS FULL VIEW ========== */}
-      {mobileActiveTab === 'ofertas' && (
+      {mobileActiveTab === 'ofertas' && !showProductModal && (
         <div className="fixed inset-0 z-[60] overflow-y-auto md:hidden" style={{ backgroundColor: effectiveBgColor, top: storeConfig?.announcementBar?.isActive ? '104px' : '64px', bottom: '64px' }}>
           <div className="px-4 py-6">
             <div className="text-center mb-6 space-y-3">
@@ -7406,7 +7406,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       )}
 
       {/* ========== MOBILE: SEARCH OVERLAY ========== */}
-      {mobileActiveTab === 'buscar' && (
+      {mobileActiveTab === 'buscar' && !showProductModal && (
         <div className="fixed inset-0 z-[60] md:hidden flex flex-col" style={{ backgroundColor: effectiveBgColor, top: storeConfig?.announcementBar?.isActive ? '104px' : '64px', bottom: '64px' }}>
           <div className={`p-4 border-b ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
             <div className="relative">
