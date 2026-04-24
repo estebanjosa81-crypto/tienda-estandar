@@ -169,7 +169,7 @@ export interface SedeReportData {
   tax: number
   discount: number
   total: number
-  byPaymentMethod: Record<string, { count: number; total: number }>
+  byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }>
   products: ProductReportItem[]
 }
 

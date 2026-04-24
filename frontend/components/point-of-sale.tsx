@@ -501,7 +501,7 @@ export function PointOfSale() {
         paymentMethod === 'fiado' ? 0
         : paymentMethod === 'mixto' ? mixedCash + mixedSecondAmount
         : (parseFloat(amountPaid) || finalTotal),
-      ...(paymentMethod === 'mixto' && mixedCash > 0 ? {
+      ...(paymentMethod === 'mixto' ? {
         mixedEfectivoAmount: mixedCash,
         mixedSecondMethod: mixedSecondMethod,
         mixedSecondAmount: mixedSecondAmount,
