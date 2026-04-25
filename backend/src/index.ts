@@ -22,7 +22,7 @@ import { categoriesRoutes } from './modules/categories';
 import { cashSessionsRoutes } from './modules/cash-sessions';
 import { tenantsRoutes } from './modules/tenants';
 import { storefrontRoutes } from './modules/storefront';
-import { ordersRoutes } from './modules/orders';
+import { ordersRoutes, startOrdersScheduler } from './modules/orders';
 import { couponsRoutes } from './modules/coupons';
 import { recipesRoutes } from './modules/recipes';
 import deliveryRoutes from './modules/delivery/delivery.routes';
@@ -212,6 +212,30 @@ const startServer = async () => {
       `);
     } catch { /* already exists */ }
 
+    // Migración 004: inventory_holds + refund columns
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS inventory_holds (
+          id         VARCHAR(36)  NOT NULL,
+          order_id   VARCHAR(36)  NOT NULL,
+          product_id VARCHAR(36)  NOT NULL,
+          tenant_id  VARCHAR(36)  NOT NULL,
+          quantity   INT          NOT NULL,
+          expires_at TIMESTAMP    NOT NULL,
+          created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          INDEX idx_holds_product (product_id),
+          INDEX idx_holds_order   (order_id),
+          INDEX idx_holds_tenant  (tenant_id),
+          INDEX idx_holds_expires (expires_at),
+          CONSTRAINT fk_holds_order FOREIGN KEY (order_id)
+            REFERENCES storefront_orders(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    } catch { /* already exists */ }
+    await addCol(`ALTER TABLE storefront_orders ADD COLUMN gateway_payment_id VARCHAR(255) NULL COMMENT 'ID del pago en pasarela para reembolsos'`);
+    await addCol(`ALTER TABLE storefront_orders ADD COLUMN refund_status VARCHAR(20) NULL COMMENT 'Estado del reembolso: NULL, pending, refunded, manual'`);
+
     // Run AES encryption migration for existing plaintext sensitive data
     try {
       const { runEncryptionMigration } = await import('./utils/migrate-encrypt');
@@ -234,6 +258,7 @@ const startServer = async () => {
 
     // Iniciar scheduler de sync offline→nube (solo si IS_LOCAL_INSTANCE=true)
     startSyncScheduler();
+    startOrdersScheduler();
 
     httpServer.listen(config.port, () => {
       console.log(`

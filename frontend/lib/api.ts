@@ -1062,6 +1062,10 @@ class ApiService {
     })
   }
 
+  async refundOrder(id: string) {
+    return this.request<any>(`/orders/${id}/refund`, { method: 'POST' })
+  }
+
   // =============================================
   // Coupons endpoints
   // =============================================
