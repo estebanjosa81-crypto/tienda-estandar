@@ -151,6 +151,9 @@ export function TenantManagement() {
   const [addiClientSecret, setAddiClientSecret] = useState('')
   const [addiStoreSlug, setAddiStoreSlug] = useState('')
   const [addiProduction, setAddiProduction] = useState(true)
+  const [addiWebhookUser, setAddiWebhookUser] = useState('')
+  const [addiWebhookPassword, setAddiWebhookPassword] = useState('')
+  const [showAddiWebhookPass, setShowAddiWebhookPass] = useState(false)
   const [addiSaved, setAddiSaved] = useState(false)
   const [showAddiSecret, setShowAddiSecret] = useState(false)
   const [isSavingAddi, setIsSavingAddi] = useState(false)
@@ -287,6 +290,8 @@ export function TenantManagement() {
       if (result.data.addi_client_secret) setAddiClientSecret(result.data.addi_client_secret)
       if (result.data.addi_store_slug) setAddiStoreSlug(result.data.addi_store_slug)
       if (result.data.addi_production === 'true') setAddiProduction(true)
+      if (result.data.addi_webhook_user) setAddiWebhookUser(result.data.addi_webhook_user)
+      if (result.data.addi_webhook_password) setAddiWebhookPassword(result.data.addi_webhook_password)
       if (result.data.sistecredito_api_key) { setSisteApiKey(result.data.sistecredito_api_key); setSisteSaved(true) }
       if (result.data.sistecredito_api_secret) setSisteApiSecret(result.data.sistecredito_api_secret)
       if (result.data.sistecredito_ally_code) setSisteAllyCode(result.data.sistecredito_ally_code)
@@ -429,6 +434,8 @@ export function TenantManagement() {
         api.updatePlatformSetting('addi_production', addiProduction ? 'true' : 'false'),
       ]
       if (addiStoreSlug.trim()) updates.push(api.updatePlatformSetting('addi_store_slug', addiStoreSlug.trim()))
+      if (addiWebhookUser.trim()) updates.push(api.updatePlatformSetting('addi_webhook_user', addiWebhookUser.trim()))
+      if (addiWebhookPassword.trim()) updates.push(api.updatePlatformSetting('addi_webhook_password', addiWebhookPassword.trim()))
       const results = await Promise.all(updates)
       if (results.every(r => r.success)) {
         setAddiSaved(true)
@@ -871,6 +878,43 @@ export function TenantManagement() {
             />
             <p className="text-[11px] text-muted-foreground">
               ADDI te asigna un slug durante la integración. Déjalo vacío si no lo tienes aún.
+            </p>
+          </div>
+
+          {/* Webhook credentials (Basic Auth) */}
+          <div className="pt-2 border-t border-border space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Credenciales Webhook (Basic Auth)</p>
+            <p className="text-[11px] text-muted-foreground">
+              ADDI necesita estas credenciales para notificar el resultado de cada pago. Configúralas aquí y entrega el usuario y contraseña al equipo de integraciones de ADDI antes de pasar a producción.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Usuario</Label>
+                <Input
+                  value={addiWebhookUser}
+                  onChange={(e) => { setAddiWebhookUser(e.target.value); setAddiSaved(false) }}
+                  placeholder="addi-webhook"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Contraseña</Label>
+                <div className="relative">
+                  <input
+                    type={showAddiWebhookPass ? 'text' : 'password'}
+                    value={addiWebhookPassword}
+                    onChange={(e) => { setAddiWebhookPassword(e.target.value); setAddiSaved(false) }}
+                    placeholder="Contraseña segura"
+                    className="w-full h-9 px-3 pr-10 border border-input bg-background rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <button type="button" onClick={() => setShowAddiWebhookPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <EyeOff className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              URL del webhook a entregar a ADDI: <code className="bg-muted px-1 rounded text-[10px]">/api/orders/addi-webhook</code>
             </p>
           </div>
 
