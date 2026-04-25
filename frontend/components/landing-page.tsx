@@ -385,9 +385,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     window.history.replaceState({}, '', cleanUrl)
 
     if (mp === 'success') {
-      setMpReturnMsg({ type: 'success', text: '¡Pago exitoso! Tu pedido fue confirmado. Pronto recibirás novedades.' })
+      setCarrito([])
+      setMpReturnMsg({ type: 'success', text: '¡Pago exitoso con MercadoPago! Tu pedido fue confirmado. Pronto recibirás novedades.' })
     } else if (mp === 'failure') {
-      setMpReturnMsg({ type: 'failure', text: 'El pago no fue completado. Tu pedido fue cancelado.' })
+      setMpReturnMsg({ type: 'failure', text: 'El pago no fue completado. Puedes intentarlo de nuevo o elegir otro método de pago.' })
       // Cancel the pending order so it doesn't appear in merchant dashboard
       if (orderId) {
         fetch(`${API_URL}/orders/cancel-gateway/${orderId}`, { method: 'PUT' }).catch(() => {/* ignore */})
@@ -398,8 +399,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }, [])
 
   // Handle Addi return URL (?addi=return&order=<id>)
-  // Addi redirects here after the user finishes (approved, rejected, abandoned, etc.)
-  // We check the actual order status from our backend (set by the webhook before redirect)
+  // Addi sends webhook BEFORE redirecting, but backend retries up to 3s to handle latency
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const addi = params.get('addi')
@@ -414,12 +414,40 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         if (data?.status === 'confirmado') {
           setCarrito([])
           setAddiReturnMsg({ type: 'success', text: '¡Crédito aprobado por ADDI! Tu pedido fue confirmado. Pronto nos comunicaremos contigo.' })
+        } else if (data?.status === 'pendiente') {
+          setAddiReturnMsg({ type: 'failure', text: 'Tu solicitud de crédito está siendo procesada. Te notificaremos el resultado pronto.' })
         } else {
           setAddiReturnMsg({ type: 'failure', text: 'Tu solicitud de crédito no fue aprobada. Puedes intentarlo de nuevo o elegir otro método de pago.' })
         }
       })
       .catch(() => {
         setAddiReturnMsg({ type: 'failure', text: 'No pudimos confirmar el estado de tu pago ADDI. Contáctanos si tienes dudas.' })
+      })
+  }, [])
+
+  // Handle Sistecredito return URL (?sistecredito=return&order=<id>)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const siste = params.get('sistecredito')
+    const orderId = params.get('order')
+    if (siste !== 'return' || !orderId) return
+
+    window.history.replaceState({}, '', window.location.pathname)
+
+    fetch(`${API_URL}/orders/sistecredito-status/${orderId}`)
+      .then(r => r.json())
+      .then((data: any) => {
+        if (data?.status === 'confirmado') {
+          setCarrito([])
+          setSisteReturnMsg({ type: 'success', text: '¡Crédito aprobado por Sistecrédito! Tu pedido fue confirmado. Pronto nos comunicaremos contigo.' })
+        } else if (data?.status === 'pendiente') {
+          setSisteReturnMsg({ type: 'pending', text: 'Tu solicitud de crédito está siendo procesada. Te notificaremos el resultado pronto.' })
+        } else {
+          setSisteReturnMsg({ type: 'failure', text: 'Tu solicitud de crédito no fue aprobada. Puedes intentarlo de nuevo o elegir otro método de pago.' })
+        }
+      })
+      .catch(() => {
+        setSisteReturnMsg({ type: 'failure', text: 'No pudimos confirmar el estado de tu crédito Sistecrédito. Contáctanos si tienes dudas.' })
       })
   }, [])
 
@@ -615,6 +643,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [pedidoConfirmado, setPedidoConfirmado] = useState<PedidoConfirmado | null>(null)
   const [mpReturnMsg, setMpReturnMsg] = useState<{ type: 'success' | 'failure' | 'pending'; text: string } | null>(null)
   const [addiReturnMsg, setAddiReturnMsg] = useState<{ type: 'success' | 'failure'; text: string } | null>(null)
+  const [sisteReturnMsg, setSisteReturnMsg] = useState<{ type: 'success' | 'failure' | 'pending'; text: string } | null>(null)
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
 
@@ -2144,6 +2173,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         }`}>
           <span>{addiReturnMsg.text}</span>
           <button onClick={() => setAddiReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
+        </div>
+      )}
+
+      {/* ========== SISTECREDITO RETURN BANNER ========== */}
+      {sisteReturnMsg && (
+        <div className={`fixed top-0 left-0 right-0 z-[70] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium shadow-lg ${
+          sisteReturnMsg.type === 'success' ? 'bg-green-600 text-white' :
+          sisteReturnMsg.type === 'pending' ? 'bg-yellow-500 text-white' :
+          'bg-red-600 text-white'
+        }`}>
+          <span>{sisteReturnMsg.text}</span>
+          <button onClick={() => setSisteReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
         </div>
       )}
 

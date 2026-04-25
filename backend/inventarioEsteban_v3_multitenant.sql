@@ -2268,6 +2268,27 @@ CREATE TABLE IF NOT EXISTS media_library (
 -- Ver: backend/migrations/add_contact_page_fields.sql
 
 -- ============================================
+-- Migración 004: inventory_holds + refund_status
+-- (ver backend/migrations/004_inventory_holds_and_refunds.sql)
+-- ============================================
+CREATE TABLE IF NOT EXISTS inventory_holds (
+  id         VARCHAR(36)  NOT NULL,
+  order_id   VARCHAR(36)  NOT NULL,
+  product_id VARCHAR(36)  NOT NULL,
+  tenant_id  VARCHAR(36)  NOT NULL,
+  quantity   INT          NOT NULL,
+  expires_at TIMESTAMP    NOT NULL,
+  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_holds_product (product_id),
+  INDEX idx_holds_order   (order_id),
+  INDEX idx_holds_tenant  (tenant_id),
+  INDEX idx_holds_expires (expires_at),
+  CONSTRAINT fk_holds_order FOREIGN KEY (order_id)
+    REFERENCES storefront_orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
 -- ============================================
 -- CREDENCIALES POR DEFECTO:

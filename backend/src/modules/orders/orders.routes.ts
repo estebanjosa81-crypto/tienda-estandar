@@ -11,6 +11,59 @@ import { audit } from '../../utils/audit-logger';
 
 const router: ReturnType<typeof Router> = Router();
 
+// ─── Inventory holds helpers ──────────────────────────────────────────────────
+
+async function checkStockAvailability(
+  items: { productId: string; productName?: string; quantity: number }[],
+  tenantId: string
+): Promise<{ ok: boolean; conflict?: string }> {
+  for (const item of items) {
+    if (!item.productId) continue;
+    const [rows] = await pool.query(
+      `SELECT p.name,
+              p.stock - COALESCE(
+                (SELECT SUM(h.quantity) FROM inventory_holds h
+                 WHERE h.product_id = p.id AND h.expires_at > NOW()), 0
+              ) AS available
+       FROM products p
+       WHERE p.id = ? AND p.tenant_id = ?`,
+      [item.productId, tenantId]
+    ) as any;
+    if (!rows || rows.length === 0) continue;
+    if (Number(rows[0].available) < item.quantity) {
+      return { ok: false, conflict: rows[0].name || item.productName || item.productId };
+    }
+  }
+  return { ok: true };
+}
+
+async function createHolds(
+  orderId: string,
+  tenantId: string,
+  items: { productId: string; quantity: number }[],
+  expiresAt: Date
+): Promise<void> {
+  for (const item of items) {
+    if (!item.productId) continue;
+    await pool.query(
+      `INSERT INTO inventory_holds (id, order_id, product_id, tenant_id, quantity, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), orderId, item.productId, tenantId, item.quantity, expiresAt]
+    );
+  }
+}
+
+async function releaseHolds(orderId: string): Promise<void> {
+  await pool.query('DELETE FROM inventory_holds WHERE order_id = ?', [orderId]);
+}
+
+async function extendHolds(orderId: string, newExpiresAt: Date): Promise<void> {
+  await pool.query(
+    'UPDATE inventory_holds SET expires_at = ? WHERE order_id = ?',
+    [newExpiresAt, orderId]
+  );
+}
+
 // =============================================
 // PUBLIC: Crear pedido desde el storefront (sin auth)
 // =============================================
@@ -60,6 +113,16 @@ router.post(
         tenantId = tenants[0].id;
       }
 
+      // Validate stock availability (accounts for active holds from other checkouts)
+      const stockCheck = await checkStockAvailability(items, tenantId);
+      if (!stockCheck.ok) {
+        res.status(409).json({
+          success: false,
+          error: `Stock insuficiente para "${stockCheck.conflict}". Otro cliente está en proceso de compra o el stock se agotó.`,
+        });
+        return;
+      }
+
       // Generate order number
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
@@ -99,6 +162,10 @@ router.post(
             item.size || null, item.color || null]
         );
       }
+
+      // Reserve inventory — 24h for COD/manual orders
+      const holdExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, items, holdExpiry);
 
       // Fire merchant notification (async, non-blocking)
       try {
@@ -195,6 +262,16 @@ router.post(
         }
       } catch { /* column may not exist yet — default false */ }
 
+      // Validate stock before creating order or MP preference
+      const stockCheck = await checkStockAvailability(items, tenantId);
+      if (!stockCheck.ok) {
+        res.status(409).json({
+          success: false,
+          error: `Stock insuficiente para "${stockCheck.conflict}". Otro cliente está en proceso de compra o el stock se agotó.`,
+        });
+        return;
+      }
+
       // Apply 10% online payment discount only if enabled
       const ONLINE_DISCOUNT = 0.10;
       const discountedItems = items.map((item: any) => ({
@@ -236,6 +313,10 @@ router.post(
             itemDiscountPct, item.unitPrice * item.quantity]
         );
       }
+
+      // Reserve inventory — 3h (matches gateway session timeout)
+      const holdExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry);
 
       // Create MercadoPago preference
       const mpClient = new MercadoPagoConfig({ accessToken: mpToken });
@@ -323,17 +404,59 @@ router.get('/addi-config', async (req: Request, res: Response) => {
 
 // =============================================
 // PUBLIC: Estado de orden Addi
-// El frontend lo consulta cuando el cliente regresa de Addi
+// El frontend lo consulta cuando el cliente regresa de Addi.
+// Addi garantiza que el webhook llega ANTES de la redirección,
+// pero incluimos hasta 3 reintentos de 1s por si hay latencia.
 // =============================================
 router.get('/addi-status/:orderId', async (req: Request, res: Response) => {
   try {
     const { orderId } = req.params;
+    // Retry up to 3 times with 1-second gaps to handle webhook-vs-redirect race condition
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const [rows] = await pool.query(
+        "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+        [orderId]
+      ) as any;
+      if (!rows?.length) { res.status(404).json({ success: false }); return; }
+      const status = rows[0].status;
+      // If webhook already processed, return immediately
+      if (status !== 'pendiente') { res.json({ success: true, status }); return; }
+      // Still pending — wait 1s and retry (only on non-last attempt)
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
+    // After 3 attempts still pending — return it as-is
     const [rows] = await pool.query(
-      "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+      "SELECT status FROM storefront_orders WHERE id = ? LIMIT 1",
       [orderId]
     ) as any;
-    if (!rows?.length) { res.status(404).json({ success: false }); return; }
-    res.json({ success: true, status: rows[0].status });
+    res.json({ success: true, status: rows?.[0]?.status || 'pendiente' });
+  } catch {
+    res.status(500).json({ success: false });
+  }
+});
+
+// =============================================
+// PUBLIC: Estado de orden Sistecredito
+// El frontend lo consulta cuando el cliente regresa de Sistecredito.
+// =============================================
+router.get('/sistecredito-status/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const [rows] = await pool.query(
+        "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'sistecredito' LIMIT 1",
+        [orderId]
+      ) as any;
+      if (!rows?.length) { res.status(404).json({ success: false }); return; }
+      const status = rows[0].status;
+      if (status !== 'pendiente') { res.json({ success: true, status }); return; }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
+    const [rows] = await pool.query(
+      "SELECT status FROM storefront_orders WHERE id = ? LIMIT 1",
+      [orderId]
+    ) as any;
+    res.json({ success: true, status: rows?.[0]?.status || 'pendiente' });
   } catch {
     res.status(500).json({ success: false });
   }
@@ -440,6 +563,16 @@ router.post(
         tenantId = tenants[0].id;
       }
 
+      // Validate stock before creating order
+      const stockCheck = await checkStockAvailability(items, tenantId);
+      if (!stockCheck.ok) {
+        res.status(409).json({
+          success: false,
+          error: `Stock insuficiente para "${stockCheck.conflict}". Otro cliente está en proceso de compra o el stock se agotó.`,
+        });
+        return;
+      }
+
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
 
@@ -470,6 +603,10 @@ router.post(
             item.unitPrice * item.quantity]
         );
       }
+
+      // Reserve inventory — 2h (Addi session expires at 2h)
+      const addiHoldExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), addiHoldExpiry);
 
       // Step 2: Create ADDI application
       const nameParts = customerName.trim().split(' ');
@@ -692,6 +829,16 @@ router.post(
         tenantId = tenants[0].id;
       }
 
+      // Validate stock before creating order
+      const stockCheck = await checkStockAvailability(items, tenantId);
+      if (!stockCheck.ok) {
+        res.status(409).json({
+          success: false,
+          error: `Stock insuficiente para "${stockCheck.conflict}". Otro cliente está en proceso de compra o el stock se agotó.`,
+        });
+        return;
+      }
+
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.round(Math.max(0, subtotal - discount));
 
@@ -723,6 +870,10 @@ router.post(
         );
       }
 
+      // Reserve inventory — 3h (matches Sistecredito session timeout)
+      const sisteHoldExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), sisteHoldExpiry);
+
       // Build payload for pasarela (G-ALI-12 / G-ALI-10)
       // paymentMethodId=2 for Sistecredito in both Staging and Production
       const [nameParts] = [customerName.trim().split(' ')];
@@ -742,7 +893,7 @@ router.post(
         tax: 0,
         taxBase: total,
         sandbox: { isActive: false },
-        urlResponse: `${frontendUrl}/?sistecredito=success&order=${orderId}`,
+        urlResponse: `${frontendUrl}/?sistecredito=return&order=${orderId}`,
         urlConfirmation: `${backendUrl}/api/orders/sistecredito-webhook`,
         methodConfirmation: 'POST',
         client: {
@@ -867,7 +1018,7 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
     const topic = req.query.topic || req.body?.type;
     const paymentId = req.query['data.id'] || req.body?.data?.id;
 
-    if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment')) {
+    if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment_intent')) {
       res.status(200).json({ received: true });
       return;
     }
@@ -894,11 +1045,13 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
 
     if (mpStatus === 'approved') {
       const [upd] = await pool.query(
-        "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ? AND status = 'pendiente'",
-        [orderId]
+        "UPDATE storefront_orders SET status = 'confirmado', gateway_payment_id = ? WHERE id = ? AND status = 'pendiente'",
+        [String(paymentId), orderId]
       ) as any;
       if (upd.affectedRows > 0) {
         console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+        // Extend hold to 30 days so stock stays reserved until delivery
+        await extendHolds(orderId, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
         try {
           const [oRows] = await pool.query(
             'SELECT tenant_id, order_number, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1',
@@ -922,6 +1075,7 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
         "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
         [orderId]
       );
+      await releaseHolds(orderId);
       console.log(`MP webhook: order ${orderId} cancelled (${mpStatus})`);
     }
 
@@ -1006,10 +1160,12 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
 
     if (transactionStatus === 'Approved' && order.status === 'pendiente') {
       await pool.query(
-        "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?",
-        [order.id]
+        "UPDATE storefront_orders SET status = 'confirmado', gateway_payment_id = ? WHERE id = ?",
+        [transactionId || null, order.id]
       );
       console.log(`Sistecredito webhook: order ${order.id} confirmed (Approved)`);
+      // Extend hold to 30 days so stock stays reserved until delivery
+      await extendHolds(order.id, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
       try {
         const [oRows] = await pool.query(
           'SELECT tenant_id, order_number, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1',
@@ -1032,6 +1188,7 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
         "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
         [order.id]
       );
+      await releaseHolds(order.id);
       console.log(`Sistecredito webhook: order ${order.id} cancelled (${transactionStatus})`);
     }
 
@@ -1054,10 +1211,11 @@ router.put('/cancel-gateway/:orderId', async (req: Request, res: Response) => {
       return;
     }
     // Only cancel if the order is still pending (not yet paid/confirmed)
-    await pool.query(
+    const [upd] = await pool.query(
       "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND payment_method IN ('mercadopago', 'addi', 'sistecredito') AND status = 'pendiente'",
       [orderId]
-    );
+    ) as any;
+    if (upd.affectedRows > 0) await releaseHolds(orderId);
     res.json({ success: true });
   } catch (error) {
     console.error('Cancel gateway order error:', error);
@@ -1410,11 +1568,12 @@ router.put(
       }
 
       // ================================================================
-      // When cancelled → restore stock if it was already deducted (entregado can't be cancelled above, so this handles other states)
+      // Release inventory hold on terminal states
       // ================================================================
-      if (status === 'cancelado') {
-        // No stock was deducted yet since stock only deducts on "entregado"
-        // Just mark as cancelled — no stock changes needed
+      if (status === 'entregado' || status === 'cancelado') {
+        // entregado: stock was physically deducted above — hold is no longer needed
+        // cancelado: stock was never deducted — release hold so others can buy
+        await releaseHolds(orderId);
       }
 
       await connection.commit();
@@ -1493,12 +1652,14 @@ router.post(
           const order = orderRows?.[0];
           if (order && !['entregado', 'cancelado'].includes(order.status)) {
             await pool.query(
-              'UPDATE storefront_orders SET status = ? WHERE id = ?',
-              [newStatus, orderId]
+              'UPDATE storefront_orders SET status = ?, gateway_payment_id = COALESCE(gateway_payment_id, ?) WHERE id = ?',
+              [newStatus, orderId, orderId]
             );
             console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
 
             if (newStatus === 'confirmado') {
+              // Extend hold to 30 days so stock stays reserved until delivery
+              await extendHolds(orderId, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
               try {
                 await pool.query(
                   `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
@@ -1509,6 +1670,8 @@ router.post(
                    JSON.stringify({ orderId: order.id, orderNumber: order.order_number, paymentMethod: 'addi' })]
                 );
               } catch { /* notifications non-critical */ }
+            } else if (newStatus === 'cancelado') {
+              await releaseHolds(orderId);
             }
           }
         }
@@ -1522,5 +1685,136 @@ router.post(
     }
   }
 );
+
+// =============================================
+// AUTHENTICATED: Reembolso / cancelación con pasarela
+// =============================================
+// POST /api/orders/:id/refund
+// Cancela la orden y, si el pago fue con MercadoPago, emite el
+// reembolso via API. Para Addi/Sistecredito el reembolso es manual
+// (no tienen API pública de reversa para merchants) — se cancela
+// la orden en el sistema y se informa al administrador.
+router.post('/:id/refund', async (req: Request, res: Response) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const tenantId = (req as any).user.tenantId;
+    const orderId = req.params.id;
+
+    const [orderRows] = await connection.query(
+      `SELECT id, status, payment_method, gateway_payment_id, order_number, total, customer_name
+       FROM storefront_orders
+       WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+      [orderId, tenantId]
+    ) as any;
+
+    if (!orderRows || orderRows.length === 0) {
+      await connection.rollback();
+      res.status(404).json({ success: false, error: 'Pedido no encontrado' });
+      return;
+    }
+
+    const order = orderRows[0];
+
+    if (order.status === 'entregado') {
+      await connection.rollback();
+      res.status(400).json({ success: false, error: 'No se puede reembolsar un pedido ya entregado y facturado. Gestiona la devolución manualmente.' });
+      return;
+    }
+
+    if (order.status === 'cancelado') {
+      await connection.rollback();
+      res.status(400).json({ success: false, error: 'El pedido ya está cancelado.' });
+      return;
+    }
+
+    // Mark as cancelled + set refund_status
+    let refundStatus = 'manual';
+    let refundMessage = 'Pedido cancelado. ';
+    const paymentMethod: string = (order.payment_method || '').toLowerCase();
+
+    // ── MercadoPago: API refund ──────────────────────────────────
+    if (paymentMethod === 'mercadopago' && order.gateway_payment_id) {
+      let mpToken = config.mp.accessToken;
+      if (!mpToken) {
+        const [psRows] = await connection.query(
+          "SELECT setting_value FROM platform_settings WHERE setting_key = 'mp_access_token' LIMIT 1"
+        ) as any;
+        mpToken = psRows?.[0]?.setting_value || '';
+      }
+
+      if (mpToken) {
+        try {
+          const refundRes = await fetch(
+            `https://api.mercadopago.com/v1/payments/${order.gateway_payment_id}/refunds`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${mpToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({}), // empty body = full refund
+            }
+          );
+
+          if (refundRes.ok) {
+            refundStatus = 'refunded';
+            refundMessage = `Reembolso emitido exitosamente a través de MercadoPago. El cliente recibirá los fondos en 3-15 días hábiles según su banco.`;
+          } else {
+            const errBody: any = await refundRes.json().catch(() => ({}));
+            console.error('MP refund error:', errBody);
+            refundStatus = 'manual';
+            refundMessage = `No se pudo emitir el reembolso automático en MercadoPago (${errBody?.message || refundRes.status}). Realiza el reembolso manualmente desde tu panel de MercadoPago con el pago ID: ${order.gateway_payment_id}.`;
+          }
+        } catch (refundErr) {
+          console.error('MP refund fetch error:', refundErr);
+          refundStatus = 'manual';
+          refundMessage = `Error de conexión con MercadoPago. Realiza el reembolso manualmente desde tu panel con el pago ID: ${order.gateway_payment_id}.`;
+        }
+      } else {
+        refundMessage = `Sin credenciales de MercadoPago para emitir reembolso automático. Realiza el reembolso manualmente desde tu panel de MercadoPago.`;
+      }
+    }
+
+    // ── Addi: no API pública de reversa ─────────────────────────
+    if (paymentMethod === 'addi') {
+      refundStatus = 'manual';
+      refundMessage = `Addi no dispone de API de reembolso para merchants. Contacta a Addi Business directamente para gestionar la reversa del crédito del cliente.`;
+    }
+
+    // ── Sistecredito: no API pública de reversa ──────────────────
+    if (paymentMethod === 'sistecredito') {
+      refundStatus = 'manual';
+      refundMessage = `Sistecredito no dispone de API de reembolso para merchants. Contacta al soporte de Sistecredito para gestionar la reversa de la transacción${order.gateway_payment_id ? ` (ID: ${order.gateway_payment_id})` : ''}.`;
+    }
+
+    await connection.query(
+      "UPDATE storefront_orders SET status = 'cancelado', refund_status = ? WHERE id = ?",
+      [refundStatus, orderId]
+    );
+
+    await connection.commit();
+
+    // Release inventory hold outside transaction (non-critical)
+    await releaseHolds(orderId).catch(e => console.error('releaseHolds after refund:', e));
+
+    res.json({
+      success: true,
+      data: {
+        orderId,
+        orderNumber: order.order_number,
+        refundStatus,
+        message: refundMessage,
+      },
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Refund error:', error);
+    res.status(500).json({ success: false, error: 'Error al procesar el reembolso' });
+  } finally {
+    connection.release();
+  }
+});
 
 export const ordersRoutes = router;

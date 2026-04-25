@@ -161,7 +161,10 @@ router.get(
             p.id, p.name, p.category, p.brand, p.description,
             p.sale_price as salePrice, p.image_url as imageUrl,
             p.image_urls as images,
-            p.stock, p.color, p.size, p.gender,
+            GREATEST(0, p.stock - COALESCE(
+              (SELECT SUM(h.quantity) FROM inventory_holds h WHERE h.product_id = p.id AND h.expires_at > NOW()), 0
+            )) AS stock,
+            p.color, p.size, p.gender,
             p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
             p.offer_label as offerLabel,
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
@@ -181,7 +184,7 @@ router.get(
         ) as any;
         rows = r;
       } catch {
-        // Fallback: delivery_type / municipality columns may not exist in running DB yet
+        // Fallback: delivery_type / municipality / inventory_holds columns may not exist in running DB yet
         const [r] = await pool.query(
           `SELECT
             p.id, p.name, p.category, p.brand, p.description,

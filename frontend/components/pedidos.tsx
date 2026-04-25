@@ -103,6 +103,7 @@ export function Pedidos() {
   const [totalPages, setTotalPages] = useState(1)
   const [drivers, setDrivers] = useState<{ id: string; name: string; email: string }[]>([])
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null)
+  const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
 
   // Fetch drivers list
   useEffect(() => {
@@ -213,6 +214,32 @@ export function Pedidos() {
       console.error('Error updating status:', error)
     } finally {
       setUpdatingOrderId(null)
+    }
+  }
+
+  const handleRefund = async (orderId: string, paymentMethod: string | null) => {
+    const isGateway = ['mercadopago', 'addi', 'sistecredito'].includes((paymentMethod || '').toLowerCase())
+    const confirmMsg = isGateway && (paymentMethod || '').toLowerCase() === 'mercadopago'
+      ? '¿Cancelar este pedido y emitir reembolso automático vía MercadoPago?\n\nEl cliente recibirá su dinero en 3-15 días hábiles.'
+      : `¿Cancelar este pedido?\n\nNota: ${paymentMethod === 'addi' ? 'El reembolso de Addi debe gestionarse manualmente con soporte de Addi.' : paymentMethod === 'sistecredito' ? 'El reembolso de Sistecredito debe gestionarse manualmente con su soporte.' : 'Se cancelará el pedido en el sistema.'}`
+
+    if (!window.confirm(confirmMsg)) return
+
+    setRefundingOrderId(orderId)
+    try {
+      const result = await api.refundOrder(orderId)
+      if (result.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelado' } : o))
+        const statsResult = await api.getOrderStats()
+        if (statsResult.success && statsResult.data) setStats(statsResult.data)
+        alert(`✅ Pedido cancelado\n\n${result.data?.message || ''}`)
+      } else {
+        alert(`Error: ${result.error || 'No se pudo procesar el reembolso'}`)
+      }
+    } catch {
+      alert('Error de conexión al procesar el reembolso')
+    } finally {
+      setRefundingOrderId(null)
     }
   }
 
@@ -667,17 +694,40 @@ export function Pedidos() {
                           Marcar como {STATUS_CONFIG[nextStatus]?.label}
                         </Button>
                       )}
-                      {order.status !== 'cancelado' && order.status !== 'entregado' && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => updateStatus(order.id, 'cancelado')}
-                          disabled={isUpdating}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar pedido
-                        </Button>
-                      )}
+                      {order.status !== 'cancelado' && order.status !== 'entregado' && (() => {
+                        const pm = (order.paymentMethod || '').toLowerCase()
+                        const isGateway = ['mercadopago', 'addi', 'sistecredito'].includes(pm)
+                        const isRefunding = refundingOrderId === order.id
+                        if (isGateway && order.status !== 'pendiente') {
+                          // Gateway-paid confirmed/in-progress order: show refund button
+                          return (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRefund(order.id, order.paymentMethod)}
+                              disabled={isUpdating || isRefunding}
+                            >
+                              {isRefunding ? (
+                                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <XCircle className="h-4 w-4 mr-2" />
+                              )}
+                              Cancelar y reembolsar
+                            </Button>
+                          )
+                        }
+                        return (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => updateStatus(order.id, 'cancelado')}
+                            disabled={isUpdating}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancelar pedido
+                          </Button>
+                        )
+                      })()}
                       <a
                         href={`https://wa.me/${order.customerPhone.replace(/\D/g, '')}`}
                         target="_blank"
