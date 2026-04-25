@@ -5494,6 +5494,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             return (
               <>
                 <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' h-full rounded-xl'}`}>
+                  {!isMobile && (
+                    hero4.videoUrl ? (
+                      <video
+                        src={hero4.videoUrl}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-70"
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={hero4.imageUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-70"
+                      />
+                    )
+                  )}
                   {hero4.videoUrl ? (
                     <video
                       src={hero4.videoUrl}
