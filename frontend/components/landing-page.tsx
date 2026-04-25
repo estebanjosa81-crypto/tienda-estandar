@@ -397,6 +397,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [])
 
+  // Handle Addi return URL (?addi=return&order=<id>)
+  // Addi redirects here after the user finishes (approved, rejected, abandoned, etc.)
+  // We check the actual order status from our backend (set by the webhook before redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const addi = params.get('addi')
+    const orderId = params.get('order')
+    if (addi !== 'return' || !orderId) return
+
+    window.history.replaceState({}, '', window.location.pathname)
+
+    fetch(`${API_URL}/orders/addi-status/${orderId}`)
+      .then(r => r.json())
+      .then((data: any) => {
+        if (data?.status === 'confirmado') {
+          setCarrito([])
+          setAddiReturnMsg({ type: 'success', text: '¡Crédito aprobado por ADDI! Tu pedido fue confirmado. Pronto nos comunicaremos contigo.' })
+        } else {
+          setAddiReturnMsg({ type: 'failure', text: 'Tu solicitud de crédito no fue aprobada. Puedes intentarlo de nuevo o elegir otro método de pago.' })
+        }
+      })
+      .catch(() => {
+        setAddiReturnMsg({ type: 'failure', text: 'No pudimos confirmar el estado de tu pago ADDI. Contáctanos si tienes dudas.' })
+      })
+  }, [])
+
   const saveClientLocation = () => {
     if (locationMun) {
       localStorage.setItem('clientMunicipality', locationMun)
@@ -588,6 +614,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [mostrarModalExito, setMostrarModalExito] = useState(false)
   const [pedidoConfirmado, setPedidoConfirmado] = useState<PedidoConfirmado | null>(null)
   const [mpReturnMsg, setMpReturnMsg] = useState<{ type: 'success' | 'failure' | 'pending'; text: string } | null>(null)
+  const [addiReturnMsg, setAddiReturnMsg] = useState<{ type: 'success' | 'failure'; text: string } | null>(null)
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
 
@@ -1598,6 +1625,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   const handlePagarConAddi = async () => {
     if (carrito.length === 0) return
+
+    // Verify amount range with Addi config endpoint before creating transaction
+    const subtotalAddi = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0)
+    const descuentoAddi = cuponAplicado?.valido ? (cuponAplicado.descuento || 0) : 0
+    const totalAddi = Math.max(0, subtotalAddi - descuentoAddi)
+    try {
+      const cfgRes = await fetch(`${API_URL}/orders/addi-config?amount=${Math.round(totalAddi)}`)
+      const cfg = await cfgRes.json()
+      if (cfg.available === false) {
+        throw new Error('ADDI no está disponible en este momento. Por favor elige otro método de pago.')
+      }
+      if (cfg.minAmount && totalAddi < cfg.minAmount) {
+        throw new Error(`ADDI solo aplica para compras desde $${Number(cfg.minAmount).toLocaleString('es-CO')}. Agrega más productos al carrito.`)
+      }
+      if (cfg.maxAmount && totalAddi > cfg.maxAmount) {
+        throw new Error(`ADDI solo aplica para compras hasta $${Number(cfg.maxAmount).toLocaleString('es-CO')}.`)
+      }
+    } catch (e: any) {
+      // If config check itself throws (network error), allow through — don't block payment over a non-critical check
+      if (e.message?.includes('ADDI')) throw e
+    }
+
     const firstTenantId = carrito.find(i => i.tenantId)?.tenantId || undefined
     const payload: Record<string, any> = {
       customerName: formData.nombre,
@@ -2085,6 +2134,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         }`}>
           <span>{mpReturnMsg.text}</span>
           <button onClick={() => setMpReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
+        </div>
+      )}
+
+      {/* ========== ADDI RETURN BANNER ========== */}
+      {addiReturnMsg && (
+        <div className={`fixed top-0 left-0 right-0 z-[70] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium shadow-lg ${
+          addiReturnMsg.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          <span>{addiReturnMsg.text}</span>
+          <button onClick={() => setAddiReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
         </div>
       )}
 

@@ -286,6 +286,60 @@ router.post(
 );
 
 // =============================================
+// PUBLIC: Proxy del Config endpoint de ADDI
+// Verifica si Addi está disponible para un monto y si hay descuento visual
+// =============================================
+router.get('/addi-config', async (req: Request, res: Response) => {
+  try {
+    const amount = req.query.amount;
+    if (!amount) { res.json({ available: false }); return; }
+
+    let addiStoreSlug = process.env.ADDI_STORE_SLUG || '';
+    if (!addiStoreSlug) {
+      const [psRows] = await pool.query(
+        "SELECT setting_value FROM platform_settings WHERE setting_key = 'addi_store_slug' LIMIT 1"
+      ) as any;
+      addiStoreSlug = psRows?.[0]?.setting_value || '';
+    }
+    if (!addiStoreSlug) { res.json({ available: false }); return; }
+
+    const cfgRes = await fetch(
+      `https://channels-public-api.addi.com/allies/${addiStoreSlug}/config?requestedamount=${amount}`,
+      { headers: { Accept: 'application/json', 'Content-Type': 'application/json' } }
+    );
+    if (!cfgRes.ok) { res.json({ available: false }); return; }
+
+    const cfg: any = await cfgRes.json();
+    res.json({
+      available: cfg.isActiveAlly === true,
+      minAmount: cfg.minAmount,
+      maxAmount: cfg.maxAmount,
+      discount: cfg.policy?.discount ?? 0,
+    });
+  } catch {
+    res.json({ available: false });
+  }
+});
+
+// =============================================
+// PUBLIC: Estado de orden Addi
+// El frontend lo consulta cuando el cliente regresa de Addi
+// =============================================
+router.get('/addi-status/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const [rows] = await pool.query(
+      "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+      [orderId]
+    ) as any;
+    if (!rows?.length) { res.status(404).json({ success: false }); return; }
+    res.json({ success: true, status: rows[0].status });
+  } catch {
+    res.status(500).json({ success: false });
+  }
+});
+
+// =============================================
 // PUBLIC: Crear aplicación de crédito con ADDI
 // =============================================
 router.post(
@@ -422,9 +476,12 @@ router.post(
       const firstName = nameParts[0] || customerName;
       const lastName = nameParts.slice(1).join(' ') || customerName;
 
-      // Addi requires phone with +57 country code
+      // Addi expects phone without country code + separate cellphoneCountryCode field
       const rawPhone = String(customerPhone || '').replace(/\D/g, '');
-      const addiPhone = rawPhone.startsWith('57') ? `+${rawPhone}` : `+57${rawPhone}`;
+      // Strip leading 57 if present so we always send just the 10-digit national number
+      const addiPhone = rawPhone.startsWith('57') && rawPhone.length > 10
+        ? rawPhone.slice(2)
+        : rawPhone;
 
       const addiClient: Record<string, any> = {
         idType: 'CC',
@@ -432,24 +489,48 @@ router.post(
         firstName,
         lastName,
         cellphone: addiPhone,
+        cellphoneCountryCode: '+57',
+        address: {
+          lineOne: address || municipality || 'N/A',
+          city: municipality || 'N/A',
+          country: 'CO',
+        },
       };
       if (customerEmail) addiClient.email = customerEmail;
 
       const backendUrl = process.env.BACKEND_URL || 'https://api.perfummua.com';
+
+      // Correct Addi payload structure (verified against official WooCommerce plugin source)
+      // allySlug goes ONLY in the config endpoint — NOT in the application body
+      // callbackUrl/redirectionUrl go inside allyUrlRedirection object, NOT at root level
       const addiPayload: Record<string, any> = {
-        allyOrderId: orderId,
-        totalAmount: Math.round(total),
+        orderId,                                    // was "allyOrderId" — incorrect field name
+        totalAmount: parseFloat(total.toFixed(1)),
+        shippingAmount: 0,
+        totalTaxesAmount: 0,
+        currency: 'COP',
+        ecommercePlatform: 'CUSTOM',
         client: addiClient,
         items: items.map((item: any) => ({
-          // ADDI rejects UUIDs with dashes as SKU — strip them to alphanumeric
           sku: String(item.productId).replace(/-/g, '').substring(0, 32),
           name: item.productName,
           quantity: Number(item.quantity),
-          unitPrice: Math.round(Number(item.unitPrice)),
+          unitPrice: parseFloat(Number(item.unitPrice).toFixed(1)),
+          tax: 0,
+          pictureUrl: item.productImage || '',
+          category: 'product',
         })),
-        redirectionUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
-        callbackUrl: `${backendUrl}/api/orders/addi-webhook`,
-        allySlug: addiStoreSlug,
+        shippingAddress: {
+          lineOne: address || municipality || 'N/A',
+          city: municipality || 'N/A',
+          country: 'CO',
+        },
+        allyUrlRedirection: {              // callbackUrl/redirectionUrl go HERE, not at root
+          logoUrl: '',
+          callbackUrl: `${backendUrl}/api/orders/addi-webhook`,
+          redirectionUrl: `${frontendUrl}/?addi=return&order=${orderId}`,
+          checkoutUrl: frontendUrl,
+        },
       };
 
       console.log('ADDI payload:', JSON.stringify(addiPayload));
@@ -1363,6 +1444,31 @@ router.post(
   '/addi-webhook',
   async (req: Request, res: Response) => {
     try {
+      // Basic Auth — credentials stored in env or platform_settings
+      // If no credentials configured, still accept (backwards compat) but log warning
+      let webhookUser = process.env.ADDI_WEBHOOK_USER || '';
+      let webhookPass = process.env.ADDI_WEBHOOK_PASSWORD || '';
+      if (!webhookUser || !webhookPass) {
+        const [psRows] = await pool.query(
+          "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('addi_webhook_user','addi_webhook_password')"
+        ) as any;
+        for (const r of psRows) {
+          if (r.setting_key === 'addi_webhook_user') webhookUser = r.setting_value || '';
+          if (r.setting_key === 'addi_webhook_password') webhookPass = r.setting_value || '';
+        }
+      }
+      if (webhookUser && webhookPass) {
+        const authHeader = req.headers['authorization'] || '';
+        const expected = 'Basic ' + Buffer.from(`${webhookUser}:${webhookPass}`).toString('base64');
+        if (authHeader !== expected) {
+          console.warn('ADDI webhook: unauthorized request');
+          res.status(401).json({ error: 'Unauthorized' });
+          return;
+        }
+      } else {
+        console.warn('ADDI webhook: no credentials configured — accepting without auth. Configure addi_webhook_user/addi_webhook_password in platform settings.');
+      }
+
       const payload = req.body;
       console.log('ADDI webhook received:', JSON.stringify(payload));
 
