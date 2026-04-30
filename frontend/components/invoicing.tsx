@@ -620,6 +620,20 @@ export function Invoicing() {
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Método:</span> {paymentLabels[selectedSale.paymentMethod] || selectedSale.paymentMethod}
                 </p>
+                {selectedSale.paymentMethod === 'mixto' && (
+                  <div className="ml-2 space-y-0.5 border-l-2 border-border pl-2">
+                    {(selectedSale.mixedEfectivoAmount ?? 0) > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">↳ Efectivo:</span> {formatCOP(selectedSale.mixedEfectivoAmount!)}
+                      </p>
+                    )}
+                    {selectedSale.mixedSecondMethod && (selectedSale.mixedSecondAmount ?? 0) > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">↳ {paymentLabels[selectedSale.mixedSecondMethod] || selectedSale.mixedSecondMethod}:</span> {formatCOP(selectedSale.mixedSecondAmount!)}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <p className="text-sm text-foreground">
                   <span className="font-medium">Monto Recibido:</span> {formatCOP(selectedSale.amountPaid)}
                 </p>

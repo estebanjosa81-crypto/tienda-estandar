@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { useStore } from '@/lib/store'
 import { api } from '@/lib/api'
 import { TAX_RATE, type PaymentMethod, type CustomerFull, type Sale, type Product } from '@/lib/types'
@@ -365,6 +365,11 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       applyTax: applyIva,
       sedeId: sedeId || undefined,
       creditDays: formaPago === 'credito' ? creditDays : undefined,
+      ...(paymentMethod === 'mixto' && {
+        mixedEfectivoAmount: parseFloat(mixtoAmount1) || 0,
+        mixedSecondMethod: mixtoMethod2,
+        mixedSecondAmount: parseFloat(mixtoAmount2) || 0,
+      }),
     })
 
     setIsProcessing(false)
@@ -966,8 +971,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                   const itemTotal = itemSub + itemIva
                   const isEditingNote = editingNoteId === item.lineId
                   return (
-                    <>
-                      <tr key={item.lineId} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
+                    <Fragment key={item.lineId}>
+                      <tr className="border-b border-border/40 hover:bg-muted/20 transition-colors">
                         {/* Delete */}
                         <td className="px-1.5 py-1">
                           <button
@@ -1050,7 +1055,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                       </tr>
                       {/* Note row */}
                       {isEditingNote && (
-                        <tr key={`${item.lineId}-note`} className="bg-blue-50/50 dark:bg-blue-950/20">
+                        <tr className="bg-blue-50/50 dark:bg-blue-950/20">
                           <td colSpan={applyIva ? 11 : 10} className="px-3 py-1.5">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-muted-foreground shrink-0">Ref / Nota:</span>
@@ -1073,7 +1078,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
                 {billingLines.length === 0 && (
