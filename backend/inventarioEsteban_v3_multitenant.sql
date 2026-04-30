@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS employee_cargos (
     tenant_id VARCHAR(36) NOT NULL,
     name VARCHAR(100) NOT NULL,
     description VARCHAR(255) NULL,
+    permissions JSON NULL COMMENT 'Permisos granulares del cargo: ["ventas","inventario",...]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     INDEX idx_cargos_tenant (tenant_id)
@@ -143,6 +144,10 @@ CREATE TABLE IF NOT EXISTS store_info (
     contact_page_image VARCHAR(500) NULL COMMENT 'URL de la foto de perfil de la página de links (sobreescribe el logo)',
     contact_page_products TEXT NULL COMMENT 'JSON: array de IDs de productos a mostrar en la página de links',
     contact_page_links TEXT NULL COMMENT 'JSON: array de {label, url} para los botones de la página de links',
+    -- Configuración de pago y visual
+    product_card_style VARCHAR(20) NULL DEFAULT 'style1' COMMENT 'Estilo de tarjeta de producto: style1 o style2',
+    allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea',
+    online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuento activo para pagos en línea',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_store_tenant (tenant_id),
@@ -403,6 +408,9 @@ CREATE TABLE IF NOT EXISTS sales (
     payment_method ENUM('efectivo', 'tarjeta', 'transferencia', 'fiado', 'addi', 'sistecredito', 'mixto') NOT NULL,
     amount_paid DECIMAL(12, 2) NOT NULL,
     change_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    mixed_efectivo_amount DECIMAL(12,2) NULL COMMENT 'Monto efectivo en pago mixto',
+    mixed_second_method VARCHAR(30) NULL COMMENT 'Método secundario en pago mixto',
+    mixed_second_amount DECIMAL(12,2) NULL COMMENT 'Monto del método secundario en pago mixto',
     seller_id VARCHAR(36) NULL,
     seller_name VARCHAR(255) NOT NULL,
     cash_session_id VARCHAR(36) NULL,
@@ -414,6 +422,7 @@ CREATE TABLE IF NOT EXISTS sales (
     synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
     synced_at TIMESTAMP NULL COMMENT 'Fecha en que se sincronizó con la nube',
     origin ENUM('local','cloud') NOT NULL DEFAULT 'cloud' COMMENT 'Origen del registro: local (offline) o cloud',
+    sede_id VARCHAR(36) NULL DEFAULT NULL COMMENT 'Sede donde se realizó la venta (NULL = sede única)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -427,7 +436,8 @@ CREATE TABLE IF NOT EXISTS sales (
     INDEX idx_sales_credit_status (credit_status),
     INDEX idx_sales_payment_method (payment_method),
     INDEX idx_sales_due_date (due_date),
-    INDEX idx_sales_synced (synced)
+    INDEX idx_sales_synced (synced),
+    INDEX idx_sales_sede_id (sede_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -512,6 +522,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
     tax DECIMAL(12,2) NOT NULL DEFAULT 0,
     total DECIMAL(12,2) NOT NULL DEFAULT 0,
     payment_method ENUM('efectivo','tarjeta','transferencia','credito','nequi','daviplata','credito_proveedor','mixto') NOT NULL DEFAULT 'efectivo',
+    mixed_efectivo_amount DECIMAL(12,2) NULL COMMENT 'Monto efectivo en pago mixto de compra',
+    mixed_transferencia_amount DECIMAL(12,2) NULL COMMENT 'Monto transferencia en pago mixto de compra',
     payment_status ENUM('pagado','pendiente','parcial') NOT NULL DEFAULT 'pagado',
     due_date DATE NULL,
     file_url VARCHAR(500) NULL,
@@ -545,6 +557,7 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_items (
     product_sku VARCHAR(100) NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
     unit_cost DECIMAL(12,2) NOT NULL,
+    sale_price DECIMAL(12,2) NULL COMMENT 'Precio de venta al momento de la compra',
     subtotal DECIMAL(12,2) NOT NULL,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (invoice_id) REFERENCES purchase_invoices(id) ON DELETE CASCADE,
@@ -680,6 +693,9 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
     total_card_sales DECIMAL(12, 2) NULL DEFAULT 0,
     total_transfer_sales DECIMAL(12, 2) NULL DEFAULT 0,
     total_fiado_sales DECIMAL(12, 2) NULL DEFAULT 0,
+    total_credit_payments_efectivo DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos de fiados cobrados en efectivo durante la sesión',
+    total_credit_payments_tarjeta DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos de fiados cobrados por tarjeta durante la sesión',
+    total_credit_payments_transfer DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos de fiados cobrados por transferencia durante la sesión',
     total_sales_count INT NULL DEFAULT 0,
     total_change_given DECIMAL(12, 2) NULL DEFAULT 0,
     total_cash_entries DECIMAL(12, 2) NULL DEFAULT 0,
@@ -1335,6 +1351,8 @@ CREATE TABLE IF NOT EXISTS storefront_orders (
     -- Estado
     status ENUM('pendiente', 'confirmado', 'preparando', 'enviado', 'entregado', 'cancelado') NOT NULL DEFAULT 'pendiente',
     payment_method VARCHAR(50) NULL,
+    gateway_payment_id VARCHAR(255) NULL COMMENT 'ID del pago en pasarela para reembolsos (MP payment_id, Addi orderId, Siste _id)',
+    refund_status VARCHAR(20) NULL COMMENT 'Estado del reembolso: NULL, pending, refunded, manual',
 
     -- Delivery / Repartidor
     delivery_driver_id VARCHAR(36) NULL,
@@ -2287,6 +2305,183 @@ CREATE TABLE IF NOT EXISTS inventory_holds (
   CONSTRAINT fk_holds_order FOREIGN KEY (order_id)
     REFERENCES storefront_orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- MIGRACIONES v3.2: columnas añadidas en parches posteriores
+-- Idempotentes — seguras de re-ejecutar en instalaciones existentes.
+-- ============================================
+
+DROP PROCEDURE IF EXISTS sp_migrations_v32;
+
+DELIMITER //
+CREATE PROCEDURE sp_migrations_v32()
+BEGIN
+    -- 1. store_info.online_discount_enabled
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'online_discount_enabled'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = descuento activo para pagos en línea';
+    END IF;
+
+    -- 2. purchase_invoice_items.sale_price
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoice_items' AND COLUMN_NAME = 'sale_price'
+    ) THEN
+        ALTER TABLE purchase_invoice_items
+            ADD COLUMN sale_price DECIMAL(12,2) NULL
+                COMMENT 'Precio de venta al momento de la compra'
+            AFTER unit_cost;
+    END IF;
+
+    -- 3. purchase_invoices.mixed_efectivo_amount
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoices' AND COLUMN_NAME = 'mixed_efectivo_amount'
+    ) THEN
+        ALTER TABLE purchase_invoices
+            ADD COLUMN mixed_efectivo_amount DECIMAL(12,2) NULL
+                COMMENT 'Monto efectivo en pago mixto de compra'
+            AFTER payment_method;
+    END IF;
+
+    -- 4. purchase_invoices.mixed_transferencia_amount
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoices' AND COLUMN_NAME = 'mixed_transferencia_amount'
+    ) THEN
+        ALTER TABLE purchase_invoices
+            ADD COLUMN mixed_transferencia_amount DECIMAL(12,2) NULL
+                COMMENT 'Monto transferencia en pago mixto de compra'
+            AFTER mixed_efectivo_amount;
+    END IF;
+
+    -- 5. sales.mixed_efectivo_amount
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_efectivo_amount'
+    ) THEN
+        ALTER TABLE sales
+            ADD COLUMN mixed_efectivo_amount DECIMAL(12,2) NULL
+                COMMENT 'Monto efectivo en pago mixto'
+            AFTER change_amount;
+    END IF;
+
+    -- 6. sales.mixed_second_method
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_second_method'
+    ) THEN
+        ALTER TABLE sales
+            ADD COLUMN mixed_second_method VARCHAR(30) NULL
+                COMMENT 'Método secundario en pago mixto'
+            AFTER mixed_efectivo_amount;
+    END IF;
+
+    -- 7. sales.mixed_second_amount
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_second_amount'
+    ) THEN
+        ALTER TABLE sales
+            ADD COLUMN mixed_second_amount DECIMAL(12,2) NULL
+                COMMENT 'Monto del método secundario en pago mixto'
+            AFTER mixed_second_method;
+    END IF;
+
+    -- 8. cash_sessions.total_credit_payments_efectivo
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cash_sessions' AND COLUMN_NAME = 'total_credit_payments_efectivo'
+    ) THEN
+        ALTER TABLE cash_sessions
+            ADD COLUMN total_credit_payments_efectivo DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos de fiados cobrados en efectivo durante la sesión'
+            AFTER total_fiado_sales;
+    END IF;
+
+    -- 9. cash_sessions.total_credit_payments_tarjeta
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cash_sessions' AND COLUMN_NAME = 'total_credit_payments_tarjeta'
+    ) THEN
+        ALTER TABLE cash_sessions
+            ADD COLUMN total_credit_payments_tarjeta DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos de fiados cobrados por tarjeta durante la sesión'
+            AFTER total_credit_payments_efectivo;
+    END IF;
+
+    -- 10. cash_sessions.total_credit_payments_transfer
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cash_sessions' AND COLUMN_NAME = 'total_credit_payments_transfer'
+    ) THEN
+        ALTER TABLE cash_sessions
+            ADD COLUMN total_credit_payments_transfer DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos de fiados cobrados por transferencia durante la sesión'
+            AFTER total_credit_payments_tarjeta;
+    END IF;
+
+    -- 11. storefront_orders.gateway_payment_id
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'storefront_orders' AND COLUMN_NAME = 'gateway_payment_id'
+    ) THEN
+        ALTER TABLE storefront_orders
+            ADD COLUMN gateway_payment_id VARCHAR(255) NULL
+                COMMENT 'ID del pago en pasarela para reembolsos (MP payment_id, Addi orderId, Siste _id)'
+            AFTER payment_method;
+    END IF;
+
+    -- 12. storefront_orders.refund_status
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'storefront_orders' AND COLUMN_NAME = 'refund_status'
+    ) THEN
+        ALTER TABLE storefront_orders
+            ADD COLUMN refund_status VARCHAR(20) NULL
+                COMMENT 'Estado del reembolso: NULL, pending, refunded, manual'
+            AFTER gateway_payment_id;
+    END IF;
+
+    -- 13. employee_cargos.permissions (por si el sp_security_migrations_v31 no se ejecutó)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'employee_cargos' AND COLUMN_NAME = 'permissions'
+    ) THEN
+        ALTER TABLE employee_cargos
+            ADD COLUMN permissions JSON NULL
+                COMMENT 'Permisos granulares del cargo: ["ventas","inventario",...]';
+    END IF;
+
+    -- 14. store_info.product_card_style (por si sp_lopbuk_migrate no se ejecutó)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'product_card_style'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN product_card_style VARCHAR(20) NULL DEFAULT 'style1'
+                COMMENT 'Estilo de tarjeta de producto: style1 o style2';
+    END IF;
+
+    -- 15. store_info.allow_contraentrega
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'allow_contraentrega'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1
+                COMMENT '1 = permite pago contraentrega en checkout, 0 = solo métodos de pago en línea';
+    END IF;
+
+END //
+DELIMITER ;
+
+CALL sp_migrations_v32();
+DROP PROCEDURE IF EXISTS sp_migrations_v32;
 
 -- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant

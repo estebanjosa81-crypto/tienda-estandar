@@ -139,6 +139,9 @@ export interface Sale {
   paymentMethod: PaymentMethod
   amountPaid: number
   change: number
+  mixedEfectivoAmount?: number
+  mixedSecondMethod?: string
+  mixedSecondAmount?: number
   customerId?: string
   customer?: Customer
   customerName?: string
