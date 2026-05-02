@@ -440,6 +440,7 @@ export class CashSessionsService {
       let totalTransferSales = 0;
       let totalFiadoSales = 0;
       let totalMixedSales = 0;
+      let totalMixedEfectivo = 0;
       let totalSalesCount = 0;
       let totalChangeGiven = 0;
 
@@ -462,6 +463,7 @@ export class CashSessionsService {
             break;
           case 'mixto':
             totalMixedSales += amount;
+            totalMixedEfectivo += Number((row as any).total_mixed_efectivo || 0);
             break;
           case 'fiado':
             totalFiadoSales = amount;
@@ -514,7 +516,7 @@ export class CashSessionsService {
       // Change given to customers comes from their payment, not from the register's funds,
       // so it must NOT be subtracted here to avoid double-counting.
       // Cash abonos (credit payments in efectivo) DO enter the register physically.
-      const expectedCash = openingAmount + totalCashSales + totalCashEntries - totalCashWithdrawals + totalCreditPaymentsEfectivo;
+      const expectedCash = openingAmount + totalCashSales + totalMixedEfectivo + totalCashEntries - totalCashWithdrawals + totalCreditPaymentsEfectivo;
       const difference = actualCash - expectedCash;
 
       let closingStatus: ClosingStatus;

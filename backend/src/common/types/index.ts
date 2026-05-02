@@ -283,6 +283,9 @@ export interface CashSession {
   totalCardSales: number;
   totalTransferSales: number;
   totalFiadoSales: number;
+  totalCreditPaymentsEfectivo: number;
+  totalCreditPaymentsTarjeta: number;
+  totalCreditPaymentsTransferencia: number;
   totalSalesCount: number;
   totalChangeGiven: number;
   totalCashEntries: number;
