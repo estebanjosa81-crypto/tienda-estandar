@@ -4,7 +4,16 @@ import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'sonner'
 import { GoogleOAuthWrapper } from '@/components/google-oauth-wrapper'
 import { DynamicFavicon } from '@/components/dynamic-favicon'
+import { Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-cormorant',
+  display: 'swap',
+})
 
 
 export const metadata: Metadata = {
@@ -25,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="font-sans antialiased">
+      <body className={`${cormorant.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <DynamicFavicon />
           <GoogleOAuthWrapper>
