@@ -284,41 +284,14 @@ router.post(
       const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
 
-      // Create order in DB
+      // Generate order identifiers
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const onlineDiscountNote = onlineDiscountEnabled ? '[PAGO EN LÍNEA MP -10%] ' : '[PAGO EN LÍNEA MP] ';
       const finalNotes = `${onlineDiscountNote}${notes || ''}${couponNote}`.trim();
 
-      await pool.query(
-        `INSERT INTO storefront_orders
-          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
-        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, discount, total]
-      );
-
-      const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
-      for (const item of discountedItems) {
-        await pool.query(
-          `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
-            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
-            itemDiscountPct, item.unitPrice * item.quantity]
-        );
-      }
-
-      // Reserve inventory — 3h (matches gateway session timeout)
-      const holdExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry);
-
-      // Create MercadoPago preference
+      // Create MercadoPago preference FIRST — only persist order if this succeeds
       const mpClient = new MercadoPagoConfig({ accessToken: mpToken });
       const preferenceClient = new Preference(mpClient);
 
@@ -348,6 +321,34 @@ router.post(
           metadata: { orderId, orderNumber },
         },
       });
+
+      // Preference created successfully — now persist the order
+      await pool.query(
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
+          subtotal, discount, total]
+      );
+
+      const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
+      for (const item of discountedItems) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            itemDiscountPct, item.unitPrice * item.quantity]
+        );
+      }
+
+      // Reserve inventory — 3h (matches gateway session timeout)
+      const holdExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry);
 
       res.status(201).json({
         success: true,
