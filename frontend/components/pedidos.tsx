@@ -78,6 +78,7 @@ interface OrderStats {
   delivered: number
   cancelled: number
   totalRevenue: number
+  pendingGateway: number
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -378,6 +379,31 @@ export function Pedidos() {
         </div>
       )}
 
+      {/* Pending gateway payments banner */}
+      {stats && stats.pendingGateway > 0 && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {stats.pendingGateway} pago{stats.pendingGateway > 1 ? 's' : ''} esperando confirmación de pasarela
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                Pedidos de MercadoPago, ADDI o Sistecrédito cuyo webhook aún no ha llegado. Aparecerán automáticamente al confirmarse. Si llevan más de 3 horas se cancelarán solos.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-shrink-0 border-amber-400 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-300"
+              onClick={() => { setStatusFilter('pendiente'); setPage(1) }}
+            >
+              Ver
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
@@ -477,6 +503,12 @@ export function Pedidos() {
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                           <Receipt className="h-3 w-3" />
                           {order.paymentMethod}
+                        </span>
+                      )}
+                      {order.paymentMethod && ['mercadopago','addi','sistecredito'].includes(order.paymentMethod.toLowerCase()) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">
+                          <DollarSign className="h-3 w-3" />
+                          {order.paymentMethod === 'mercadopago' ? 'MercadoPago' : order.paymentMethod === 'addi' ? 'ADDI' : 'Sistecrédito'}
                         </span>
                       )}
                     </div>

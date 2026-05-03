@@ -809,7 +809,7 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         documentType = 'CC',
-        department, municipality, address, notes,
+        department, municipality, address, neighborhood, notes,
         items, tenantId: requestedTenantId, couponCode, discount = 0,
       } = req.body;
 
@@ -913,12 +913,12 @@ router.post(
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, notes, subtotal, shipping_cost, discount,
+           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
            total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, `${finalNotes} [SC_TXN:${transactionId}]`,
-          subtotal, discount, total]
+          department || null, municipality || null, address || null, neighborhood || null,
+          `${finalNotes} [SC_TXN:${transactionId}]`, subtotal, discount, total]
       );
       for (const item of items) {
         await pool.query(
@@ -1006,7 +1006,8 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
     }
 
     const topic = req.query.topic || req.body?.type;
-    const paymentId = req.query['data.id'] || req.body?.data?.id;
+    // req.query['data.id'] → new-style signed webhook; req.query.id → IPN (deprecated); req.body?.data?.id → new-style body
+    const paymentId = req.query['data.id'] || req.body?.data?.id || req.query.id;
 
     if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment_intent')) {
       res.status(200).json({ received: true });
@@ -1322,10 +1323,10 @@ router.get('/stats', async (req: Request, res: Response) => {
         SUM(CASE WHEN status = 'enviado' THEN 1 ELSE 0 END) as shipped,
         SUM(CASE WHEN status = 'entregado' THEN 1 ELSE 0 END) as delivered,
         SUM(CASE WHEN status = 'cancelado' THEN 1 ELSE 0 END) as cancelled,
-        SUM(CASE WHEN status != 'cancelado' THEN total ELSE 0 END) as totalRevenue
+        SUM(CASE WHEN status != 'cancelado' THEN total ELSE 0 END) as totalRevenue,
+        SUM(CASE WHEN payment_method IN ('mercadopago','addi','sistecredito') AND status = 'pendiente' THEN 1 ELSE 0 END) as pendingGateway
        FROM storefront_orders
-       WHERE tenant_id = ?
-         AND NOT (payment_method IN ('mercadopago', 'addi', 'sistecredito') AND status = 'pendiente')`,
+       WHERE tenant_id = ?`,
       [tenantId]
     ) as any;
 
