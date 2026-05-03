@@ -284,41 +284,14 @@ router.post(
       const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
 
-      // Create order in DB
+      // Generate order identifiers
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const onlineDiscountNote = onlineDiscountEnabled ? '[PAGO EN LÍNEA MP -10%] ' : '[PAGO EN LÍNEA MP] ';
       const finalNotes = `${onlineDiscountNote}${notes || ''}${couponNote}`.trim();
 
-      await pool.query(
-        `INSERT INTO storefront_orders
-          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
-        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, discount, total]
-      );
-
-      const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
-      for (const item of discountedItems) {
-        await pool.query(
-          `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
-            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
-            itemDiscountPct, item.unitPrice * item.quantity]
-        );
-      }
-
-      // Reserve inventory — 3h (matches gateway session timeout)
-      const holdExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry);
-
-      // Create MercadoPago preference
+      // Create MercadoPago preference FIRST — only persist order if this succeeds
       const mpClient = new MercadoPagoConfig({ accessToken: mpToken });
       const preferenceClient = new Preference(mpClient);
 
@@ -348,6 +321,34 @@ router.post(
           metadata: { orderId, orderNumber },
         },
       });
+
+      // Preference created successfully — now persist the order
+      await pool.query(
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
+          subtotal, discount, total]
+      );
+
+      const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
+      for (const item of discountedItems) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            itemDiscountPct, item.unitPrice * item.quantity]
+        );
+      }
+
+      // Reserve inventory — 3h (matches gateway session timeout)
+      const holdExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry);
 
       res.status(201).json({
         success: true,
@@ -576,37 +577,11 @@ router.post(
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
 
-      // Create order in DB
+      // Generate order identifiers (needed for ADDI payload before DB insert)
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const finalNotes = `[PAGO ADDI] ${notes || ''}${couponNote}`.trim();
-
-      await pool.query(
-        `INSERT INTO storefront_orders
-          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'addi', 'pendiente')`,
-        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, discount, total]
-      );
-
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
-            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
-            item.unitPrice * item.quantity]
-        );
-      }
-
-      // Reserve inventory — 2h (Addi session expires at 2h)
-      const addiHoldExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), addiHoldExpiry);
 
       // Step 2: Create ADDI application
       const nameParts = customerName.trim().split(' ');
@@ -693,6 +668,29 @@ router.post(
           res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
           return;
         }
+        // ADDI application created — now persist the order
+        await pool.query(
+          `INSERT INTO storefront_orders
+            (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+             department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
+             total, payment_method, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'addi', 'pendiente')`,
+          [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+            department || null, municipality || null, address || null, neighborhood || null, finalNotes,
+            subtotal, discount, total]
+        );
+        for (const item of items) {
+          await pool.query(
+            `INSERT INTO storefront_order_items
+              (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+            [orderId, item.productId, item.productName, item.productImage || null,
+              item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+              item.unitPrice * item.quantity]
+          );
+        }
+        const addiHoldExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), addiHoldExpiry);
         res.status(201).json({ success: true, data: { orderId, orderNumber, total, applicationUrl: resLocation } });
         return;
       }
@@ -842,37 +840,11 @@ router.post(
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.round(Math.max(0, subtotal - discount));
 
-      // Create order in DB
+      // Generate order identifiers (needed for Sistecredito payload before DB insert)
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const finalNotes = `[PAGO SISTECREDITO] ${notes || ''}${couponNote}`.trim();
-
-      await pool.query(
-        `INSERT INTO storefront_orders
-          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
-           department, municipality, address, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
-        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
-          department || null, municipality || null, address || null, finalNotes,
-          subtotal, discount, total]
-      );
-
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
-            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
-            item.unitPrice * item.quantity]
-        );
-      }
-
-      // Reserve inventory — 3h (matches Sistecredito session timeout)
-      const sisteHoldExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), sisteHoldExpiry);
 
       // Build payload for pasarela (G-ALI-12 / G-ALI-10)
       // paymentMethodId=2 for Sistecredito in both Staging and Production
@@ -937,11 +909,29 @@ router.post(
         return;
       }
 
-      // Store transaction ID in order notes for webhook reconciliation
+      // Transaction created — now persist the order (includes SC_TXN for webhook reconciliation)
       await pool.query(
-        "UPDATE storefront_orders SET notes = CONCAT(notes, ?) WHERE id = ?",
-        [` [SC_TXN:${transactionId}]`, orderId]
+        `INSERT INTO storefront_orders
+          (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
+           department, municipality, address, notes, subtotal, shipping_cost, discount,
+           total, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
+        [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
+          department || null, municipality || null, address || null, `${finalNotes} [SC_TXN:${transactionId}]`,
+          subtotal, discount, total]
       );
+      for (const item of items) {
+        await pool.query(
+          `INSERT INTO storefront_order_items
+            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+          [orderId, item.productId, item.productName, item.productImage || null,
+            item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
+            item.unitPrice * item.quantity]
+        );
+      }
+      const sisteHoldExpiry = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), sisteHoldExpiry);
 
       // Check if redirect URL already available in create response
       let redirectUrl: string | null =
