@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth-store'
 import { formatCOP } from '@/lib/utils'
@@ -69,6 +69,7 @@ export function CashRegister() {
   const [isOpening, setIsOpening] = useState(false)
 
   // Movement dialog
+  const movementAmountRef = useRef<HTMLInputElement>(null)
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false)
   const [movementType, setMovementType] = useState<'entrada' | 'salida'>('entrada')
   const [movementAmount, setMovementAmount] = useState('')
@@ -576,7 +577,13 @@ export function CashRegister() {
 
       {/* Movement Dialog */}
       <Dialog open={isMovementDialogOpen} onOpenChange={setIsMovementDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            movementAmountRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {movementType === 'entrada' ? (
@@ -598,6 +605,7 @@ export function CashRegister() {
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                 <Input
+                  ref={movementAmountRef}
                   type="number"
                   min="1"
                   step="100"
