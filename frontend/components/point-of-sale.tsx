@@ -103,6 +103,7 @@ export function PointOfSale() {
   const barcodeBuffer = useRef('')
   const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [applyIva, setApplyIva] = useState(false)
+  const ivaGlobalEnabled = storeInfo.enableIva ?? false
   const [customer, setCustomer] = useState<Customer>({ name: '', phone: '', email: '' })
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
@@ -1048,25 +1049,27 @@ export function PointOfSale() {
                   />
                 </div>
 
-                {/* IVA Toggle */}
-                <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
-                  <div className="flex items-center gap-2">
-                    <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
-                    <div>
-                      <p className="text-xs font-medium">Factura Electrónica</p>
-                      <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+                {/* IVA Toggle — solo visible si IVA está habilitado globalmente */}
+                {ivaGlobalEnabled && (
+                  <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
+                    <div className="flex items-center gap-2">
+                      <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
+                      <div>
+                        <p className="text-xs font-medium">Factura Electrónica</p>
+                        <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+                      </div>
                     </div>
+                    <Button
+                      variant={applyIva ? 'default' : 'outline'}
+                      size="sm"
+                      className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
+                      onClick={() => setApplyIva(!applyIva)}
+                    >
+                      {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      {applyIva ? 'Con IVA' : 'Sin IVA'}
+                    </Button>
                   </div>
-                  <Button
-                    variant={applyIva ? 'default' : 'outline'}
-                    size="sm"
-                    className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
-                    onClick={() => setApplyIva(!applyIva)}
-                  >
-                    {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                    {applyIva ? 'Con IVA' : 'Sin IVA'}
-                  </Button>
-                </div>
+                )}
 
                 {/* Totals */}
                 <div className="space-y-1.5 sm:space-y-2 lg:space-y-3 border-t border-border pt-3 sm:pt-4">
@@ -1229,25 +1232,27 @@ export function PointOfSale() {
 
           {cart.length > 0 && (
             <div className="border-t p-4 space-y-3 bg-card">
-              {/* IVA Toggle Mobile */}
-              <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
-                <div className="flex items-center gap-2">
-                  <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
-                  <div>
-                    <p className="text-xs font-medium">Factura Electrónica</p>
-                    <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+              {/* IVA Toggle Mobile — solo visible si IVA está habilitado globalmente */}
+              {ivaGlobalEnabled && (
+                <div className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors ${applyIva ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-secondary/30'}`}>
+                  <div className="flex items-center gap-2">
+                    <Receipt className={`h-4 w-4 ${applyIva ? 'text-amber-600' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-xs font-medium">Factura Electrónica</p>
+                      <p className="text-[10px] text-muted-foreground">Aplica IVA 19%</p>
+                    </div>
                   </div>
+                  <Button
+                    variant={applyIva ? 'default' : 'outline'}
+                    size="sm"
+                    className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
+                    onClick={() => setApplyIva(!applyIva)}
+                  >
+                    {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                    {applyIva ? 'Con IVA' : 'Sin IVA'}
+                  </Button>
                 </div>
-                <Button
-                  variant={applyIva ? 'default' : 'outline'}
-                  size="sm"
-                  className={`h-7 gap-1 text-xs ${applyIva ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : ''}`}
-                  onClick={() => setApplyIva(!applyIva)}
-                >
-                  {applyIva ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                  {applyIva ? 'Con IVA' : 'Sin IVA'}
-                </Button>
-              </div>
+              )}
 
               {/* Totals */}
               <div className="space-y-1.5">

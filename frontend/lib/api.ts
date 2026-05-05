@@ -562,12 +562,14 @@ class ApiService {
     return this.request<{
       name: string; address: string; phone: string; taxId: string; email: string;
       invoiceLogo: string; invoiceGreeting: string; invoicePolicy: string; invoiceCopies: 1 | 2;
+      enableIva: boolean;
     }>('/dashboard/store-info')
   }
 
   async updateStoreInfo(data: {
     name?: string; address?: string; phone?: string; taxId?: string; email?: string;
     invoiceLogo?: string; invoiceGreeting?: string; invoicePolicy?: string; invoiceCopies?: 1 | 2;
+    enableIva?: boolean;
   }) {
     return this.request<{ message: string }>('/dashboard/store-info', {
       method: 'PUT',

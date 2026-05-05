@@ -2484,6 +2484,28 @@ CALL sp_migrations_v32();
 DROP PROCEDURE IF EXISTS sp_migrations_v32;
 
 -- ============================================
+-- Migration v33: Global IVA setting
+-- ============================================
+DROP PROCEDURE IF EXISTS sp_migrations_v33;
+
+DELIMITER //
+CREATE PROCEDURE sp_migrations_v33()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'enable_iva'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN enable_iva TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = IVA 19% habilitado globalmente para POS y pedidos online, 0 = sin IVA';
+    END IF;
+END //
+DELIMITER ;
+
+CALL sp_migrations_v33();
+DROP PROCEDURE IF EXISTS sp_migrations_v33;
+
+-- ============================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
 -- ============================================
 -- CREDENCIALES POR DEFECTO:

@@ -272,6 +272,7 @@ export interface StoreInfo {
   invoiceGreeting: string
   invoicePolicy: string
   invoiceCopies: 1 | 2
+  enableIva: boolean
 }
 
 export interface StockMovement {
