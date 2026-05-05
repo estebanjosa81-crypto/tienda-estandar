@@ -68,6 +68,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo')
   const [formaPago, setFormaPago] = useState<'contado' | 'credito'>('contado')
   const [creditDays, setCreditDays] = useState(30)
+  const ivaGlobalEnabled = storeInfo.enableIva ?? false
   const [applyIva, setApplyIva] = useState(false)
   const [amountPaid, setAmountPaid] = useState('')
   const [globalDiscountPct, setGlobalDiscountPct] = useState<number | ''>('')
@@ -746,7 +747,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                   className="h-8 text-xs bg-background border-border text-center"
                 />
               </div>
-            ) : (
+            ) : ivaGlobalEnabled ? (
               <div>
                 <label className="text-muted-foreground mb-1 block">IVA (19%)</label>
                 <button
@@ -758,11 +759,11 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
                   {applyIva ? '✓ Incluido' : 'Sin IVA'}
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
 
-          {/* IVA toggle when credit */}
-          {formaPago === 'credito' && (
+          {/* IVA toggle when credit — solo si IVA está habilitado globalmente */}
+          {formaPago === 'credito' && ivaGlobalEnabled && (
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Aplicar IVA (19%)</span>
               <button

@@ -278,7 +278,7 @@ export class DashboardService {
     invoiceCopies: 1 | 2;
   } | null> {
     const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT name, address, phone, tax_id, email, invoice_logo, invoice_greeting, invoice_policy, invoice_copies FROM store_info WHERE tenant_id = ? LIMIT 1',
+      'SELECT name, address, phone, tax_id, email, invoice_logo, invoice_greeting, invoice_policy, invoice_copies, enable_iva FROM store_info WHERE tenant_id = ? LIMIT 1',
       [tenantId]
     );
 
@@ -296,6 +296,7 @@ export class DashboardService {
       invoiceGreeting: rows[0].invoice_greeting || '¡Gracias por su compra!',
       invoicePolicy: rows[0].invoice_policy || '',
       invoiceCopies: (Number(rows[0].invoice_copies) === 2 ? 2 : 1) as 1 | 2,
+      enableIva: rows[0].enable_iva == null ? false : Boolean(rows[0].enable_iva),
     };
   }
 
@@ -309,6 +310,7 @@ export class DashboardService {
     invoiceGreeting?: string;
     invoicePolicy?: string;
     invoiceCopies?: 1 | 2;
+    enableIva?: boolean;
   }): Promise<void> {
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -323,6 +325,7 @@ export class DashboardService {
       invoiceGreeting: 'invoice_greeting',
       invoicePolicy: 'invoice_policy',
       invoiceCopies: 'invoice_copies',
+      enableIva: 'enable_iva',
     };
 
     for (const [key, value] of Object.entries(data)) {

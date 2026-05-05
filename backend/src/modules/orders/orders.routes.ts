@@ -1476,10 +1476,14 @@ router.put(
           [currentNumber, tenantId]
         );
 
-        // Calculate totals
+        // Calculate totals — respects global IVA setting
         const subtotal = orderItems.reduce((sum: number, item: any) => sum + Number(item.totalPrice), 0);
-        const taxRate = 0.19;
-        const tax = subtotal * taxRate;
+        const [ivaRows] = await connection.query(
+          'SELECT enable_iva FROM store_info WHERE tenant_id = ? LIMIT 1',
+          [tenantId]
+        ) as any;
+        const ivaEnabled = ivaRows.length > 0 && ivaRows[0].enable_iva != null ? Boolean(ivaRows[0].enable_iva) : false;
+        const tax = ivaEnabled ? Math.round(subtotal * 0.19 * 100) / 100 : 0;
         const total = subtotal + tax;
 
         // Check for active cash session

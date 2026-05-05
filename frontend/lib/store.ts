@@ -129,6 +129,7 @@ export const useStore = create<AppState>()(
         invoiceGreeting: '¡Gracias por su compra!',
         invoicePolicy: 'Cambios y devoluciones dentro de los 30 días con factura original.\nProducto en buen estado, sin uso y con etiquetas.',
         invoiceCopies: 1,
+        enableIva: false,
       },
       activeSection: 'dashboard',
       sidebarOpen: false,

@@ -100,7 +100,8 @@ export function Settings() {
     address: storeInfo.address,
     phone: storeInfo.phone,
     email: storeInfo.email,
-    taxId: storeInfo.taxId
+    taxId: storeInfo.taxId,
+    enableIva: storeInfo.enableIva ?? false,
   })
 
   const [profileForm, setProfileForm] = useState({
@@ -387,6 +388,22 @@ export function Settings() {
                     placeholder="Ej: 900.123.456-7"
                   />
                 </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">IVA (19%)</p>
+                  <p className="text-xs text-muted-foreground">Aplica IVA globalmente a ventas POS y pedidos online</p>
+                </div>
+                <Button
+                  type="button"
+                  variant={storeForm.enableIva ? 'default' : 'outline'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setStoreForm({ ...storeForm, enableIva: !storeForm.enableIva })}
+                >
+                  {storeForm.enableIva ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                  {storeForm.enableIva ? 'Habilitado' : 'Deshabilitado'}
+                </Button>
               </div>
               <Button onClick={handleSaveStore} className="gap-2">
                 {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}

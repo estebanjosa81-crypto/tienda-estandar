@@ -48,6 +48,7 @@ router.put(
   [
     body('name').optional().notEmpty().withMessage('El nombre no puede estar vacio'),
     body('email').optional().isEmail().withMessage('Email invalido'),
+    body('enableIva').optional().isBoolean().withMessage('enableIva debe ser boolean'),
     validateRequest,
   ],
   dashboardController.updateStoreInfo.bind(dashboardController)
