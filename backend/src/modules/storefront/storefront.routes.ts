@@ -761,7 +761,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.contact_page_image as contactPageImage,
                 si.contact_page_products as contactPageProducts,
                 si.contact_page_links as contactPageLinks,
-                si.show_sedes as showSedes
+                si.show_sedes as showSedes,
+                si.meta_pixel_id as metaPixelId
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -780,7 +781,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                   si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                   si.product_card_style as productCardStyle,
                   si.show_info_module as showInfoModule,
-                  si.info_module_description as infoModuleDescription
+                  si.info_module_description as infoModuleDescription,
+                  si.meta_pixel_id as metaPixelId
            FROM store_info si
            WHERE si.tenant_id = ?`,
           [tenantId]
@@ -1370,7 +1372,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
       contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage,
-      contactPageProducts, contactPageLinks, showSedes,
+      contactPageProducts, contactPageLinks, showSedes, metaPixelId,
     } = req.body;
 
     const allowCod = toBoolLike(allowContraentrega, true) ? 1 : 0;
@@ -1396,7 +1398,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           show_info_module = ?, info_module_description = ?,
           contact_page_enabled = ?, contact_page_title = ?, contact_page_description = ?,
           contact_page_image = ?, contact_page_products = ?, contact_page_links = ?,
-          show_sedes = ?
+          show_sedes = ?, meta_pixel_id = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
@@ -1406,7 +1408,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
           infoModule, infoModuleDescription || null,
           contactEnabled, contactPageTitle || null, contactPageDescription || null,
           contactPageImage || null, contactProducts, contactLinks, showSedesVal,
-          tenantId,
+          metaPixelId || null, tenantId,
         ]
       ) as any;
     } catch {

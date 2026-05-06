@@ -107,6 +107,7 @@ interface StoreExtendedInfo {
   contactPageProducts: string[]
   contactPageLinks: Array<{ label: string; url: string }>
   storeSlug?: string
+  metaPixelId: string
 }
 
 interface AnnouncementBar {
@@ -160,6 +161,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     allowContraentrega: true, showSedes: true, showInfoModule: false, infoModuleDescription: '',
     contactPageEnabled: false, contactPageTitle: '', contactPageDescription: '',
     contactPageImage: '', contactPageProducts: [], contactPageLinks: [], storeSlug: '',
+    metaPixelId: '',
   })
 
   // Chatbot config
@@ -267,6 +269,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               try { return JSON.parse(raw) } catch { return [] }
             })(),
             storeSlug: result.data.storeInfo.storeSlug || '',
+            metaPixelId: result.data.storeInfo.metaPixelId || '',
           })
         }
       }
@@ -1518,6 +1521,37 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Meta Pixel */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                    <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.19 2.23.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 008.44-9.9c0-5.53-4.5-10.02-10-10.02z"/>
+                  </svg>
+                  Píxel de Meta (Facebook Ads)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Ingresa tu ID de píxel para activar el seguimiento de visitas y clics a WhatsApp automáticamente en tu tienda.
+                </p>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">ID del Píxel</label>
+                  <Input
+                    placeholder="Ej: 1644717619981625"
+                    value={storeInfo.metaPixelId}
+                    onChange={e => setStoreInfo(prev => ({ ...prev, metaPixelId: e.target.value.trim() }))}
+                  />
+                </div>
+                {storeInfo.metaPixelId && (
+                  <p className="text-xs text-green-500 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    Píxel configurado. Los eventos PageView y Lead (WhatsApp) se dispararán en tu tienda.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

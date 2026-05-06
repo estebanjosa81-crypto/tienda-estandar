@@ -958,6 +958,7 @@ class ApiService {
     contactPageProducts?: string[];
     contactPageLinks?: Array<{ label: string; url: string }>;
     showSedes?: boolean;
+    metaPixelId?: string;
   }) {
     return this.request<any>('/storefront/store-extended-info', {
       method: 'PUT',

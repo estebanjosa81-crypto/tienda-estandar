@@ -183,7 +183,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       contactPageEnabled?: boolean | null; contactPageTitle?: string | null
       contactPageDescription?: string | null; contactPageImage?: string | null
       contactPageProducts?: string | null; contactPageLinks?: string | null
-      showSedes?: boolean | null
+      showSedes?: boolean | null; metaPixelId?: string | null
     } | null
     announcementBar: { text: string; linkUrl: string | null; bgColor: string; textColor: string; isActive: boolean } | null
     activeDrop: {
@@ -965,6 +965,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     fetchOffers()
   }, [selectedStore])
 
+  // ====== META PIXEL INITIALIZATION ======
+  useEffect(() => {
+    const pixelId = storeConfig?.storeInfo?.metaPixelId
+    if (!pixelId || typeof window === 'undefined') return
+    const w = window as any
+    if (w.fbq) return // already initialized
+    const n: any = (w.fbq = function (...args: any[]) {
+      n.callMethod ? n.callMethod.apply(n, args) : n.queue.push(args)
+    })
+    if (!w._fbq) w._fbq = n
+    n.push = n; n.loaded = true; n.version = '2.0'; n.queue = []
+    const s = document.createElement('script')
+    s.async = true
+    s.src = 'https://connect.facebook.net/en_US/fbevents.js'
+    document.head.appendChild(s)
+    w.fbq('init', pixelId)
+    w.fbq('track', 'PageView')
+  }, [storeConfig?.storeInfo?.metaPixelId])
+
+  const firePixelLead = () => {
+    const fbq = (window as any).fbq
+    if (typeof fbq !== 'function') return
+    fbq('track', 'Lead', { content_name: 'Click WhatsApp', value: 1, currency: 'COP' })
+  }
+
   // ====== FETCH STORE CONFIG (Hero Sections) ======
   // ── Dynamic favicon when a store is selected ──
   useEffect(() => {
@@ -1602,6 +1627,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       setPedidoConfirmado(pedido)
       setMostrarModalExito(true)
+      const fbq = (window as any).fbq
+      if (typeof fbq === 'function') fbq('track', 'Purchase', { value: totalConDescuento, currency: 'COP', content_name: 'Pedido completado' })
     } catch (error) {
       console.error('Error al procesar pedido:', error)
       alert('Error al procesar el pedido. Intenta de nuevo.')
@@ -2126,7 +2153,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </a>
               )}
               {storeConfig.storeInfo.socialWhatsapp && (
-                <a href={`https://wa.me/${storeConfig.storeInfo.socialWhatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="hover:opacity-60 transition-opacity">
+                <a href={`https://wa.me/${storeConfig.storeInfo.socialWhatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="hover:opacity-60 transition-opacity" onClick={firePixelLead}>
                   <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                   </svg>
@@ -4966,7 +4993,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </a>
                   )}
                   {storeConfig.storeInfo.socialWhatsapp && (
-                    <a href={`https://wa.me/${storeConfig.storeInfo.socialWhatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className={`transition-opacity hover:opacity-60 ${isLightBg ? 'text-black/75' : 'text-white/70'}`}>
+                    <a href={`https://wa.me/${storeConfig.storeInfo.socialWhatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className={`transition-opacity hover:opacity-60 ${isLightBg ? 'text-black/75' : 'text-white/70'}`} onClick={firePixelLead}>
                       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                       </svg>
@@ -5829,6 +5856,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-green-400/80 text-sm font-light hover:text-green-400 transition-colors"
+                      onClick={firePixelLead}
                     >
                       {storeConfig.storeInfo.socialWhatsapp}
                     </a>
@@ -6748,7 +6776,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   href={`https://api.whatsapp.com/send/?phone=${storeConfig.storeInfo.socialWhatsapp}&text=${encodeURIComponent(whatsappMessage)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => setShowWhatsappModal(false)}
+                  onClick={() => { setShowWhatsappModal(false); firePixelLead() }}
                   className="flex-1 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-semibold text-center transition-colors"
                 >
                   Enviar mensaje

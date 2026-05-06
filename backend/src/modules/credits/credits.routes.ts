@@ -38,7 +38,7 @@ router.post(
       .isFloat({ min: 0.01 })
       .withMessage('El monto debe ser mayor a 0'),
     body('paymentMethod')
-      .isIn(['efectivo', 'tarjeta', 'transferencia'])
+      .isIn(['efectivo', 'tarjeta', 'transferencia', 'addi', 'sistecredito', 'mercadopago'])
       .withMessage('Metodo de pago invalido'),
     body('notes').optional().isString().withMessage('Notas invalidas'),
     validateRequest,

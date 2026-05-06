@@ -4,7 +4,7 @@ export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL'
 
 export type ProductType = 'general' | 'alimentos' | 'bebidas' | 'ropa' | 'electronica' | 'farmacia' | 'ferreteria' | 'libreria' | 'juguetes' | 'cosmetica' | 'perfumes' | 'deportes' | 'hogar' | 'mascotas' | 'otros'
 
-export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'addi' | 'sistecredito' | 'mixto'
+export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'fiado' | 'addi' | 'sistecredito' | 'mercadopago' | 'mixto'
 
 export type StockStatus = 'suficiente' | 'bajo' | 'agotado'
 

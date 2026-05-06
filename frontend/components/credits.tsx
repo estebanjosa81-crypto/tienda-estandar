@@ -45,6 +45,9 @@ import {
   Check,
   Clock,
   AlertCircle,
+  Wallet,
+  ShoppingCart,
+  Smartphone,
 } from 'lucide-react'
 
 interface PendingCredit {
@@ -521,6 +524,9 @@ export function Credits() {
                           {payment.paymentMethod === 'efectivo' && <Banknote className="h-3 w-3" />}
                           {payment.paymentMethod === 'tarjeta' && <CreditCard className="h-3 w-3" />}
                           {payment.paymentMethod === 'transferencia' && <Building className="h-3 w-3" />}
+                          {payment.paymentMethod === 'addi' && <Wallet className="h-3 w-3" />}
+                          {payment.paymentMethod === 'sistecredito' && <Smartphone className="h-3 w-3" />}
+                          {payment.paymentMethod === 'mercadopago' && <ShoppingCart className="h-3 w-3" />}
                           <span>{formatDate(payment.createdAt)}</span>
                         </div>
                         <div className="text-right">
@@ -621,6 +627,30 @@ export function Credits() {
                 >
                   <Building className="h-5 w-5" />
                   <span className="text-xs">Transfer.</span>
+                </Button>
+                <Button
+                  variant={paymentMethod === 'addi' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => setPaymentMethod('addi')}
+                >
+                  <Wallet className="h-5 w-5" />
+                  <span className="text-xs">Addi</span>
+                </Button>
+                <Button
+                  variant={paymentMethod === 'sistecredito' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => setPaymentMethod('sistecredito')}
+                >
+                  <Smartphone className="h-5 w-5" />
+                  <span className="text-xs">Sistecredito</span>
+                </Button>
+                <Button
+                  variant={paymentMethod === 'mercadopago' ? 'default' : 'outline'}
+                  className="flex flex-col gap-1 h-auto py-3"
+                  onClick={() => setPaymentMethod('mercadopago')}
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  <span className="text-xs">Mercado Pago</span>
                 </Button>
               </div>
             </div>
