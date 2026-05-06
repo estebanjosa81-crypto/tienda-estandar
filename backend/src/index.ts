@@ -235,6 +235,7 @@ const startServer = async () => {
     } catch { /* already exists */ }
     await addCol(`ALTER TABLE storefront_orders ADD COLUMN gateway_payment_id VARCHAR(255) NULL COMMENT 'ID del pago en pasarela para reembolsos'`);
     await addCol(`ALTER TABLE storefront_orders ADD COLUMN refund_status VARCHAR(20) NULL COMMENT 'Estado del reembolso: NULL, pending, refunded, manual'`);
+    await addCol(`ALTER TABLE store_info ADD COLUMN meta_pixel_id VARCHAR(50) NULL DEFAULT NULL`);
 
     // Run AES encryption migration for existing plaintext sensitive data
     try {

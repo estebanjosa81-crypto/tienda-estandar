@@ -219,7 +219,7 @@ export class CreditsService {
     saleId: string,
     data: {
       amount: number;
-      paymentMethod: 'efectivo' | 'tarjeta' | 'transferencia';
+      paymentMethod: 'efectivo' | 'tarjeta' | 'transferencia' | 'addi' | 'sistecredito' | 'mercadopago';
       notes?: string;
     },
     userId: string | null
