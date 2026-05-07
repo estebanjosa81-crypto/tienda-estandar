@@ -587,7 +587,7 @@ CREATE TABLE IF NOT EXISTS credit_payments (
     sale_id VARCHAR(36) NOT NULL,
     customer_id VARCHAR(36) NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
-    payment_method ENUM('efectivo', 'tarjeta', 'transferencia') NOT NULL,
+    payment_method ENUM('efectivo', 'tarjeta', 'transferencia', 'addi', 'sistecredito', 'mercadopago') NOT NULL,
     receipt_number VARCHAR(20) NULL,
     notes TEXT NULL,
     received_by VARCHAR(36) NULL,

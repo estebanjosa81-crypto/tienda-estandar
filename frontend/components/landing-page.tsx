@@ -221,6 +221,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewSuccess, setReviewSuccess] = useState(false)
   const [reviewError, setReviewError] = useState('')
+  const [helpfulVotes, setHelpfulVotes] = useState<Set<string>>(new Set())
 
   // ====== DECANT STATE ======
   const DECANT_SIZES = ['5ml', '10ml', '30ml', '50ml'] as const
@@ -2907,6 +2908,221 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )
                 })()}
 
+                {/* ── Reviews — mobile ── */}
+                <div className={`pt-6 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+
+                  {/* Stats header */}
+                  {!reviewsLoading && productReviews.length > 0 && (() => {
+                    const avg = productReviews.reduce((s: number, r: any) => s + r.rating, 0) / productReviews.length
+                    return (
+                      <div className="mb-6 flex items-start gap-5">
+                        <div className="flex flex-col items-center min-w-[56px]">
+                          <span className={`text-4xl font-extralight tracking-tight ${isLightBg ? 'text-black/90' : 'text-white'}`}>{avg.toFixed(1)}</span>
+                          <div className="flex gap-0.5 mt-1">
+                            {[1,2,3,4,5].map(n => (
+                              <Star key={n} size={11} className={n <= Math.round(avg) ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/15' : 'text-white/15')} />
+                            ))}
+                          </div>
+                          <span className={`text-[9px] mt-0.5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{productReviews.length} reseña{productReviews.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          {[5,4,3,2,1].map(star => {
+                            const count = productReviews.filter((r: any) => r.rating === star).length
+                            const pct = Math.round(count / productReviews.length * 100)
+                            return (
+                              <div key={star} className="flex items-center gap-1.5">
+                                <span className={`text-[9px] w-2 shrink-0 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{star}</span>
+                                <Star size={8} className={isLightBg ? 'fill-black/20 text-black/20 shrink-0' : 'fill-white/20 text-white/20 shrink-0'} />
+                                <div className={`flex-1 h-1 rounded-full overflow-hidden ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`}>
+                                  <div className="h-full rounded-full bg-amber-400/60 transition-all duration-700" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className={`text-[9px] w-3 text-right shrink-0 ${isLightBg ? 'text-black/25' : 'text-white/25'}`}>{count}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Header + write button */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-xs uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                      {productReviews.length > 0 ? `${productReviews.length} reseña${productReviews.length !== 1 ? 's' : ''}` : 'Reseñas'}
+                    </h3>
+                    <button
+                      onClick={() => { setShowReviewForm(p => !p); setReviewSuccess(false); setReviewError('') }}
+                      className={`text-xs border px-3 py-1 rounded-full transition-colors ${isLightBg ? 'text-black/60 border-black/20 hover:bg-black/5' : 'text-white/60 border-white/20 hover:bg-white/5'}`}
+                    >
+                      {showReviewForm ? 'Cancelar' : '+ Escribir reseña'}
+                    </button>
+                  </div>
+
+                  {/* Review form — mobile */}
+                  {showReviewForm && !reviewSuccess && (
+                    <div className={`mb-5 p-4 rounded-xl border space-y-3 ${isLightBg ? 'border-black/10 bg-black/2' : 'border-white/8 bg-white/2'}`}>
+                      <div className="grid grid-cols-1 gap-3">
+                        <input
+                          className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
+                          placeholder="Tu nombre *"
+                          value={reviewForm.reviewerName}
+                          onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))}
+                        />
+                        <input
+                          type="email"
+                          className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
+                          placeholder="Email (opcional)"
+                          value={reviewForm.reviewerEmail}
+                          onChange={e => setReviewForm(p => ({ ...p, reviewerEmail: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))} className="transition-transform active:scale-90">
+                              <Star size={26} className={n <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/15' : 'text-white/15')} />
+                            </button>
+                          ))}
+                          <span className={`text-xs ml-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                            {['', 'Deficiente', 'Regular', 'Bueno', 'Muy bueno', 'Excelente'][reviewForm.rating]}
+                          </span>
+                        </div>
+                      </div>
+                      <input
+                        className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
+                        placeholder="Título (opcional)"
+                        value={reviewForm.title}
+                        onChange={e => setReviewForm(p => ({ ...p, title: e.target.value }))}
+                      />
+                      <textarea
+                        rows={3}
+                        className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors resize-none ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
+                        placeholder="Cuéntanos qué te pareció el producto..."
+                        value={reviewForm.body}
+                        onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
+                      />
+                      {reviewError && <p className="text-red-400 text-xs">{reviewError}</p>}
+                      <button
+                        disabled={reviewSubmitting || !reviewForm.reviewerName.trim()}
+                        onClick={async () => {
+                          const tenantId = selectedProduct?.tenantId || stores.find(s => s.slug === selectedStore)?.id
+                          if (!tenantId || !selectedProduct) { setReviewError('No se pudo identificar la tienda.'); return }
+                          setReviewSubmitting(true); setReviewError('')
+                          const res = await api.createReview({
+                            tenantId, productId: String(selectedProduct.id),
+                            reviewerName: reviewForm.reviewerName, reviewerEmail: reviewForm.reviewerEmail || undefined,
+                            rating: reviewForm.rating, title: reviewForm.title || undefined, body: reviewForm.body || undefined,
+                          })
+                          setReviewSubmitting(false)
+                          if (res.success) { setReviewSuccess(true); setShowReviewForm(false) }
+                          else { setReviewError(res.error || 'Error al enviar la reseña') }
+                        }}
+                        className={`w-full py-2.5 text-sm uppercase tracking-[0.15em] font-semibold rounded-lg disabled:opacity-40 transition-colors ${isLightBg ? 'bg-black text-white' : 'bg-white text-black'}`}
+                      >
+                        {reviewSubmitting ? 'Enviando…' : 'Enviar reseña'}
+                      </button>
+                    </div>
+                  )}
+
+                  {reviewSuccess && (
+                    <div className="mb-4 p-3 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 text-sm">
+                      Gracias por tu reseña. Será revisada pronto.
+                    </div>
+                  )}
+
+                  {/* Reviews list — mobile */}
+                  {reviewsLoading ? (
+                    <div className="space-y-3">
+                      {[1,2].map(i => (
+                        <div key={i} className={`p-4 rounded-xl border animate-pulse ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`w-8 h-8 rounded-full shrink-0 ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
+                            <div className="flex-1 space-y-1.5">
+                              <div className={`h-3 rounded w-24 ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
+                              <div className={`h-2 rounded w-16 ${isLightBg ? 'bg-black/6' : 'bg-white/6'}`} />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className={`h-2.5 rounded ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />
+                            <div className={`h-2.5 rounded w-4/5 ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : productReviews.length === 0 ? (
+                    <div className={`flex flex-col items-center py-8 gap-2 ${isLightBg ? 'text-black/25' : 'text-white/20'}`}>
+                      <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                      </svg>
+                      <p className="text-xs">Sé el primero en dejar una reseña</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {productReviews.map((r: any) => {
+                        const initials = r.reviewerName.trim().split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
+                        const ratingLabel = ['', 'Deficiente', 'Regular', 'Bueno', 'Muy bueno', 'Excelente'][r.rating] || ''
+                        const isHelpful = helpfulVotes.has(r.id)
+                        return (
+                          <div key={r.id} className={`p-4 rounded-xl border transition-colors ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                            <div className="flex items-start gap-2.5 mb-2.5">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 select-none ${isLightBg ? 'bg-black/8 text-black/50' : 'bg-white/10 text-white/60'}`}>{initials}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-sm font-medium ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{r.reviewerName}</span>
+                                  <span className="inline-flex items-center gap-0.5 text-[8px] text-green-400/70 border border-green-500/20 bg-green-500/6 px-1 py-0.5 rounded-full">
+                                    <svg className="w-1.5 h-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                    Verificado
+                                  </span>
+                                </div>
+                                <span className={`text-[9px] ${isLightBg ? 'text-black/25' : 'text-white/25'}`}>
+                                  {new Date(r.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <div className="flex gap-0.5">
+                                {[1,2,3,4,5].map(n => (
+                                  <Star key={n} size={12} className={n <= r.rating ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/12' : 'text-white/10')} />
+                                ))}
+                              </div>
+                              <span className={`text-xs font-medium ${isLightBg ? 'text-amber-600' : 'text-amber-400/80'}`}>{ratingLabel}</span>
+                            </div>
+                            {r.title && <p className={`text-sm font-medium mb-0.5 ${isLightBg ? 'text-black/75' : 'text-white/70'}`}>{r.title}</p>}
+                            {r.body && <p className={`text-sm leading-relaxed ${isLightBg ? 'text-black/55' : 'text-white/50'}`}>{r.body}</p>}
+                            {(r.imageUrl1 || r.imageUrl2) && (
+                              <div className="flex gap-2 mt-2">
+                                {r.imageUrl1 && <img src={r.imageUrl1} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
+                                {r.imageUrl2 && <img src={r.imageUrl2} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
+                              </div>
+                            )}
+                            {r.reply && (
+                              <div className={`mt-2 pl-2.5 border-l-2 py-1 ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
+                                <span className={`text-[9px] font-semibold uppercase tracking-widest block mb-0.5 ${isLightBg ? 'text-black/35' : 'text-white/35'}`}>Respuesta de la tienda</span>
+                                <p className={`text-xs leading-relaxed ${isLightBg ? 'text-black/50' : 'text-white/40'}`}>{r.reply}</p>
+                              </div>
+                            )}
+                            <div className="mt-2.5 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setHelpfulVotes(prev => { const next = new Set(prev); if (next.has(r.id)) next.delete(r.id); else next.add(r.id); return next })}
+                                className={`flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full border transition-all ${isHelpful
+                                  ? (isLightBg ? 'border-black/25 bg-black/6 text-black/55' : 'border-white/25 bg-white/6 text-white/55')
+                                  : (isLightBg ? 'border-black/10 text-black/25' : 'border-white/8 text-white/22')
+                                }`}
+                              >
+                                <svg className="w-2.5 h-2.5" fill={isHelpful ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.25M9 21H5.25a2.25 2.25 0 01-2.25-2.25V10.5a2.25 2.25 0 012.25-2.25H9" />
+                                </svg>
+                                {isHelpful ? 'Útil' : '¿Útil?'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
 
@@ -3522,11 +3738,69 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* ── Reviews section ── */}
               <div className="mt-20 pt-12 border-t border-white/5">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xs text-white/40 uppercase tracking-widest">Reseñas del producto</h3>
+
+                {/* Stats header */}
+                {!reviewsLoading && productReviews.length > 0 && (() => {
+                  const avg = productReviews.reduce((s: number, r: any) => s + r.rating, 0) / productReviews.length
+                  return (
+                    <div className="mb-10 flex flex-col sm:flex-row gap-6 sm:gap-10 items-start">
+                      {/* Score */}
+                      <div className="flex flex-col items-center min-w-[72px]">
+                        <span className={`text-5xl font-extralight tracking-tight ${isLightBg ? 'text-black/90' : 'text-white'}`}>
+                          {avg.toFixed(1)}
+                        </span>
+                        <div className="flex gap-0.5 mt-1.5">
+                          {[1,2,3,4,5].map(n => (
+                            <Star key={n} size={13} className={n <= Math.round(avg) ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/15' : 'text-white/15')} />
+                          ))}
+                        </div>
+                        <span className={`text-[10px] mt-1 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>
+                          {productReviews.length} reseña{productReviews.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {/* Distribution bars */}
+                      <div className="flex-1 space-y-1.5 w-full max-w-[220px]">
+                        {[5,4,3,2,1].map(star => {
+                          const count = productReviews.filter((r: any) => r.rating === star).length
+                          const pct = Math.round(count / productReviews.length * 100)
+                          return (
+                            <div key={star} className="flex items-center gap-2">
+                              <span className={`text-[10px] w-2.5 shrink-0 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{star}</span>
+                              <Star size={9} className={isLightBg ? 'fill-black/25 text-black/25 shrink-0' : 'fill-white/25 text-white/25 shrink-0'} />
+                              <div className={`flex-1 h-1 rounded-full overflow-hidden ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`}>
+                                <div
+                                  className="h-full rounded-full bg-amber-400/60 transition-all duration-700"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className={`text-[10px] w-4 text-right shrink-0 ${isLightBg ? 'text-black/25' : 'text-white/25'}`}>{count}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Verified badge */}
+                      <div className="flex items-center gap-1.5 text-[10px] border border-green-500/25 bg-green-500/8 text-green-400/70 px-3 py-1.5 rounded-full self-start whitespace-nowrap">
+                        <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-.723 3.065 3.745 3.745 0 01-3.065.723 3.745 3.745 0 01-3.068 1.593c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.065-.723 3.746 3.746 0 01-.723-3.065 3.745 3.745 0 01-1.593-3.068c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 01.723-3.065 3.745 3.745 0 013.065-.723A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.745 3.745 0 013.065.723 3.745 3.745 0 01.723 3.065A3.745 3.745 0 0121 12z" />
+                        </svg>
+                        Compras verificadas
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Section header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className={`text-xs uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                    {productReviews.length > 0
+                      ? `${productReviews.length} reseña${productReviews.length !== 1 ? 's' : ''}`
+                      : 'Reseñas del producto'}
+                  </h3>
                   <button
                     onClick={() => { setShowReviewForm(p => !p); setReviewSuccess(false); setReviewError('') }}
-                    className={`text-xs border px-3 py-1.5 transition-colors ${isLightBg ? 'text-black/70 border-black/20 hover:bg-black/5' : 'text-white/70 border-white/20 hover:bg-white/5'}`}
+                    className={`text-xs border px-3 py-1.5 rounded-full transition-colors ${isLightBg ? 'text-black/70 border-black/20 hover:bg-black/5' : 'text-white/70 border-white/20 hover:bg-white/5'}`}
                   >
                     {showReviewForm ? 'Cancelar' : '+ Escribir reseña'}
                   </button>
@@ -3534,23 +3808,23 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Review form */}
                 {showReviewForm && !reviewSuccess && (
-                  <div className="mb-8 p-4 border border-white/10 bg-white/3 space-y-4">
-                    <p className="text-sm text-white/60">Comparte tu experiencia con este producto</p>
+                  <div className={`mb-8 p-5 rounded-xl border space-y-4 ${isLightBg ? 'border-black/10 bg-black/2' : 'border-white/8 bg-white/2'}`}>
+                    <p className={`text-sm ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>Comparte tu experiencia con este producto</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu nombre *</label>
+                        <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tu nombre *</label>
                         <input
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
+                          className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
                           placeholder="Nombre"
                           value={reviewForm.reviewerName}
                           onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))}
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Email (opcional)</label>
+                        <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Email (opcional)</label>
                         <input
                           type="email"
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
+                          className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
                           placeholder="tu@email.com"
                           value={reviewForm.reviewerEmail}
                           onChange={e => setReviewForm(p => ({ ...p, reviewerEmail: e.target.value }))}
@@ -3558,40 +3832,45 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-2">Calificación *</label>
-                      <div className="flex gap-1">
-                        {[1,2,3,4,5].map(n => (
-                          <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))}>
-                            <Star size={22} className={n <= reviewForm.rating ? 'fill-current text-black' : 'text-black/20'} />
-                          </button>
-                        ))}
+                      <label className={`text-[10px] uppercase tracking-widest block mb-2 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Calificación *</label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))} className="transition-transform hover:scale-110 active:scale-95">
+                              <Star size={24} className={n <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/15' : 'text-white/15')} />
+                            </button>
+                          ))}
+                        </div>
+                        <span className={`text-xs ml-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                          {['', 'Deficiente', 'Regular', 'Bueno', 'Muy bueno', 'Excelente'][reviewForm.rating]}
+                        </span>
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Título (opcional)</label>
+                      <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Título (opcional)</label>
                       <input
-                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40"
+                        className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
                         placeholder="Resumen de tu reseña"
                         value={reviewForm.title}
                         onChange={e => setReviewForm(p => ({ ...p, title: e.target.value }))}
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu reseña</label>
+                      <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tu reseña</label>
                       <textarea
                         rows={3}
-                        className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/40 resize-none"
+                        className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none transition-colors resize-none ${isLightBg ? 'bg-white border-black/15 text-black placeholder:text-black/25 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder:text-white/20 focus:border-white/35'}`}
                         placeholder="Cuéntanos qué te pareció el producto..."
                         value={reviewForm.body}
                         onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Foto (opcional)</label>
+                      <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Foto (opcional)</label>
                       {reviewForm.imageUrl1 ? (
                         <div className="flex items-center gap-3">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover border border-white/10" />
+                          <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
                           <button
                             type="button"
                             onClick={() => setReviewForm(p => ({ ...p, imageUrl1: '' }))}
@@ -3601,9 +3880,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </button>
                         </div>
                       ) : (
-                        <label className={`flex items-center gap-2 cursor-pointer border border-dashed border-white/20 px-3 py-2.5 w-fit transition-colors hover:border-white/40 ${reviewImageUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                          <svg className="w-4 h-4 text-white/40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                          <span className="text-xs text-white/40">{reviewImageUploading ? 'Subiendo…' : 'Subir imagen'}</span>
+                        <label className={`flex items-center gap-2 cursor-pointer border border-dashed px-3 py-2.5 rounded-lg w-fit transition-colors ${reviewImageUploading ? 'opacity-50 pointer-events-none' : ''} ${isLightBg ? 'border-black/15 hover:border-black/30' : 'border-white/15 hover:border-white/30'}`}>
+                          <svg className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                          <span className={`text-xs ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{reviewImageUploading ? 'Subiendo…' : 'Subir imagen'}</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -3659,7 +3938,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           setReviewError(res.error || 'Error al enviar la reseña')
                         }
                       }}
-                      className={`w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${isLightBg ? 'bg-black text-white hover:bg-black/85' : 'bg-white text-black hover:bg-white/90'}`}
+                      className={`w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${isLightBg ? 'bg-black text-white hover:bg-black/85' : 'bg-white text-black hover:bg-white/90'}`}
                     >
                       {reviewSubmitting ? 'Enviando…' : 'Enviar reseña'}
                     </button>
@@ -3667,46 +3946,124 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 )}
 
                 {reviewSuccess && (
-                  <div className="mb-8 p-4 border border-green-500/30 bg-green-500/10 text-green-400 text-sm">
-                    Gracias por tu reseña. Sera revisada y publicada pronto.
+                  <div className="mb-8 p-4 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 text-sm">
+                    Gracias por tu reseña. Será revisada y publicada pronto.
                   </div>
                 )}
 
-                {/* Approved reviews list */}
+                {/* Reviews list */}
                 {reviewsLoading ? (
-                  <p className="text-white/30 text-sm">Cargando reseñas…</p>
-                ) : productReviews.length === 0 ? (
-                  <p className="text-white/20 text-sm">Este producto aún no tiene reseñas. ¡Sé el primero!</p>
-                ) : (
-                  <div className="space-y-4">
-                    {productReviews.map((r: any) => (
-                      <div key={r.id} className="p-4 border border-white/5 bg-white/2 space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div>
-                            <span className="text-sm font-medium text-white/80">{r.reviewerName}</span>
-                            <span className="text-xs text-white/30 ml-2">{new Date(r.createdAt).toLocaleDateString('es-CO')}</span>
-                          </div>
-                          <div className="flex gap-0.5">
-                            {[1,2,3,4,5].map(n => (
-                              <Star key={n} size={14} className={n <= r.rating ? 'fill-white text-white' : 'text-white/15'} />
-                            ))}
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => (
+                      <div key={i} className={`p-5 rounded-xl border animate-pulse ${isLightBg ? 'border-black/8' : 'border-white/5'}`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className={`w-9 h-9 rounded-full shrink-0 ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
+                          <div className="flex-1 space-y-2 pt-0.5">
+                            <div className={`h-3 rounded w-28 ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
+                            <div className={`h-2 rounded w-20 ${isLightBg ? 'bg-black/6' : 'bg-white/6'}`} />
                           </div>
                         </div>
-                        {r.title && <p className="text-sm font-medium text-white/70">{r.title}</p>}
-                        {r.body && <p className="text-sm text-white/50 leading-relaxed">{r.body}</p>}
-                        {(r.imageUrl1 || r.imageUrl2) && (
-                          <div className="flex gap-2 mt-1">
-                            {r.imageUrl1 && <img src={r.imageUrl1} alt="reseña" className="w-16 h-16 object-cover border border-white/10" />}
-                            {r.imageUrl2 && <img src={r.imageUrl2} alt="reseña" className="w-16 h-16 object-cover border border-white/10" />}
-                          </div>
-                        )}
-                        {r.reply && (
-                          <div className="mt-2 pl-3 border-l-2 border-white/20 text-xs text-white/40">
-                            <span className="text-white/60 font-medium">Respuesta de la tienda: </span>{r.reply}
-                          </div>
-                        )}
+                        <div className={`h-2.5 rounded w-24 mb-3 ${isLightBg ? 'bg-black/6' : 'bg-white/6'}`} />
+                        <div className="space-y-1.5">
+                          <div className={`h-2.5 rounded ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />
+                          <div className={`h-2.5 rounded w-4/5 ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />
+                        </div>
                       </div>
                     ))}
+                  </div>
+                ) : productReviews.length === 0 ? (
+                  <div className={`flex flex-col items-center py-10 gap-3 ${isLightBg ? 'text-black/25' : 'text-white/20'}`}>
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                    </svg>
+                    <p className="text-sm">Este producto aún no tiene reseñas. ¡Sé el primero!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {productReviews.map((r: any) => {
+                      const initials = r.reviewerName.trim().split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
+                      const ratingLabel = ['', 'Deficiente', 'Regular', 'Bueno', 'Muy bueno', 'Excelente'][r.rating] || ''
+                      const isHelpful = helpfulVotes.has(r.id)
+                      return (
+                        <div
+                          key={r.id}
+                          className={`p-5 rounded-xl border transition-all duration-200 ${isLightBg ? 'border-black/8 hover:border-black/15' : 'border-white/5 hover:border-white/10'}`}
+                        >
+                          {/* Header */}
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 select-none ${isLightBg ? 'bg-black/8 text-black/50' : 'bg-white/10 text-white/60'}`}>
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-sm font-medium ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{r.reviewerName}</span>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] text-green-400/70 border border-green-500/20 bg-green-500/6 px-1.5 py-0.5 rounded-full">
+                                  <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                  Verificado
+                                </span>
+                              </div>
+                              <span className={`text-[10px] ${isLightBg ? 'text-black/25' : 'text-white/25'}`}>
+                                {new Date(r.createdAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Stars + label */}
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <div className="flex gap-0.5">
+                              {[1,2,3,4,5].map(n => (
+                                <Star key={n} size={13} className={n <= r.rating ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/12' : 'text-white/10')} />
+                              ))}
+                            </div>
+                            <span className={`text-xs font-medium ${isLightBg ? 'text-amber-600' : 'text-amber-400/80'}`}>{ratingLabel}</span>
+                          </div>
+
+                          {r.title && <p className={`text-sm font-medium mb-1 ${isLightBg ? 'text-black/75' : 'text-white/70'}`}>{r.title}</p>}
+                          {r.body && <p className={`text-sm leading-relaxed ${isLightBg ? 'text-black/55' : 'text-white/50'}`}>{r.body}</p>}
+
+                          {(r.imageUrl1 || r.imageUrl2) && (
+                            <div className="flex gap-2 mt-3">
+                              {r.imageUrl1 && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={r.imageUrl1} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />
+                              )}
+                              {r.imageUrl2 && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={r.imageUrl2} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />
+                              )}
+                            </div>
+                          )}
+
+                          {r.reply && (
+                            <div className={`mt-3 pl-3 border-l-2 py-1.5 ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
+                              <span className={`text-[10px] font-semibold uppercase tracking-widest block mb-0.5 ${isLightBg ? 'text-black/35' : 'text-white/35'}`}>Respuesta de la tienda</span>
+                              <p className={`text-xs leading-relaxed ${isLightBg ? 'text-black/50' : 'text-white/40'}`}>{r.reply}</p>
+                            </div>
+                          )}
+
+                          {/* Helpful */}
+                          <div className="mt-3 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setHelpfulVotes(prev => {
+                                const next = new Set(prev)
+                                if (next.has(r.id)) next.delete(r.id); else next.add(r.id)
+                                return next
+                              })}
+                              className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full border transition-all duration-150 ${isHelpful
+                                ? (isLightBg ? 'border-black/25 bg-black/6 text-black/55' : 'border-white/25 bg-white/6 text-white/55')
+                                : (isLightBg ? 'border-black/10 text-black/25 hover:border-black/20 hover:text-black/45' : 'border-white/8 text-white/22 hover:border-white/18 hover:text-white/40')
+                              }`}
+                            >
+                              <svg className="w-3 h-3" fill={isHelpful ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.25M9 21H5.25a2.25 2.25 0 01-2.25-2.25V10.5a2.25 2.25 0 012.25-2.25H9" />
+                              </svg>
+                              {isHelpful ? 'Útil' : '¿Útil?'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
