@@ -65,6 +65,7 @@ import { departamentosMunicipios } from '@/constants'
 import { useAuthStore } from '@/lib/auth-store'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
 import { api } from '@/lib/api'
+import { getCloudinaryConfig } from '@/components/ui/cloudinary-upload'
 import type { ProductoCarrito, PedidoForm, PedidoConfirmado, CuponValidacion } from '@/types'
 
 interface LandingPageProps {
@@ -3892,8 +3893,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               if (!file) return
                               setReviewImageUploading(true)
                               try {
-                                const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || ''
-                                const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || ''
+                                const { cloudName, uploadPreset } = await getCloudinaryConfig()
+                                if (!cloudName || !uploadPreset) {
+                                  setReviewError('La tienda no tiene configurado el servicio de imágenes. Contacta al soporte.')
+                                  return
+                                }
                                 const formData = new FormData()
                                 formData.append('file', file)
                                 formData.append('upload_preset', uploadPreset)
@@ -3901,9 +3905,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 if (res.ok) {
                                   const data = await res.json()
                                   setReviewForm(p => ({ ...p, imageUrl1: data.secure_url }))
+                                } else {
+                                  const data = await res.json()
+                                  setReviewError(data?.error?.message || 'Error al subir la imagen')
                                 }
-                              } catch { /* noop */ }
-                              setReviewImageUploading(false)
+                              } catch {
+                                setReviewError('Error al subir la imagen. Intenta de nuevo.')
+                              } finally {
+                                setReviewImageUploading(false)
+                                e.target.value = ''
+                              }
                             }}
                           />
                         </label>
