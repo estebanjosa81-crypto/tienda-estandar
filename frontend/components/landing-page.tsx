@@ -3002,6 +3002,60 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         value={reviewForm.body}
                         onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
                       />
+                      <div>
+                        <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Foto (opcional)</label>
+                        {reviewForm.imageUrl1 ? (
+                          <div className="flex items-center gap-3">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
+                            <button
+                              type="button"
+                              onClick={() => setReviewForm(p => ({ ...p, imageUrl1: '' }))}
+                              className="text-xs text-white/40 hover:text-red-400 transition-colors"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        ) : (
+                          <label className={`flex items-center gap-2 cursor-pointer border border-dashed px-3 py-2.5 rounded-lg w-fit transition-colors ${reviewImageUploading ? 'opacity-50 pointer-events-none' : ''} ${isLightBg ? 'border-black/15 hover:border-black/30' : 'border-white/15 hover:border-white/30'}`}>
+                            <svg className={`w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                            <span className={`text-xs ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{reviewImageUploading ? 'Subiendo…' : 'Subir imagen'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                setReviewImageUploading(true)
+                                try {
+                                  const { cloudName, uploadPreset } = await getCloudinaryConfig()
+                                  if (!cloudName || !uploadPreset) {
+                                    setReviewError('La tienda no tiene configurado el servicio de imágenes. Contacta al soporte.')
+                                    return
+                                  }
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  formData.append('upload_preset', uploadPreset)
+                                  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: formData })
+                                  if (res.ok) {
+                                    const data = await res.json()
+                                    setReviewForm(p => ({ ...p, imageUrl1: data.secure_url }))
+                                  } else {
+                                    const data = await res.json()
+                                    setReviewError(data?.error?.message || 'Error al subir la imagen')
+                                  }
+                                } catch {
+                                  setReviewError('Error al subir la imagen. Intenta de nuevo.')
+                                } finally {
+                                  setReviewImageUploading(false)
+                                  e.target.value = ''
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
                       {reviewError && <p className="text-red-400 text-xs">{reviewError}</p>}
                       <button
                         disabled={reviewSubmitting || !reviewForm.reviewerName.trim()}
@@ -3013,6 +3067,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             tenantId, productId: String(selectedProduct.id),
                             reviewerName: reviewForm.reviewerName, reviewerEmail: reviewForm.reviewerEmail || undefined,
                             rating: reviewForm.rating, title: reviewForm.title || undefined, body: reviewForm.body || undefined,
+                            imageUrl1: reviewForm.imageUrl1 || undefined,
                           })
                           setReviewSubmitting(false)
                           if (res.success) { setReviewSuccess(true); setShowReviewForm(false) }
