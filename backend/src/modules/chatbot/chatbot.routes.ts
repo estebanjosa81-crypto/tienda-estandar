@@ -468,7 +468,7 @@ router.put('/notifications/read', authenticate, async (req: Request, res: Respon
 // PUBLIC (authenticated): GET Cloudinary config only
 // GET /api/chatbot/cloudinary-config
 // =============================================
-router.get('/cloudinary-config', authenticate, async (req: Request, res: Response) => {
+router.get('/cloudinary-config', async (req: Request, res: Response) => {
   try {
     const [rows] = await pool.query(
       "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset')"

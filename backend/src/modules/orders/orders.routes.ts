@@ -8,6 +8,7 @@ import { config } from '../../config/env';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import crypto from 'crypto';
 import { audit } from '../../utils/audit-logger';
+import { alegraService, AlegraInvoiceData } from '../alegra/alegra.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -1433,6 +1434,8 @@ router.put(
       );
 
       let invoiceNumber: string | null = null;
+      let alegraPayload: AlegraInvoiceData | null = null;
+      let saleIdForAlegra: string | null = null;
 
       // ================================================================
       // When marked as "entregado" → Generate sale + deduct stock
@@ -1560,6 +1563,26 @@ router.put(
           'UPDATE storefront_orders SET payment_method = ? WHERE id = ?',
           [`Factura: ${invoiceNumber}`, orderId]
         );
+
+        // Capturar datos para enviar a Alegra después del commit
+        saleIdForAlegra = saleId;
+        alegraPayload = {
+          tenantId,
+          saleId,
+          invoiceNumber: invoiceNumber!,
+          customerName: order.customer_name || 'Consumidor Final',
+          customerEmail: order.customer_email || undefined,
+          customerPhone: order.customer_phone || undefined,
+          customerCedula: order.customer_cedula || undefined,
+          date: new Date().toISOString().split('T')[0],
+          items: orderItems.map((item: any) => ({
+            name: item.productName,
+            quantity: item.quantity,
+            price: Number(item.totalPrice) / item.quantity,
+            applyTax: ivaEnabled,
+          })),
+          observations: `Pedido online ${order.order_number}`,
+        };
       }
 
       // ================================================================
@@ -1572,6 +1595,15 @@ router.put(
       }
 
       await connection.commit();
+
+      // Enviar factura electrónica a Alegra (no bloquea ni revierta la orden si falla)
+      if (alegraPayload && saleIdForAlegra) {
+        alegraService.createInvoice(alegraPayload)
+          .then(result => {
+            if (result) return alegraService.saveResult(saleIdForAlegra!, result);
+          })
+          .catch(err => console.error('[Alegra] Error al crear factura electrónica:', err));
+      }
 
       res.json({
         success: true,
