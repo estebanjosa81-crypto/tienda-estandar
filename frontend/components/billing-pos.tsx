@@ -338,49 +338,57 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     setIsProcessing(true)
 
-    const saleItems = billingLines.map((item) => {
-      const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
-      const discAmt = itemDiscounts[item.lineId] ?? 0
-      const lineTotal = effectivePrice * item.quantity
-      // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
-      // Sin Math.round para preservar precisión: 300/15300*100 = 1.9607... → backend calcula $300 exactos
-      const finalDiscountPct = lineTotal > 0 ? Math.min(100, (discAmt / lineTotal) * 100) : 0
-      return {
-        productId: item.product.id,
-        quantity: item.quantity,
-        unitPrice: effectivePrice,   // precio real que ve el cliente (override o precio por defecto)
-        discount: finalDiscountPct,
+    try {
+      const saleItems = billingLines.map((item) => {
+        const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
+        const discAmt = itemDiscounts[item.lineId] ?? 0
+        const lineTotal = effectivePrice * item.quantity
+        // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
+        // Sin Math.round para preservar precisión: 300/15300*100 = 1.9607... → backend calcula $300 exactos
+        const finalDiscountPct = lineTotal > 0 ? Math.min(100, (discAmt / lineTotal) * 100) : 0
+        return {
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: effectivePrice,   // precio real que ve el cliente (override o precio por defecto)
+          discount: finalDiscountPct,
+        }
+      })
+
+      const effectivePaymentMethod: PaymentMethod = formaPago === 'credito' ? 'fiado' : paymentMethod
+
+      const result = await addSale({
+        items: saleItems,
+        paymentMethod: effectivePaymentMethod,
+        amountPaid: paidAmount,
+        globalDiscount: Number(globalDiscountPct) || 0,
+        customerId: selectedCustomer?.id,
+        customerName: selectedCustomer?.name,
+        customerPhone: selectedCustomer?.phone,
+        applyTax: applyIva,
+        sedeId: sedeId || undefined,
+        creditDays: formaPago === 'credito' ? creditDays : undefined,
+        ...(paymentMethod === 'mixto' && {
+          mixedEfectivoAmount: parseFloat(mixtoAmount1) || 0,
+          mixedSecondMethod: mixtoMethod2,
+          mixedSecondAmount: parseFloat(mixtoAmount2) || 0,
+        }),
+      })
+
+      if (result.success && result.data) {
+        toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`)
+        try {
+          handlePrint(result.data)
+        } catch {
+          // Error de impresión no debe bloquear el flujo
+        }
+        handleNewInvoice()
+      } else {
+        toast.error(result.error || 'Error al guardar la factura')
       }
-    })
-
-    const effectivePaymentMethod: PaymentMethod = formaPago === 'credito' ? 'fiado' : paymentMethod
-
-    const result = await addSale({
-      items: saleItems,
-      paymentMethod: effectivePaymentMethod,
-      amountPaid: paidAmount,
-      globalDiscount: Number(globalDiscountPct) || 0,
-      customerId: selectedCustomer?.id,
-      customerName: selectedCustomer?.name,
-      customerPhone: selectedCustomer?.phone,
-      applyTax: applyIva,
-      sedeId: sedeId || undefined,
-      creditDays: formaPago === 'credito' ? creditDays : undefined,
-      ...(paymentMethod === 'mixto' && {
-        mixedEfectivoAmount: parseFloat(mixtoAmount1) || 0,
-        mixedSecondMethod: mixtoMethod2,
-        mixedSecondAmount: parseFloat(mixtoAmount2) || 0,
-      }),
-    })
-
-    setIsProcessing(false)
-
-    if (result.success && result.data) {
-      toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`)
-      handlePrint(result.data)
-      setTimeout(() => handleNewInvoice(), 800)
-    } else {
-      toast.error(result.error || 'Error al guardar la factura')
+    } catch {
+      toast.error('Error inesperado al guardar la factura')
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -499,7 +507,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     printWindow.document.write(`<html><head>
       <title>Factura ${sale.invoiceNumber}</title>
-      <script>window.onload = function() { window.focus(); window.print(); }</script>
+      <script>window.onload = function() { window.print(); window.close(); if (window.opener && !window.opener.closed) { window.opener.focus(); } }</script>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 72mm; margin: 0; padding: 2mm; color: #000; }
