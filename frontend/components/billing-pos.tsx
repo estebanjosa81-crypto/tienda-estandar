@@ -215,6 +215,17 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Re-enfocar el buscador de productos cuando la ventana de impresión se cierra
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data === 'billing-print-done') {
+        productSearchRef.current?.focus()
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   // ── Customer handlers ───────────────────────────────────────────────────────
   const handleCustomerSearch = async (query: string) => {
     setCustomerSearch(query)
@@ -381,7 +392,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       const result = await addSale(salePayload)
       if (result.success && result.data) {
         toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`, { id: toastId })
-        try { handlePrint(result.data) } catch {}
+        try { handlePrint(result.data) } catch { productSearchRef.current?.focus() }
       } else {
         toast.error(result.error || 'Error al guardar la factura', { id: toastId })
       }
@@ -505,7 +516,7 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
     printWindow.document.write(`<html><head>
       <title>Factura ${sale.invoiceNumber}</title>
-      <script>window.onload = function() { window.print(); window.close(); if (window.opener && !window.opener.closed) { window.opener.focus(); } }</script>
+      <script>window.onload = function() { window.print(); window.close(); if (window.opener && !window.opener.closed) { window.opener.focus(); window.opener.postMessage('billing-print-done', '*'); } }</script>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Courier New', Courier, monospace; font-size: 11px; width: 72mm; margin: 0; padding: 2mm; color: #000; }
