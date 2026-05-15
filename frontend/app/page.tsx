@@ -87,8 +87,9 @@ export default function Home() {
     }
   }, [isAuthenticated, user?.role, activeSection, setActiveSection])
 
-  // Block render until token is verified — prevents blocked users from seeing the UI
-  if (isCheckingAuth) {
+  // Mostrar spinner solo si no hay sesión cacheada — si hay usuario en localStorage,
+  // renderizar la app de inmediato y verificar el token en segundo plano
+  if (isCheckingAuth && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         {cachedStoreLogo ? (

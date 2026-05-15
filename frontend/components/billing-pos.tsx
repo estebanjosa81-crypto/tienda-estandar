@@ -102,7 +102,6 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
 
   // ── Sale state ──────────────────────────────────────────────────────────────
-  const [isProcessing, setIsProcessing] = useState(false)
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
   const [showAnularConfirm, setShowAnularConfirm] = useState(false)
 
@@ -336,59 +335,58 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       }
     }
 
-    setIsProcessing(true)
+    // Construir payload con el estado actual antes de resetear
+    const saleItems = billingLines.map((item) => {
+      const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
+      const discAmt = itemDiscounts[item.lineId] ?? 0
+      const lineTotal = effectivePrice * item.quantity
+      // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
+      // Sin Math.round para preservar precisión: 300/15300*100 = 1.9607... → backend calcula $300 exactos
+      const finalDiscountPct = lineTotal > 0 ? Math.min(100, (discAmt / lineTotal) * 100) : 0
+      return {
+        productId: item.product.id,
+        quantity: item.quantity,
+        unitPrice: effectivePrice,   // precio real que ve el cliente (override o precio por defecto)
+        discount: finalDiscountPct,
+      }
+    })
 
+    const effectivePaymentMethod: PaymentMethod = formaPago === 'credito' ? 'fiado' : paymentMethod
+
+    const salePayload = {
+      items: saleItems,
+      paymentMethod: effectivePaymentMethod,
+      amountPaid: paidAmount,
+      globalDiscount: Number(globalDiscountPct) || 0,
+      customerId: selectedCustomer?.id,
+      customerName: selectedCustomer?.name,
+      customerPhone: selectedCustomer?.phone,
+      applyTax: applyIva,
+      sedeId: sedeId || undefined,
+      creditDays: formaPago === 'credito' ? creditDays : undefined,
+      ...(paymentMethod === 'mixto' && {
+        mixedEfectivoAmount: parseFloat(mixtoAmount1) || 0,
+        mixedSecondMethod: mixtoMethod2,
+        mixedSecondAmount: parseFloat(mixtoAmount2) || 0,
+      }),
+    }
+
+    // Resetear formulario al instante — la closure captura el estado actual
+    // para que handlePrint use los datos correctos aunque el form ya esté limpio
+    handleNewInvoice()
+
+    // Guardar en segundo plano e imprimir al confirmar
+    const toastId = toast.loading('Guardando factura...')
     try {
-      const saleItems = billingLines.map((item) => {
-        const effectivePrice = itemPrices[item.lineId] ?? item.product.salePrice
-        const discAmt = itemDiscounts[item.lineId] ?? 0
-        const lineTotal = effectivePrice * item.quantity
-        // Descuento fijo → porcentaje para el backend (sobre el precio efectivo)
-        // Sin Math.round para preservar precisión: 300/15300*100 = 1.9607... → backend calcula $300 exactos
-        const finalDiscountPct = lineTotal > 0 ? Math.min(100, (discAmt / lineTotal) * 100) : 0
-        return {
-          productId: item.product.id,
-          quantity: item.quantity,
-          unitPrice: effectivePrice,   // precio real que ve el cliente (override o precio por defecto)
-          discount: finalDiscountPct,
-        }
-      })
-
-      const effectivePaymentMethod: PaymentMethod = formaPago === 'credito' ? 'fiado' : paymentMethod
-
-      const result = await addSale({
-        items: saleItems,
-        paymentMethod: effectivePaymentMethod,
-        amountPaid: paidAmount,
-        globalDiscount: Number(globalDiscountPct) || 0,
-        customerId: selectedCustomer?.id,
-        customerName: selectedCustomer?.name,
-        customerPhone: selectedCustomer?.phone,
-        applyTax: applyIva,
-        sedeId: sedeId || undefined,
-        creditDays: formaPago === 'credito' ? creditDays : undefined,
-        ...(paymentMethod === 'mixto' && {
-          mixedEfectivoAmount: parseFloat(mixtoAmount1) || 0,
-          mixedSecondMethod: mixtoMethod2,
-          mixedSecondAmount: parseFloat(mixtoAmount2) || 0,
-        }),
-      })
-
+      const result = await addSale(salePayload)
       if (result.success && result.data) {
-        toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`)
-        try {
-          handlePrint(result.data)
-        } catch {
-          // Error de impresión no debe bloquear el flujo
-        }
-        handleNewInvoice()
+        toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`, { id: toastId })
+        try { handlePrint(result.data) } catch {}
       } else {
-        toast.error(result.error || 'Error al guardar la factura')
+        toast.error(result.error || 'Error al guardar la factura', { id: toastId })
       }
     } catch {
-      toast.error('Error inesperado al guardar la factura')
-    } finally {
-      setIsProcessing(false)
+      toast.error('Error inesperado al guardar la factura', { id: toastId })
     }
   }
 
@@ -1249,12 +1247,12 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
               <Button
                 size="sm"
                 onClick={() => completedSale ? handlePrint(completedSale) : handleCompleteSale()}
-                disabled={isProcessing || billingLines.length === 0}
+                disabled={billingLines.length === 0}
                 className="h-9 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 whitespace-nowrap"
               >
                 <Printer className="h-3.5 w-3.5" />
-                {isProcessing ? 'Guardando...' : completedSale ? 'Reimprimir' : 'Guardar e Imprimir'}
-                {!isProcessing && <kbd className="ml-0.5 opacity-70 text-[10px]">F12</kbd>}
+                {completedSale ? 'Reimprimir' : 'Guardar e Imprimir'}
+                <kbd className="ml-0.5 opacity-70 text-[10px]">F12</kbd>
               </Button>
             </div>
           </div>
